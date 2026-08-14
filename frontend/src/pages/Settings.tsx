@@ -20,7 +20,17 @@ export default function Settings() {
           <p>版本：0.1.0</p>
           <p>协议：MIT</p>
           <Separator className="my-3" />
-          <p>API 文档：http://localhost:8000/docs</p>
+          <p>
+            API 文档：
+            <a
+              className="text-primary underline-offset-4 hover:underline"
+              href={`${window.location.protocol}//${window.location.hostname}:8000/docs`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              打开 Swagger 文档
+            </a>
+          </p>
         </CardContent>
       </Card>
     </div>
