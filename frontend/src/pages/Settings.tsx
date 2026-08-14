@@ -14,7 +14,7 @@ export default function Settings() {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>关于 AgentHub</CardTitle>
-          <CardDescription>企业级多智能体协作平台</CardDescription>
+          <CardDescription>多智能体协作平台</CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           <p>版本：0.1.0</p>

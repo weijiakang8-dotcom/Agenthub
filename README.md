@@ -1,4 +1,4 @@
-# AgentHub —— 企业级多智能体协作平台
+# AgentHub —— 多智能体协作平台
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
@@ -7,7 +7,7 @@
 
 ## 📖 项目简介
 
-AgentHub 是一个**企业级多智能体协作平台**，解决了 AI Agent 在 B 端落地时的三大痛点：
+AgentHub 是一个**多智能体协作平台**，解决了 AI Agent 在 B 端落地时的三大痛点：
 - 🔄 **长任务断点续跑** —— Agent 执行中途中断可从 Checkpoint 恢复
 - 🧑‍💼 **人机协同审核** —— 敏感操作（如发邮件）需人工批准，可扩展扣库存等场景
 - 📊 **执行轨迹可视化** —— 提供执行轨迹与工具调用审计（React Flow 决策树规划中）
