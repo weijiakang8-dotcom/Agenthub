@@ -17,6 +17,9 @@ psycopg[binary]
 # Web search fallback
 duckduckgo-search
 
+# Document parsing
+pypdf
+
 # 数据库迁移
 alembic
 

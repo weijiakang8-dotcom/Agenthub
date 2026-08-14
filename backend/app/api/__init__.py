@@ -7,6 +7,7 @@ from app.api.routes import (
     audit_logs,
     auth,
     conversations,
+    documents,
     eval as eval_routes,
     executions,
     models,
@@ -29,6 +30,7 @@ api_router.include_router(alert_rules.router)
 api_router.include_router(audit_logs.router)
 api_router.include_router(auth.router)
 api_router.include_router(conversations.router)
+api_router.include_router(documents.router)
 api_router.include_router(eval_routes.router)
 api_router.include_router(models.router)
 api_router.include_router(notifications.router)
