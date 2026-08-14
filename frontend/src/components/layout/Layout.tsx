@@ -7,7 +7,7 @@ import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 
 const titles: Record<string, string> = {
-  "/": "Dashboard",
+  "/": "工作区",
   "/workflows": "Workflows",
   "/workflows/editor": "工作流编辑器",
   "/executions": "Executions",

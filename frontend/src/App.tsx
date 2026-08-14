@@ -11,8 +11,6 @@ import Workflows from "@/pages/Workflows";
 import WorkflowEditor from "@/pages/WorkflowEditor";
 import Alerts from "@/pages/Alerts";
 import AlertRules from "@/pages/AlertRules";
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
 import Chat from "@/pages/Chat";
 import History from "@/pages/History";
 
@@ -25,25 +23,19 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route
-        element={
-          <RequireAuth>
-            <Layout />
-          </RequireAuth>
-        }
-      >
-        <Route index element={<Chat />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/workflows" element={<Workflows />} />
-        <Route path="/workflows/editor" element={<WorkflowEditor />} />
-        <Route path="/executions" element={<Executions />} />
-        <Route path="/executions/:id" element={<ExecutionDetail />} />
-        <Route path="/quality" element={<Quality />} />
-        <Route path="/alerts" element={<Alerts />} />
-        <Route path="/alerts/rules" element={<AlertRules />} />
-        <Route path="/settings" element={<Settings />} />
+      <Route element={<Layout />}>
+        <Route index element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/chat" element={<RequireAuth><Chat /></RequireAuth>} />
+        <Route path="/history" element={<RequireAuth><History /></RequireAuth>} />
+        <Route path="/workflows" element={<RequireAuth><Workflows /></RequireAuth>} />
+        <Route path="/workflows/editor" element={<RequireAuth><WorkflowEditor /></RequireAuth>} />
+        <Route path="/executions" element={<RequireAuth><Executions /></RequireAuth>} />
+        <Route path="/executions/:id" element={<RequireAuth><ExecutionDetail /></RequireAuth>} />
+        <Route path="/quality" element={<RequireAuth><Quality /></RequireAuth>} />
+        <Route path="/alerts" element={<RequireAuth><Alerts /></RequireAuth>} />
+        <Route path="/alerts/rules" element={<RequireAuth><AlertRules /></RequireAuth>} />
+        <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
       </Route>
     </Routes>
   );

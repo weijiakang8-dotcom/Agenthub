@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import uuid
+import random
+import redis.asyncio as aioredis
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -17,6 +19,8 @@ from app.core.security import (
 from app.database import master_session_factory
 from app.models import Organization, User, utcnow
 from app.api.deps import CurrentUserDep
+from app.config import settings
+from app.core.email import send_email
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -26,11 +30,13 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     full_name: str = ""
+    code: str = ""
 
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+    code: str = ""
 
 
 class UserRead(BaseModel):
@@ -64,11 +70,50 @@ class RefreshResponse(BaseModel):
     access_token: str
 
 
+class SendCodeRequest(BaseModel):
+    email: str
+
+
+async def _verify_code(email: str, code: str) -> bool:
+    client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    try:
+        stored = await client.get(f"auth:code:{email}")
+        return bool(stored and stored == code)
+    finally:
+        await client.aclose()
+
+
+async def _send_code(email: str) -> dict:
+    code = f"{random.randint(0, 999999):06d}"
+    client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    try:
+        await client.set(f"auth:code:{email}", code, ex=300)
+    finally:
+        await client.aclose()
+    result = await send_email(
+        email,
+        "AgentHub 登录验证码",
+        f"<p>你的验证码是：<strong>{code}</strong>，5 分钟内有效。</p>",
+    )
+    return result
+
+
+@router.post("/send-code")
+async def send_code(payload: SendCodeRequest) -> dict:
+    email = payload.email.strip().lower()
+    result = await _send_code(email)
+    if not result.get("ok"):
+        raise HTTPException(status_code=502, detail=result.get("error") or "Failed to send code")
+    return {"status": "ok"}
+
+
 @router.post("/register", response_model=AuthResponse, status_code=201)
 async def register(payload: RegisterRequest) -> AuthResponse:
     email = payload.email.strip().lower()
     if len(payload.password) < 8:
         raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
+    if not await _verify_code(email, payload.code):
+        raise HTTPException(status_code=401, detail="Invalid verification code")
 
     async with master_session_factory() as session:
         existing = await session.execute(select(User).where(User.email == email))
@@ -105,6 +150,8 @@ async def register(payload: RegisterRequest) -> AuthResponse:
 @router.post("/login", response_model=AuthResponse)
 async def login(payload: LoginRequest) -> AuthResponse:
     email = payload.email.strip().lower()
+    if not await _verify_code(email, payload.code):
+        raise HTTPException(status_code=401, detail="Invalid verification code")
     async with master_session_factory() as session:
         user = (
             await session.execute(select(User).where(User.email == email))
