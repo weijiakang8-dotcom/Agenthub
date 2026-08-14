@@ -6,6 +6,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Link } from "react-router-dom";
 
 export default function Settings() {
   return (
@@ -31,6 +32,30 @@ export default function Settings() {
               打开 Swagger 文档
             </a>
           </p>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>管理工具</CardTitle>
+          <CardDescription>工作流与执行的高级管理入口</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2 text-sm">
+          <Link className="text-primary underline-offset-4 hover:underline" to="/executions">
+            执行记录
+          </Link>
+          <Link className="text-primary underline-offset-4 hover:underline" to="/workflows">
+            工作流
+          </Link>
+          <Link className="text-primary underline-offset-4 hover:underline" to="/workflows/editor">
+            工作流编辑器
+          </Link>
+          <Link className="text-primary underline-offset-4 hover:underline" to="/alerts">
+            告警中心
+          </Link>
+          <Link className="text-primary underline-offset-4 hover:underline" to="/quality">
+            质量看板
+          </Link>
         </CardContent>
       </Card>
     </div>

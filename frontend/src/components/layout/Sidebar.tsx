@@ -1,28 +1,18 @@
 import { NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard,
-  BellRing,
-  GitBranch,
-  Gauge,
   LogOut,
-  PlaySquare,
+  MessageSquare,
   Settings,
   Sparkles,
-  Workflow,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { setAccessToken } from "@/lib/api";
 
 const items = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/workflows", label: "Workflows", icon: Workflow, end: false },
-  { to: "/workflows/editor", label: "工作流编辑器", icon: GitBranch, end: false },
-  { to: "/executions", label: "Executions", icon: PlaySquare, end: false },
-  { to: "/quality", label: "质量看板", icon: Gauge, end: false },
-  { to: "/alerts", label: "告警中心", icon: BellRing, end: false },
-  { to: "/alerts/rules", label: "告警规则", icon: BellRing, end: false },
+  { to: "/", label: "Chat", icon: MessageSquare, end: true },
+  { to: "/history", label: "History", icon: MessageSquare, end: false },
   { to: "/settings", label: "Settings", icon: Settings, end: false },
 ];
 
