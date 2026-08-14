@@ -15,11 +15,16 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
+      - name: Install test dependency
+        run: pip install pytest
       - name: Compile and import smoke test
         working-directory: backend
         run: |
           python -m compileall app
           python -c "from app.main import app; assert app.title == 'AgentHub API'"
+      - name: Run backend tests
+        working-directory: backend
+        run: pytest -q
 
   frontend:
     runs-on: ubuntu-latest
