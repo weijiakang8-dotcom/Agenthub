@@ -1,0 +1,19 @@
+import uuid
+
+from sqlalchemy import JSON, ForeignKey, String, Uuid
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+
+
+class Conversation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "conversations"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False, default="新对话")
+    messages: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

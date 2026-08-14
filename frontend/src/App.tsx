@@ -13,6 +13,8 @@ import Alerts from "@/pages/Alerts";
 import AlertRules from "@/pages/AlertRules";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import Chat from "@/pages/Chat";
+import History from "@/pages/History";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = getAccessToken();
@@ -32,7 +34,8 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<Chat />} />
+        <Route path="/history" element={<History />} />
         <Route path="/workflows" element={<Workflows />} />
         <Route path="/workflows/editor" element={<WorkflowEditor />} />
         <Route path="/executions" element={<Executions />} />

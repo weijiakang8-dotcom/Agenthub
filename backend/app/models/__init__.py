@@ -16,6 +16,7 @@ from app.models.workflow_version import WorkflowVersion
 from app.models.intervention_log import InterventionLog
 from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
+from app.models.conversation import Conversation
 
 __all__ = [
     "Base",
@@ -37,4 +38,5 @@ __all__ = [
     "InterventionLog",
     "AlertEvent",
     "AlertRule",
+    "Conversation",
 ]
