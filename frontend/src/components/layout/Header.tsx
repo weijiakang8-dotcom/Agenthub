@@ -29,11 +29,11 @@ export function Header({
         >
           <Menu className="h-4 w-4" />
         </Button>
-        <span className="text-sm font-semibold tracking-tight text-primary">
+        <span className="hidden text-sm font-semibold tracking-tight text-primary sm:inline">
           AgentHub
         </span>
-        <span className="text-slate-300">/</span>
-        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+        <span className="hidden text-slate-300 sm:inline">/</span>
+        <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
       </div>
 
       <div className="flex items-center gap-2">

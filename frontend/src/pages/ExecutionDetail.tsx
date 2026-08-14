@@ -201,7 +201,7 @@ export default function ExecutionDetail() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -322,7 +322,7 @@ export default function ExecutionDetail() {
                   onChange={(e) => setModifiedPlan(e.target.value)}
                   placeholder="修改 Agent 的下一步计划…"
                 />
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
                     className="flex-1"

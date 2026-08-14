@@ -52,14 +52,14 @@ export default function Executions() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="type-h2">执行记录</h2>
           <p className="type-body text-muted-foreground">
             追踪所有 AI 工作流的运行状态
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
+        <Button onClick={() => setDialogOpen(true)} className="w-full sm:w-auto">
           <Plus className="h-4 w-4" />
           新建执行
         </Button>

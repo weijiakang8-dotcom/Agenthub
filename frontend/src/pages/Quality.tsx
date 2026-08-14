@@ -60,7 +60,7 @@ export default function Quality() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="type-h2">质量看板</h2>
           <p className="type-body text-muted-foreground">

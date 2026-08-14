@@ -48,11 +48,15 @@ export default function Dashboard() {
             rows={4}
             className="min-h-24 resize-none border-0 bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
           />
-          <div className="flex items-center justify-between gap-3 px-2 pb-1">
+          <div className="flex flex-col gap-2 px-2 pb-1 sm:flex-row sm:items-center sm:justify-between">
             <span className="type-caption text-muted-foreground">
               回车后选择工作流并启动
             </span>
-            <Button type="submit" disabled={!draft.trim()}>
+            <Button
+              type="submit"
+              disabled={!draft.trim()}
+              className="w-full sm:w-auto"
+            >
               <Sparkles className="h-4 w-4" />
               开始执行
             </Button>
