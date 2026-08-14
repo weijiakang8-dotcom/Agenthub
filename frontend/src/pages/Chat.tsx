@@ -17,6 +17,7 @@ export default function Chat() {
   const [sending, setSending] = useState(false);
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [details, setDetails] = useState<ExecutionDetail | null>(null);
+  const [modifiedPlan, setModifiedPlan] = useState("");
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -144,6 +145,15 @@ export default function Chat() {
     setSending(false);
   }
 
+  async function refreshDetails() {
+    if (!executionId) return;
+    try {
+      setDetails(await api.getExecution(executionId));
+    } catch {
+      setDetails(null);
+    }
+  }
+
   return (
     <div className="mx-auto flex h-[calc(100vh-7rem)] max-w-3xl flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto py-4">
@@ -175,6 +185,58 @@ export default function Chat() {
                           {tc.tool_name} · {tc.status}
                         </p>
                       ))}
+                      {details.status === "waiting_for_approval" ? (
+                        <div className="mt-2 space-y-2">
+                          <textarea
+                            value={modifiedPlan}
+                            onChange={(e) => setModifiedPlan(e.target.value)}
+                            className="w-full rounded-md border p-2 text-xs"
+                            rows={2}
+                            placeholder="修改 Agent 的下一步计划…"
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              onClick={async () => {
+                                await api.intervene(executionId!, {
+                                  operator: "user",
+                                  action: "approved",
+                                });
+                                await refreshDetails();
+                              }}
+                            >
+                              批准执行
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={async () => {
+                                await api.intervene(executionId!, {
+                                  operator: "user",
+                                  action: "modified",
+                                  modified_plan: modifiedPlan,
+                                });
+                                await refreshDetails();
+                              }}
+                            >
+                              按修改执行
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={async () => {
+                                await api.intervene(executionId!, {
+                                  operator: "user",
+                                  action: "terminate",
+                                });
+                                await refreshDetails();
+                              }}
+                            >
+                              终止任务
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   </details>
                 ) : null}
