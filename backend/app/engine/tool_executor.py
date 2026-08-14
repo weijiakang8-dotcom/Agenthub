@@ -6,7 +6,7 @@ from typing import Any
 
 from app.database import async_session_factory
 from app.engine.tool_registry import get_tool
-from app.models import ToolCall, utcnow
+from app.models import Execution, ToolCall, utcnow
 from app.models.enums import ToolCallStatus
 
 
@@ -19,12 +19,14 @@ async def create_tool_call(
 ) -> ToolCall:
     """创建 pending 状态的 ToolCall 审计记录。"""
     async with async_session_factory() as session:
+        execution = await session.get(Execution, uuid.UUID(str(execution_id)))
         tool_call = ToolCall(
             execution_id=uuid.UUID(str(execution_id)),
             tool_name=tool_name,
             input_params=params or {},
             status=ToolCallStatus.PENDING,
             requires_approval=requires_approval,
+            organization_id=execution.organization_id if execution else None,
         )
         session.add(tool_call)
         await session.commit()

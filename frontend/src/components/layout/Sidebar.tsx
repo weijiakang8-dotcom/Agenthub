@@ -1,9 +1,11 @@
 import { NavLink } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   BellRing,
   GitBranch,
   Gauge,
+  LogOut,
   PlaySquare,
   Settings,
   Sparkles,
@@ -11,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { setAccessToken } from "@/lib/api";
 
 const items = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -24,6 +27,8 @@ const items = [
 ];
 
 export function Sidebar() {
+  const navigate = useNavigate();
+
   return (
     <div className="flex h-full w-60 flex-col border-r bg-white">
       <div className="flex h-14 items-center gap-2 border-b px-4">
@@ -52,8 +57,19 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t p-3 text-xs text-muted-foreground">
-        v0.1.0 · MIT
+      <div className="space-y-2 border-t p-3">
+        <button
+          type="button"
+          onClick={() => {
+            setAccessToken(null);
+            navigate("/login");
+          }}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          退出登录
+        </button>
+        <p className="text-xs text-muted-foreground">v0.1.0 · MIT</p>
       </div>
     </div>
   );
