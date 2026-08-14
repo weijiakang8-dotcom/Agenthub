@@ -27,7 +27,8 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ghcr.io/weijiakang/agenthub-frontend:latest
+          image: weijiakang/agenthub-frontend:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
           readinessProbe:

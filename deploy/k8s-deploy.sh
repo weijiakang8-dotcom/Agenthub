@@ -14,9 +14,10 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 
 echo "准备 K8s manifests（镜像: ${REGISTRY}/${ORG}/agenthub-*:${TAG}）"
 cp "$ROOT_DIR"/k8s/*.yaml "$WORK_DIR"/
+rm -f "$WORK_DIR/01-secrets.example.yaml" "$WORK_DIR/external-secret.example.yaml"
 
-find "$WORK_DIR" -name '*.yaml' -print0 | xargs -0 sed -i \
-  -e "s|ghcr.io/weijiakang|${REGISTRY}/${ORG}|g" \
+find "$WORK_DIR" -name '*.yaml' -print0 | xargs -0 perl -pi \
+  -e "s|ghcr.io/weijiakang|${REGISTRY}/${ORG}|g;" \
   -e "s|:latest|:${TAG}|g"
 
 echo "创建 namespace"
