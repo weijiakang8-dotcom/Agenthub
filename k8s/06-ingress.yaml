@@ -18,6 +18,13 @@ spec:
                 name: backend
                 port:
                   number: 8000
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
           - path: /
             pathType: Prefix
             backend:
