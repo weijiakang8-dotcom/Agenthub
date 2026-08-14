@@ -27,7 +27,8 @@ spec:
     spec:
       initContainers:
         - name: migrate
-          image: ghcr.io/weijiakang/agenthub-backend:latest
+          image: weijiakang/agenthub-backend:latest
+          imagePullPolicy: IfNotPresent
           command: ["alembic", "upgrade", "head"]
           envFrom:
             - configMapRef:
@@ -36,7 +37,8 @@ spec:
                 name: agenthub-secrets
       containers:
         - name: api
-          image: ghcr.io/weijiakang/agenthub-backend:latest
+          image: weijiakang/agenthub-backend:latest
+          imagePullPolicy: IfNotPresent
           command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
           ports:
             - containerPort: 8000
@@ -75,7 +77,8 @@ spec:
     spec:
       containers:
         - name: worker
-          image: ghcr.io/weijiakang/agenthub-backend:latest
+          image: weijiakang/agenthub-backend:latest
+          imagePullPolicy: IfNotPresent
           command: ["celery", "-A", "app.engine.tasks", "worker", "--loglevel=info"]
           envFrom:
             - configMapRef:
