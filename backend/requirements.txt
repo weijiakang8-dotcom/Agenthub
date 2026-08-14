@@ -12,6 +12,7 @@ langchain-openai
 # PostgreSQL 异步 ORM
 asyncpg
 sqlalchemy[asyncio]
+psycopg[binary]
 
 # 数据库迁移
 alembic
