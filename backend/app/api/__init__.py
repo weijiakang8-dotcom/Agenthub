@@ -11,6 +11,7 @@ from app.api.routes import (
     models,
     tasks,
     tool_calls,
+    usage,
     workflow_templates,
     workflows,
 )
@@ -27,6 +28,7 @@ api_router.include_router(auth.router)
 api_router.include_router(conversations.router)
 api_router.include_router(eval_routes.router)
 api_router.include_router(models.router)
+api_router.include_router(usage.router)
 api_router.include_router(tasks.router)
 api_router.include_router(workflow_templates.router)
 

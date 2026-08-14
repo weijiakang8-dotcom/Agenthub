@@ -8,6 +8,7 @@ from langgraph.errors import GraphInterrupt
 from langgraph.types import Command
 
 from app.database import async_session_factory
+from app.core.billing import record_execution_usage
 from app.engine.checkpoint import get_checkpoint_manager
 from app.engine.event_bus import publish_execution_event
 from app.engine.graph import build_graph
@@ -153,6 +154,7 @@ async def run_execution(execution_id: uuid.UUID) -> None:
             ExecutionStatus.COMPLETED,
             final_output=result.get("final_output"),
         )
+        await record_execution_usage(execution_id)
         await publish_execution_event(
             str(execution_id),
             {"event": "execution_completed", "final_output": result.get("final_output")},
@@ -202,6 +204,7 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
             ExecutionStatus.COMPLETED,
             final_output=result.get("final_output"),
         )
+        await record_execution_usage(execution_id)
         await publish_execution_event(
             str(execution_id),
             {"event": "execution_completed", "final_output": result.get("final_output")},
