@@ -29,18 +29,16 @@ const NODE_TYPES = [
   { type: "analyze", label: "Analyze Agent", icon: Brain, color: "#8b5cf6" },
   { type: "execute", label: "Execute Agent", icon: Zap, color: "#10b981" },
   { type: "condition", label: "Condition Node", icon: GitBranch, color: "#f59e0b" },
-  { type: "human_approval", label: "Human Approval Node", icon: UserCheck, color: "#ef4444" },
+  { type: "human_approval", label: "Human Approval", icon: UserCheck, color: "#ef4444" },
 ];
 
 const TOOLS = ["search_web", "query_db", "send_email"];
 
 function WorkflowNode({ data }: NodeProps) {
   const meta = NODE_TYPES.find((n) => n.type === data.type);
+
   return (
-    <div
-      className="rounded-xl border-2 bg-white px-4 py-2 text-sm shadow-sm"
-      style={{ borderColor: meta?.color ?? "#cbd5e1" }}
-    >
+    <div className="rounded-md border bg-card px-4 py-2 text-sm shadow-xs">
       <Handle type="target" position={Position.Top} />
       <div className="flex items-center gap-2 font-medium">
         {meta ? <meta.icon className="h-4 w-4" style={{ color: meta.color }} /> : null}
@@ -70,6 +68,7 @@ export default function WorkflowEditor() {
     const type = event.dataTransfer.getData("application/reactflow");
     const meta = NODE_TYPES.find((n) => n.type === type);
     if (!meta) return;
+
     setNodes((nds) => [
       ...nds,
       {
@@ -107,7 +106,9 @@ export default function WorkflowEditor() {
   }
 
   function exportJson() {
-    const blob = new Blob([JSON.stringify(dagPayload(), null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(dagPayload(), null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -119,7 +120,9 @@ export default function WorkflowEditor() {
   function updateSelected(patch: Record<string, unknown>) {
     if (!selected) return;
     setNodes((nds) =>
-      nds.map((n) => (n.id === selected.id ? { ...n, data: { ...n.data, ...patch } } : n)),
+      nds.map((n) =>
+        n.id === selected.id ? { ...n, data: { ...n.data, ...patch } } : n,
+      ),
     );
     setSelected((s) => (s ? { ...s, data: { ...s.data, ...patch } } : s));
   }
@@ -133,17 +136,20 @@ export default function WorkflowEditor() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] gap-4">
-      <Card className="w-52 shrink-0 shadow-sm">
-        <CardHeader><CardTitle className="text-sm">节点库</CardTitle></CardHeader>
+    <div className="flex h-[calc(100vh-7rem)] min-h-[560px] gap-4">
+      <Card className="w-56 shrink-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="type-label">节点库</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-2">
           {NODE_TYPES.map((n) => (
             <div
               key={n.type}
               draggable
-              onDragStart={(e) => e.dataTransfer.setData("application/reactflow", n.type)}
-              className="flex cursor-grab items-center gap-2 rounded-lg border p-2 text-sm"
-              style={{ borderColor: n.color }}
+              onDragStart={(e) =>
+                e.dataTransfer.setData("application/reactflow", n.type)
+              }
+              className="flex cursor-grab items-center gap-2 rounded-md border bg-card p-2 text-sm transition-colors hover:bg-muted/50"
             >
               <n.icon className="h-4 w-4" style={{ color: n.color }} />
               {n.label}
@@ -153,7 +159,7 @@ export default function WorkflowEditor() {
       </Card>
 
       <div
-        className="flex-1 rounded-xl border bg-white shadow-sm"
+        className="min-w-0 flex-1 overflow-hidden rounded-lg border bg-background"
         onDrop={onDrop}
         onDragOver={(e) => e.preventDefault()}
       >
@@ -172,34 +178,63 @@ export default function WorkflowEditor() {
         </ReactFlow>
       </div>
 
-      <Card className="w-72 shrink-0 shadow-sm">
-        <CardHeader><CardTitle className="text-sm">属性</CardTitle></CardHeader>
+      <Card className="w-80 shrink-0 shadow-sm">
+        <CardHeader>
+          <CardTitle className="type-label">属性</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
             <Label>工作流名称</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
+
           {selected ? (
             <>
               <div className="space-y-2">
                 <Label>节点名称</Label>
-                <Input value={String(selected.data.label ?? "")} onChange={(e) => updateSelected({ label: e.target.value })} />
+                <Input
+                  value={String(selected.data.label ?? "")}
+                  onChange={(e) => updateSelected({ label: e.target.value })}
+                />
               </div>
+
               <div className="space-y-2">
                 <Label>System Prompt</Label>
-                <Textarea value={String(selected.data.system_prompt ?? "")} onChange={(e) => updateSelected({ system_prompt: e.target.value })} />
+                <Textarea
+                  value={String(selected.data.system_prompt ?? "")}
+                  onChange={(e) =>
+                    updateSelected({ system_prompt: e.target.value })
+                  }
+                />
               </div>
+
               {selected.data.type === "condition" ? (
                 <div className="space-y-2">
                   <Label>条件表达式</Label>
-                  <Input placeholder="例如 len(final_output) > 100" value={String(selected.data.condition ?? "")} onChange={(e) => updateSelected({ condition: e.target.value })} />
+                  <Input
+                    placeholder="例如 len(final_output) > 100"
+                    value={String(selected.data.condition ?? "")}
+                    onChange={(e) =>
+                      updateSelected({ condition: e.target.value })
+                    }
+                  />
                 </div>
               ) : (
                 <div className="space-y-2">
                   <Label>关联工具</Label>
                   {TOOLS.map((tool) => (
-                    <label key={tool} className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={((selected.data.tools as string[]) ?? []).includes(tool)} onChange={() => toggleTool(tool)} />
+                    <label
+                      key={tool}
+                      className="flex items-center gap-2 text-sm text-muted-foreground"
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-primary"
+                        checked={((selected.data.tools as string[]) ?? []).includes(
+                          tool,
+                        )}
+                        onChange={() => toggleTool(tool)}
+                      />
                       {tool}
                     </label>
                   ))}
@@ -207,13 +242,26 @@ export default function WorkflowEditor() {
               )}
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">点击画布节点查看配置</p>
+            <p className="text-sm text-muted-foreground">
+              点击画布节点查看配置
+            </p>
           )}
+
           <div className="flex gap-2">
-            <Button className="flex-1" onClick={save}>保存工作流</Button>
-            <Button variant="outline" onClick={exportJson}>导出</Button>
+            <Button className="flex-1" onClick={save}>
+              保存工作流
+            </Button>
+            <Button variant="outline" onClick={exportJson}>
+              导出
+            </Button>
           </div>
-          <Button variant="secondary" className="w-full" onClick={() => navigate("/executions")}>去执行</Button>
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={() => navigate("/executions")}
+          >
+            去执行
+          </Button>
         </CardContent>
       </Card>
     </div>

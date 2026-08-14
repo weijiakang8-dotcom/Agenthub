@@ -6,33 +6,33 @@ export const STATUS_META: Record<
 > = {
   pending: {
     label: "待处理",
-    className: "bg-slate-100 text-slate-600",
-    dot: "bg-slate-400",
+    className: "bg-muted text-muted-foreground",
+    dot: "bg-muted-foreground",
   },
   running: {
     label: "运行中",
-    className: "bg-amber-100 text-amber-700",
-    dot: "bg-amber-500",
+    className: "bg-agent-running/10 text-agent-running",
+    dot: "bg-agent-running",
   },
   waiting_for_approval: {
     label: "待审核",
-    className: "bg-purple-100 text-purple-700",
-    dot: "bg-purple-500",
+    className: "bg-agent-waiting/10 text-agent-waiting",
+    dot: "bg-agent-waiting",
   },
   completed: {
     label: "已完成",
-    className: "bg-emerald-100 text-emerald-700",
-    dot: "bg-emerald-500",
+    className: "bg-agent-completed/10 text-agent-completed",
+    dot: "bg-agent-completed",
   },
   failed: {
     label: "失败",
-    className: "bg-red-100 text-red-700",
-    dot: "bg-red-500",
+    className: "bg-agent-failed/10 text-agent-failed",
+    dot: "bg-agent-failed",
   },
   rolled_back: {
     label: "已回滚",
-    className: "bg-slate-100 text-slate-600",
-    dot: "bg-slate-400",
+    className: "bg-muted text-muted-foreground",
+    dot: "bg-muted-foreground",
   },
 };
 
