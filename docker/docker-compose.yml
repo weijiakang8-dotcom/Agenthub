@@ -16,6 +16,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - agenthub-network
 
   redis:
     image: redis:7-alpine
@@ -30,6 +32,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - agenthub-network
 
   backend:
     build:
@@ -40,6 +44,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/agenthub
       REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
+      OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
     env_file:
       - ../.env
     depends_on:
@@ -49,6 +55,8 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    networks:
+      - agenthub-network
 
   frontend:
     build:
@@ -60,6 +68,8 @@ services:
       - backend
     ports:
       - "8080:80"
+    networks:
+      - agenthub-network
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.148.0

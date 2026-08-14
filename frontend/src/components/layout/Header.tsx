@@ -29,6 +29,10 @@ export function Header({
         >
           <Menu className="h-4 w-4" />
         </Button>
+        <span className="text-sm font-semibold tracking-tight text-primary">
+          AgentHub
+        </span>
+        <span className="text-slate-300">/</span>
         <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
       </div>
 
