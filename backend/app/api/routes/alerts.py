@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy import select
 
-from app.api.deps import SessionDep, get_current_user
+from app.api.deps import CurrentUserDep, SessionDep, get_current_user
 from app.core.alerting import evaluate_alert_rules
 from app.models import AlertEvent, utcnow
 
@@ -26,19 +26,27 @@ class AlertRead(BaseModel):
 
 
 @router.get("", response_model=list[AlertRead])
-async def list_alerts(session: SessionDep, status: str | None = None) -> list[AlertEvent]:
+async def list_alerts(session: SessionDep, user: CurrentUserDep, status: str | None = None) -> list[AlertEvent]:
     stmt = select(AlertEvent).order_by(AlertEvent.triggered_at.desc()).limit(200)
+    if user.organization_id is not None:
+        stmt = stmt.where(AlertEvent.organization_id == user.organization_id)
     if status:
         stmt = stmt.where(AlertEvent.status == status)
     return list((await session.execute(stmt)).scalars().all())
 
 
 @router.get("/stats")
-async def alert_stats(session: SessionDep) -> dict:
-    total = (await session.execute(select(func.count()).select_from(AlertEvent))).scalar() or 0
+async def alert_stats(session: SessionDep, user: CurrentUserDep) -> dict:
+    base = select(func.count()).select_from(AlertEvent)
+    if user.organization_id is not None:
+        base = base.where(AlertEvent.organization_id == user.organization_id)
+    total = (await session.execute(base)).scalar() or 0
     active = (
         await session.execute(
-            select(func.count()).select_from(AlertEvent).where(AlertEvent.status == "active")
+            select(func.count()).select_from(AlertEvent).where(
+                AlertEvent.status == "active",
+                *( [AlertEvent.organization_id == user.organization_id] if user.organization_id is not None else [] )
+            )
         )
     ).scalar() or 0
     resolved = total - active
@@ -46,9 +54,11 @@ async def alert_stats(session: SessionDep) -> dict:
 
 
 @router.get("/{alert_id}", response_model=AlertRead)
-async def get_alert(alert_id: uuid.UUID, session: SessionDep) -> AlertEvent:
+async def get_alert(alert_id: uuid.UUID, session: SessionDep, user: CurrentUserDep) -> AlertEvent:
     alert = await session.get(AlertEvent, alert_id)
     if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    if user.organization_id is not None and alert.organization_id != user.organization_id:
         raise HTTPException(status_code=404, detail="Alert not found")
     return alert
 
@@ -59,9 +69,11 @@ async def evaluate() -> list[AlertEvent]:
 
 
 @router.post("/{alert_id}/resolve", response_model=AlertRead, dependencies=[Depends(get_current_user)])
-async def resolve(alert_id: uuid.UUID, session: SessionDep) -> AlertEvent:
+async def resolve(alert_id: uuid.UUID, session: SessionDep, user: CurrentUserDep) -> AlertEvent:
     alert = await session.get(AlertEvent, alert_id)
     if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    if user.organization_id is not None and alert.organization_id != user.organization_id:
         raise HTTPException(status_code=404, detail="Alert not found")
     alert.status = "resolved"
     alert.resolved_at = utcnow()
@@ -70,5 +82,5 @@ async def resolve(alert_id: uuid.UUID, session: SessionDep) -> AlertEvent:
 
 
 @router.put("/{alert_id}/resolve", response_model=AlertRead, dependencies=[Depends(get_current_user)])
-async def resolve_put(alert_id: uuid.UUID, session: SessionDep) -> AlertEvent:
-    return await resolve(alert_id, session)
+async def resolve_put(alert_id: uuid.UUID, session: SessionDep, user: CurrentUserDep) -> AlertEvent:
+    return await resolve(alert_id, session, user)

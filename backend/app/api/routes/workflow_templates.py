@@ -63,7 +63,7 @@ TEMPLATES = [
 
 
 @router.get("")
-async def list_templates() -> list[dict]:
+async def list_templates(user: CurrentUserDep) -> list[dict]:
     return TEMPLATES
 
 

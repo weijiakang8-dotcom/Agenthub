@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from app.api.deps import SessionDep, get_current_user
+from app.api.deps import CurrentUserDep, SessionDep, get_current_user
 from app.models import AlertRule
 
 router = APIRouter(prefix="/alert-rules", tags=["alert-rules"])
@@ -29,13 +29,16 @@ class AlertRuleUpdate(BaseModel):
 
 
 @router.get("", response_model=None)
-async def list_rules(session: SessionDep) -> list[AlertRule]:
-    return list((await session.execute(select(AlertRule).order_by(AlertRule.created_at))).scalars().all())
+async def list_rules(session: SessionDep, user: CurrentUserDep) -> list[AlertRule]:
+    stmt = select(AlertRule).order_by(AlertRule.created_at)
+    if user.organization_id is not None:
+        stmt = stmt.where(AlertRule.organization_id == user.organization_id)
+    return list((await session.execute(stmt)).scalars().all())
 
 
 @router.post("", response_model=None, dependencies=[Depends(get_current_user)])
-async def create_rule(payload: AlertRuleCreate, session: SessionDep) -> AlertRule:
-    rule = AlertRule(**payload.model_dump())
+async def create_rule(payload: AlertRuleCreate, session: SessionDep, user: CurrentUserDep) -> AlertRule:
+    rule = AlertRule(**payload.model_dump(), organization_id=user.organization_id)
     session.add(rule)
     await session.commit()
     await session.refresh(rule)
@@ -43,9 +46,11 @@ async def create_rule(payload: AlertRuleCreate, session: SessionDep) -> AlertRul
 
 
 @router.put("/{rule_id}", response_model=None, dependencies=[Depends(get_current_user)])
-async def update_rule(rule_id: uuid.UUID, payload: AlertRuleUpdate, session: SessionDep) -> AlertRule:
+async def update_rule(rule_id: uuid.UUID, payload: AlertRuleUpdate, session: SessionDep, user: CurrentUserDep) -> AlertRule:
     rule = await session.get(AlertRule, rule_id)
     if rule is None:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    if user.organization_id is not None and rule.organization_id != user.organization_id:
         raise HTTPException(status_code=404, detail="Rule not found")
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(rule, key, value)
@@ -55,17 +60,21 @@ async def update_rule(rule_id: uuid.UUID, payload: AlertRuleUpdate, session: Ses
 
 
 @router.delete("/{rule_id}", status_code=204, dependencies=[Depends(get_current_user)])
-async def delete_rule(rule_id: uuid.UUID, session: SessionDep) -> None:
+async def delete_rule(rule_id: uuid.UUID, session: SessionDep, user: CurrentUserDep) -> None:
     rule = await session.get(AlertRule, rule_id)
     if rule is None:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    if user.organization_id is not None and rule.organization_id != user.organization_id:
         raise HTTPException(status_code=404, detail="Rule not found")
     await session.delete(rule)
     await session.commit()
 
 
 @router.post("/{rule_id}/test", dependencies=[Depends(get_current_user)])
-async def test_rule(rule_id: uuid.UUID, session: SessionDep) -> dict:
+async def test_rule(rule_id: uuid.UUID, session: SessionDep, user: CurrentUserDep) -> dict:
     rule = await session.get(AlertRule, rule_id)
     if rule is None:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    if user.organization_id is not None and rule.organization_id != user.organization_id:
         raise HTTPException(status_code=404, detail="Rule not found")
     return {"status": "ok", "rule": rule.name, "severity": rule.severity}
