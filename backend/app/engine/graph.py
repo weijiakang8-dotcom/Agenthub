@@ -39,6 +39,9 @@ class AgentState(TypedDict, total=False):
     pending_approval: dict[str, Any] | None
     node_outputs: dict[str, Any]
     last_condition: bool
+    subagent_plan: list[dict[str, Any]] | None
+    loop_count: int
+    revision_requested: bool
 
 
 ROLE_NODES = {
@@ -110,6 +113,74 @@ async def prepare_node(state: AgentState) -> dict[str, Any]:
     return {"messages": messages, "current_step": state.get("current_step", 0)}
 
 
+async def classify_task_node(state: AgentState) -> dict[str, Any]:
+    user_input = state.get("user_input", "")
+    loop_count = state.get("loop_count", 0)
+    if loop_count == 0:
+        try:
+            llm = _get_llm()
+            prompt = (
+                "你是任务分派器。根据用户输入，只输出一个类别："
+                "research / analysis / execution / general。"
+                f"\n用户输入：{user_input}"
+            )
+            response = await _call_llm(
+                llm, [SystemMessage(content=prompt), HumanMessage(content=user_input)]
+            )
+            category = str(getattr(response, "content", "")).strip().lower()
+        except Exception:  # noqa: BLE001
+            category = "general"
+    else:
+        category = "general"
+
+    if category == "research":
+        steps = [{"role": "research", "agent_id": None, "name": "Research Agent", "system_prompt": ""}]
+    elif category == "analysis":
+        steps = [{"role": "analyze", "agent_id": None, "name": "Analyze Agent", "system_prompt": ""}]
+    elif category == "execution":
+        steps = [{"role": "execute", "agent_id": None, "name": "Execute Agent", "system_prompt": ""}]
+    else:
+        steps = [
+            {"role": "research", "agent_id": None, "name": "Research Agent", "system_prompt": ""},
+            {"role": "analyze", "agent_id": None, "name": "Analyze Agent", "system_prompt": ""},
+            {"role": "execute", "agent_id": None, "name": "Execute Agent", "system_prompt": ""},
+        ]
+
+    return {"steps": steps, "current_step": 0, "subagent_plan": steps}
+
+
+async def loop_check_node(state: AgentState) -> dict[str, Any]:
+    loop_count = state.get("loop_count", 0)
+    final_output = state.get("final_output", "") or ""
+    if loop_count >= 2 or not final_output:
+        return {"revision_requested": False}
+
+    try:
+        llm = _get_llm()
+        prompt = (
+            "你是质量审查员。给下面的 Agent 输出按 1-5 打分，只输出整数分数。"
+            f"\n用户输入：{state.get('user_input', '')}"
+            f"\nAgent 输出：{final_output}"
+        )
+        response = await _call_llm(llm, [HumanMessage(content=prompt)])
+        score = int(str(getattr(response, "content", "5")).strip())
+    except Exception:  # noqa: BLE001
+        score = 5
+
+    if score >= 4:
+        return {"revision_requested": False}
+    return {
+        "revision_requested": True,
+        "loop_count": loop_count + 1,
+        "current_step": 0,
+        "final_output": None,
+    }
+
+
+def _should_revise(state: AgentState) -> bool:
+    return bool(state.get("revision_requested"))
+
+
 def route_step(state: AgentState) -> str:
     if state.get("pending_approval"):
         return "waiting_for_approval"
@@ -117,7 +188,7 @@ def route_step(state: AgentState) -> str:
     steps = state.get("steps") or []
     index = state.get("current_step", 0)
     if index >= len(steps):
-        return END
+        return "loop_check"
 
     role = steps[index].get("role", "research")
     return ROLE_NODES.get(role, END)
@@ -287,17 +358,23 @@ def build_graph(checkpointer: Any = None, dag: dict[str, Any] | None = None) -> 
 
     graph = StateGraph(AgentState)
     graph.add_node("prepare", prepare_node)
+    graph.add_node("classify_task", classify_task_node)
     graph.add_node("research_agent", make_agent_node("research"))
     graph.add_node("analyze_agent", make_agent_node("analyze"))
     graph.add_node("execute_agent", make_agent_node("execute"))
     graph.add_node("waiting_for_approval", waiting_for_approval_node)
+    graph.add_node("loop_check", loop_check_node)
 
     graph.add_edge(START, "prepare")
-    graph.add_conditional_edges("prepare", route_step)
+    graph.add_edge("prepare", "classify_task")
+    graph.add_conditional_edges("classify_task", route_step)
     graph.add_conditional_edges("research_agent", route_step)
     graph.add_conditional_edges("analyze_agent", route_step)
     graph.add_conditional_edges("execute_agent", route_step)
     graph.add_conditional_edges("waiting_for_approval", route_step)
+    graph.add_conditional_edges(
+        "loop_check", _should_revise, {True: "classify_task", False: END}
+    )
 
     return graph.compile(checkpointer=checkpointer)
 
