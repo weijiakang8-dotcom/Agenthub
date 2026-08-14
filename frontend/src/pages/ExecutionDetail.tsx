@@ -10,7 +10,9 @@ import {
 } from "@xyflow/react";
 import {
   ArrowLeft,
+  AlertTriangle,
   Check,
+  CheckCircle2,
   CircleDot,
   RotateCcw,
   ThumbsDown,
@@ -237,6 +239,34 @@ export default function ExecutionDetail() {
           <p className="type-body">{data.user_input || "（无输入）"}</p>
         </CardContent>
       </Card>
+
+      {data.status === "completed" && (
+        <div className="rounded-md border border-agent-completed/20 bg-agent-completed/5 px-4 py-3">
+          <div className="flex items-center gap-2 text-agent-completed">
+            <CheckCircle2 className="h-4 w-4" />
+            <span className="text-sm font-medium">执行完成，结果可查看</span>
+          </div>
+          {data.final_output ? (
+            <p className="mt-2 text-sm leading-relaxed text-foreground">
+              {data.final_output}
+            </p>
+          ) : null}
+        </div>
+      )}
+
+      {data.status === "failed" && (
+        <div className="rounded-md border border-agent-failed/20 bg-agent-failed/5 px-4 py-3">
+          <div className="flex items-center gap-2 text-agent-failed">
+            <AlertTriangle className="h-4 w-4" />
+            <span className="text-sm font-medium">执行失败</span>
+          </div>
+          {data.error_message ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {data.error_message}
+            </p>
+          ) : null}
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="shadow-sm lg:col-span-2">
