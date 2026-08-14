@@ -5,6 +5,7 @@ import uuid
 from typing import Any
 
 from app.database import async_session_factory
+from app.engine.event_bus import publish_execution_event
 from app.engine.tool_registry import get_tool
 from app.models import Execution, ToolCall, utcnow
 from app.models.enums import ToolCallStatus
@@ -117,7 +118,26 @@ async def execute_tool(
             record.started_at = utcnow()
             await session.commit()
 
+    await publish_execution_event(
+        str(execution_id),
+        {
+            "event": "tool_call_started",
+            "tool_call_id": str(tool_call.id),
+            "tool": tool_name,
+            "params": params,
+        },
+    )
     result = await _invoke_with_retry(tool_name, params)
+    await publish_execution_event(
+        str(execution_id),
+        {
+            "event": "tool_call_completed",
+            "tool_call_id": str(tool_call.id),
+            "tool": tool_name,
+            "status": result.get("status"),
+            "result": result,
+        },
+    )
     await _finish_tool_call(tool_call.id, result)
     return result
 
@@ -134,6 +154,25 @@ async def execute_pending_tool_call(tool_call_id: uuid.UUID) -> dict[str, Any]:
         tool_call.started_at = utcnow()
         await session.commit()
 
+    await publish_execution_event(
+        str(tool_call.execution_id),
+        {
+            "event": "tool_call_started",
+            "tool_call_id": str(tool_call_id),
+            "tool": tool_name,
+            "params": params,
+        },
+    )
     result = await _invoke_with_retry(tool_name, params)
+    await publish_execution_event(
+        str(tool_call.execution_id),
+        {
+            "event": "tool_call_completed",
+            "tool_call_id": str(tool_call_id),
+            "tool": tool_name,
+            "status": result.get("status"),
+            "result": result,
+        },
+    )
     await _finish_tool_call(tool_call_id, result)
     return result

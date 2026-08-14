@@ -9,6 +9,7 @@ from langgraph.types import Command
 
 from app.database import async_session_factory
 from app.engine.checkpoint import get_checkpoint_manager
+from app.engine.event_bus import publish_execution_event
 from app.engine.graph import build_graph
 from app.engine.tasks import evaluate_execution_task
 from app.models import Agent, Execution, Workflow, utcnow
@@ -152,6 +153,10 @@ async def run_execution(execution_id: uuid.UUID) -> None:
             ExecutionStatus.COMPLETED,
             final_output=result.get("final_output"),
         )
+        await publish_execution_event(
+            str(execution_id),
+            {"event": "execution_completed", "final_output": result.get("final_output")},
+        )
         evaluate_execution_task.delay(str(execution_id))
     except GraphInterrupt as exc:
         await _update_status(
@@ -159,11 +164,19 @@ async def run_execution(execution_id: uuid.UUID) -> None:
             ExecutionStatus.WAITING_FOR_APPROVAL,
             checkpoint_data={"interrupt": exc.args[0] if exc.args else None},
         )
+        await publish_execution_event(
+            str(execution_id),
+            {"event": "waiting_for_approval", "checkpoint": exc.args[0] if exc.args else None},
+        )
     except Exception as exc:  # noqa: BLE001
         await _update_status(
             execution_id,
             ExecutionStatus.FAILED,
             error_message=str(exc),
+        )
+        await publish_execution_event(
+            str(execution_id),
+            {"event": "execution_failed", "error": str(exc)},
         )
 
 
@@ -189,15 +202,27 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
             ExecutionStatus.COMPLETED,
             final_output=result.get("final_output"),
         )
+        await publish_execution_event(
+            str(execution_id),
+            {"event": "execution_completed", "final_output": result.get("final_output")},
+        )
     except GraphInterrupt as exc:
         await _update_status(
             execution_id,
             ExecutionStatus.WAITING_FOR_APPROVAL,
             checkpoint_data={"interrupt": exc.args[0] if exc.args else None},
         )
+        await publish_execution_event(
+            str(execution_id),
+            {"event": "waiting_for_approval", "checkpoint": exc.args[0] if exc.args else None},
+        )
     except Exception as exc:  # noqa: BLE001
         await _update_status(
             execution_id,
             ExecutionStatus.FAILED,
             error_message=str(exc),
+        )
+        await publish_execution_event(
+            str(execution_id),
+            {"event": "execution_failed", "error": str(exc)},
         )

@@ -9,6 +9,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
 
 from app.api import api_router
+from app.api.websocket import router as websocket_router
 from app.api.routes.metrics import router as metrics_router
 from app.core.telemetry import setup_telemetry
 from app.database import init_db, master_engine
@@ -39,6 +40,7 @@ app.add_middleware(
 
 app.include_router(api_router)
 app.include_router(metrics_router)
+app.include_router(websocket_router)
 
 
 @app.get("/")

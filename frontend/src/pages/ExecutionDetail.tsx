@@ -27,6 +27,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useExecutionWebSocket } from "@/hooks/useExecutionWebSocket";
 import {
   api,
   type ExecutionDetail,
@@ -72,6 +73,7 @@ export default function ExecutionDetail() {
   const [loading, setLoading] = useState(true);
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [modifiedPlan, setModifiedPlan] = useState("");
+  const { lastEvent } = useExecutionWebSocket(id);
 
   useEffect(() => {
     if (!id) return;
@@ -86,6 +88,11 @@ export default function ExecutionDetail() {
     if (!id) return;
     api.listInterventions(id).then(setInterventions).catch(() => undefined);
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !lastEvent) return;
+    api.getExecution(id).then(setData).catch(() => undefined);
+  }, [id, lastEvent]);
 
   const activity = useMemo(() => {
     if (!data) return [];
