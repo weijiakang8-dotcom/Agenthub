@@ -32,7 +32,7 @@ export default function Alerts() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="type-h2">告警中心</h2>
           <p className="type-body text-muted-foreground">系统健康与主动告警</p>

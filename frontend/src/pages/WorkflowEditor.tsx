@@ -136,12 +136,12 @@ export default function WorkflowEditor() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] min-h-[560px] gap-4">
-      <Card className="w-56 shrink-0 shadow-sm">
+    <div className="flex flex-col gap-4 lg:h-[calc(100vh-7rem)] lg:min-h-[560px] lg:flex-row">
+      <Card className="w-full shrink-0 shadow-sm lg:w-56">
         <CardHeader>
           <CardTitle className="type-label">节点库</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:space-y-2">
           {NODE_TYPES.map((n) => (
             <div
               key={n.type}
@@ -149,7 +149,7 @@ export default function WorkflowEditor() {
               onDragStart={(e) =>
                 e.dataTransfer.setData("application/reactflow", n.type)
               }
-              className="flex cursor-grab items-center gap-2 rounded-md border bg-card p-2 text-sm transition-all duration-150 hover:bg-muted/50 active:scale-[0.98]"
+              className="flex shrink-0 cursor-grab items-center gap-2 rounded-md border bg-card p-2 text-sm transition-all duration-150 hover:bg-muted/50 active:scale-[0.98] lg:w-full"
             >
               <n.icon className="h-4 w-4" style={{ color: n.color }} />
               {n.label}
@@ -159,7 +159,7 @@ export default function WorkflowEditor() {
       </Card>
 
       <div
-        className="min-w-0 flex-1 overflow-hidden rounded-lg border bg-background"
+        className="h-[60vh] min-h-[360px] w-full min-w-0 flex-1 overflow-hidden rounded-lg border bg-background lg:h-auto lg:min-h-0"
         onDrop={onDrop}
         onDragOver={(e) => e.preventDefault()}
       >
@@ -178,7 +178,7 @@ export default function WorkflowEditor() {
         </ReactFlow>
       </div>
 
-      <Card className="w-80 shrink-0 shadow-sm">
+      <Card className="w-full shrink-0 shadow-sm lg:w-80">
         <CardHeader>
           <CardTitle className="type-label">属性</CardTitle>
         </CardHeader>
