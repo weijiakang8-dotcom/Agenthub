@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { api, type Execution } from "@/lib/api";
+import { getAccessToken } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 
 export default function Dashboard() {
@@ -17,18 +18,23 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const loggedIn = Boolean(getAccessToken());
 
   useEffect(() => {
+    if (!loggedIn) {
+      setLoading(false);
+      return;
+    }
     api
       .listExecutions()
       .then(setExecutions)
       .finally(() => setLoading(false));
-  }, []);
+  }, [loggedIn]);
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-10">
       <section className="space-y-3 pt-2">
-        <h1 className="type-h2">欢迎回来</h1>
+        <h1 className="type-h2">工作区</h1>
         <p className="type-body text-muted-foreground">
           描述一个目标，AgentHub 会编排多个智能体协作完成。
         </p>
@@ -44,7 +50,8 @@ export default function Dashboard() {
           <Textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="例如：调研 LangGraph 的最新进展，并生成一份执行摘要…"
+            disabled={!loggedIn}
+            placeholder={loggedIn ? "例如：调研 LangGraph 的最新进展…" : "请先登录后再使用"}
             rows={4}
             className="min-h-24 resize-none border-0 bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
           />
@@ -54,7 +61,7 @@ export default function Dashboard() {
             </span>
             <Button
               type="submit"
-              disabled={!draft.trim()}
+              disabled={!loggedIn || !draft.trim()}
               className="w-full sm:w-auto"
             >
               <Sparkles className="h-4 w-4" />
@@ -78,6 +85,8 @@ export default function Dashboard() {
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
           </div>
+        ) : !loggedIn ? (
+          <EmptyState title="请先登录后再使用" description="登录后可查看你的执行记录。" />
         ) : executions.length === 0 ? (
           <EmptyState
             icon={Inbox}

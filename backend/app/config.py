@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = ""
+    RESEND_API_KEY: str = ""
+    RESEND_FROM: str = ""
     ALERT_WEBHOOK_URL: str = ""
     FEISHU_WEBHOOK_URL: str = ""
 

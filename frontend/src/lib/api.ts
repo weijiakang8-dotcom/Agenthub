@@ -176,12 +176,17 @@ export const api = {
 };
 
 export const auth = {
-  register: (payload: { email: string; password: string; full_name: string }) =>
+  sendCode: (payload: { email: string }) =>
+    request<{ status: string }>("/auth/send-code", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  register: (payload: { email: string; password: string; full_name: string; code: string }) =>
     request<AuthResponse>("/auth/register", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  login: (payload: { email: string; password: string }) =>
+  login: (payload: { email: string; password: string; code: string }) =>
     request<AuthResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify(payload),

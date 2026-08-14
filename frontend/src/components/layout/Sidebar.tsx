@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import {
   LogOut,
+  LayoutDashboard,
   MessageSquare,
   Settings,
   Sparkles,
@@ -11,7 +12,8 @@ import { cn } from "@/lib/utils";
 import { setAccessToken } from "@/lib/api";
 
 const items = [
-  { to: "/", label: "Chat", icon: MessageSquare, end: true },
+  { to: "/", label: "工作区", icon: LayoutDashboard, end: true },
+  { to: "/chat", label: "Chat", icon: MessageSquare, end: false },
   { to: "/history", label: "History", icon: MessageSquare, end: false },
   { to: "/settings", label: "Settings", icon: Settings, end: false },
 ];

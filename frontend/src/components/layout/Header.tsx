@@ -1,7 +1,10 @@
 import { Bell, Menu } from "lucide-react";
+import { useState } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { AuthModal } from "@/components/AuthModal";
+import { getAccessToken } from "@/lib/api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +21,10 @@ export function Header({
   title: string;
   onMenuClick: () => void;
 }) {
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const loggedIn = Boolean(getAccessToken());
+
   return (
     <header className="flex h-14 items-center justify-between border-b bg-white px-4">
       <div className="flex items-center gap-3">
@@ -37,6 +44,16 @@ export function Header({
       </div>
 
       <div className="flex items-center gap-2">
+        {!loggedIn && (
+          <>
+            <Button variant="ghost" size="sm" onClick={() => { setAuthMode("login"); setAuthOpen(true); }}>
+              登录
+            </Button>
+            <Button size="sm" onClick={() => { setAuthMode("register"); setAuthOpen(true); }}>
+              注册
+            </Button>
+          </>
+        )}
         <Button variant="ghost" size="icon">
           <Bell className="h-4 w-4" />
         </Button>
@@ -58,6 +75,7 @@ export function Header({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} mode={authMode} />
     </header>
   );
 }
