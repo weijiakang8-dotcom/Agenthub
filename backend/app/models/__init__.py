@@ -18,6 +18,7 @@ from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
 from app.models.conversation import Conversation
 from app.models.audit_log import AuditLog
+from app.models.document import Document
 from app.models.eval import EvalDataset, EvalRun
 from app.models.model_config import ModelConfig
 from app.models.notification import Notification
@@ -44,6 +45,7 @@ __all__ = [
     "AlertRule",
     "Conversation",
     "AuditLog",
+    "Document",
     "EvalDataset",
     "EvalRun",
     "ModelConfig",
