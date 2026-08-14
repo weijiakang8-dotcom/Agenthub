@@ -187,6 +187,7 @@ async def stream_conversation(
 
                 data = {
                     "event": "status",
+                    "execution_id": str(execution_id),
                     "status": execution.status.value,
                     "final_output": execution.final_output,
                     "error_message": execution.error_message,
