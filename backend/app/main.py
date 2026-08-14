@@ -2,7 +2,9 @@ from contextlib import asynccontextmanager
 
 import httpx
 import redis.asyncio as aioredis
-from fastapi import FastAPI
+import uuid
+
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -11,8 +13,10 @@ from sqlalchemy import text
 from app.api import api_router
 from app.api.websocket import router as websocket_router
 from app.api.routes.metrics import router as metrics_router
+from app.core.security import decode_token
 from app.core.telemetry import setup_telemetry
-from app.database import init_db, master_engine
+from app.database import async_session_factory, init_db, master_engine
+from app.models import AuditLog
 from app.engine.tasks import celery_app  # noqa: F401  # 加载 Celery 配置
 from app.config import settings
 
@@ -37,6 +41,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def audit_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        user_id = None
+        organization_id = None
+        auth = request.headers.get("authorization", "")
+        if auth.startswith("Bearer "):
+            payload = decode_token(auth.removeprefix("Bearer "))
+            if payload and payload.get("sub"):
+                try:
+                    user_id = uuid.UUID(str(payload["sub"]))
+                except (ValueError, TypeError):
+                    user_id = None
+                org = payload.get("org")
+                if org:
+                    try:
+                        organization_id = uuid.UUID(str(org))
+                    except (ValueError, TypeError):
+                        organization_id = None
+
+        async with async_session_factory() as session:
+            session.add(
+                AuditLog(
+                    user_id=user_id,
+                    organization_id=organization_id,
+                    method=request.method,
+                    path=request.url.path,
+                    status_code=response.status_code,
+                    details={},
+                )
+            )
+            await session.commit()
+
+    return response
 
 app.include_router(api_router)
 app.include_router(metrics_router)
