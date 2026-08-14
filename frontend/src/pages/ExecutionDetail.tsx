@@ -45,6 +45,14 @@ function toolIcon(tc: ToolCall) {
   return <CircleDot className="h-4 w-4 text-agent-running" />;
 }
 
+function formatToolDuration(tc: ToolCall) {
+  if (!tc.started_at || !tc.completed_at) return null;
+  const ms =
+    new Date(tc.completed_at).getTime() - new Date(tc.started_at).getTime();
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
 type ActivityState = "received" | "running" | "waiting" | "done" | "error";
 
 function activityDotClass(state: ActivityState) {
@@ -320,21 +328,50 @@ export default function ExecutionDetail() {
                 当前执行尚未产生工具调用记录。
               </p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {data.tool_calls.map((tc, i) => (
                   <div
                     key={tc.id}
-                    className="flex items-center justify-between gap-3 text-sm"
+                    className="rounded-md border bg-background p-3"
                   >
-                    <div className="flex min-w-0 items-center gap-2">
-                      {toolIcon(tc)}
-                      <span className="truncate">
-                        {i + 1}. {tc.tool_name}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2 text-sm">
+                        {toolIcon(tc)}
+                        <span className="truncate font-medium">
+                          {i + 1}. {tc.tool_name}
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {tc.status}
+                        {formatToolDuration(tc)
+                          ? ` · ${formatToolDuration(tc)}`
+                          : ""}
                       </span>
                     </div>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {tc.status}
-                    </span>
+
+                    <details className="mt-2 space-y-2">
+                      <summary className="cursor-pointer text-xs text-muted-foreground">
+                        查看输入 / 输出
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">
+                            输入参数
+                          </p>
+                          <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 text-xs">
+                            {JSON.stringify(tc.input_params ?? {}, null, 2)}
+                          </pre>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">
+                            输出结果
+                          </p>
+                          <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 text-xs">
+                            {JSON.stringify(tc.output_result ?? {}, null, 2)}
+                          </pre>
+                        </div>
+                      </div>
+                    </details>
                   </div>
                 ))}
               </div>
