@@ -174,6 +174,8 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
             for tool_call in getattr(response, "tool_calls", None) or []:
                 tool_name = tool_call.get("name", "")
                 tool_args = tool_call.get("args") or {}
+                if not tool_call.get("id"):
+                    tool_call["id"] = f"call_{uuid.uuid4().hex}"
                 if tool_name in APPROVAL_REQUIRED_TOOLS:
                     span.set_attribute("approval_required", tool_name)
                     record = await tool_executor.create_tool_call(
@@ -197,7 +199,7 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
                 new_messages.append(
                     ToolMessage(
                         content=json.dumps(result, ensure_ascii=False, default=str),
-                        tool_call_id=tool_call.get("id"),
+                        tool_call_id=tool_call["id"],
                     )
                 )
                 executed_tool = True
@@ -358,6 +360,8 @@ def make_dynamic_agent_node(
             for tool_call in getattr(response, "tool_calls", None) or []:
                 tool_name = tool_call.get("name", "")
                 tool_args = tool_call.get("args") or {}
+                if not tool_call.get("id"):
+                    tool_call["id"] = f"call_{uuid.uuid4().hex}"
                 if tool_name in APPROVAL_REQUIRED_TOOLS:
                     record = await tool_executor.create_tool_call(
                         tool_name,
@@ -384,7 +388,7 @@ def make_dynamic_agent_node(
                 new_messages.append(
                     ToolMessage(
                         content=json.dumps(result, ensure_ascii=False, default=str),
-                        tool_call_id=tool_call.get("id"),
+                        tool_call_id=tool_call["id"],
                     )
                 )
 
