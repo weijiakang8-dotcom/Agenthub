@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.models import Base
@@ -19,8 +20,7 @@ def _engine(url: str) -> AsyncEngine:
     return create_async_engine(
         url,
         echo=settings.DEBUG,
-        pool_size=_POOL_SIZE,
-        max_overflow=20,
+        poolclass=NullPool,
         pool_recycle=3600,
         pool_pre_ping=True,
     )
