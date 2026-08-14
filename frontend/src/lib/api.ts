@@ -138,7 +138,7 @@ export const api = {
   }) =>
     request<Workflow>("/workflows", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, created_by: "admin" }),
     }),
   listAlerts: (status?: string) =>
     request<AlertEvent[]>(`/alerts${status ? `?status=${status}` : ""}`),

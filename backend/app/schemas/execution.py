@@ -9,7 +9,7 @@ from app.schemas.tool_call import ToolCallRead, ToolCallSummary
 
 class ExecutionCreate(BaseModel):
     workflow_id: uuid.UUID
-    user_input: str
+    user_input: str = Field(..., min_length=1)
 
 
 class ExecutionUpdate(BaseModel):
@@ -61,4 +61,4 @@ class ExecutionResume(BaseModel):
 
 
 class FeedbackCreate(BaseModel):
-    feedback: str
+    feedback: str = Field(..., min_length=1)
