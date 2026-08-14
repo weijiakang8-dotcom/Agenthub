@@ -16,7 +16,7 @@ import History from "@/pages/History";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = getAccessToken();
-  if (!token) return <Navigate to="/login" replace />;
+  if (!token) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
