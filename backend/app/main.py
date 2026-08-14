@@ -9,12 +9,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
 
 from app.api import api_router
-from app.api.routes.alerts import router as alerts_router
-from app.api.routes.alert_rules import router as alert_rules_router
-from app.api.routes.auth import router as auth_router
 from app.api.routes.metrics import router as metrics_router
-from app.api.routes.tasks import router as tasks_router
-from app.api.routes.workflow_templates import router as workflow_templates_router
 from app.core.telemetry import setup_telemetry
 from app.database import init_db, master_engine
 from app.engine.tasks import celery_app  # noqa: F401  # 加载 Celery 配置
@@ -44,11 +39,6 @@ app.add_middleware(
 
 app.include_router(api_router)
 app.include_router(metrics_router)
-app.include_router(auth_router)
-app.include_router(tasks_router)
-app.include_router(alerts_router)
-app.include_router(alert_rules_router)
-app.include_router(workflow_templates_router)
 
 
 @app.get("/")

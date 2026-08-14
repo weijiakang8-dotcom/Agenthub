@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.api.deps import SessionDep, get_current_user
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/alert-rules", tags=["alert-rules"])
 
 
 class AlertRuleCreate(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1, max_length=255)
     description: str = ""
     severity: str = "warning"
     condition: dict
