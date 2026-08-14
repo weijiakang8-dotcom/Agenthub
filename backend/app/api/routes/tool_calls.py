@@ -27,6 +27,16 @@ async def list_tool_calls(
     return list(result.scalars().all())
 
 
+@router.get("/{tool_call_id}", response_model=ToolCallRead)
+async def get_tool_call(
+    tool_call_id: uuid.UUID, session: SessionDep
+) -> ToolCall:
+    tool_call = await session.get(ToolCall, tool_call_id)
+    if tool_call is None:
+        raise HTTPException(status_code=404, detail="Tool call not found")
+    return tool_call
+
+
 @router.post("/{tool_call_id}/approve", response_model=ToolCallRead)
 async def approve_tool_call(
     tool_call_id: uuid.UUID, user: CurrentUserDep, session: SessionDep

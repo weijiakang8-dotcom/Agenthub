@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import asyncio
+import uuid
 from typing import Any, Callable, TypedDict
 
 from langchain_core.messages import (
@@ -19,12 +20,14 @@ from app.config import settings
 from app.core.cache import get_cached_response, set_cached_response
 from app.core.circuit_breaker import llm_breaker
 from app.core.telemetry import get_tracer
+from app.engine import tool_executor
 from app.engine.tools import query_db, search_web, send_email
 
 
 class AgentState(TypedDict, total=False):
     messages: list[Any]
     current_step: int
+    execution_id: str | None
     checkpoint: dict[str, Any] | None
     user_input: str
     final_output: str | None
@@ -82,17 +85,6 @@ def _get_llm() -> ChatOpenAI:
     )
 
 
-async def _execute_tool_call(tool_call: dict[str, Any]) -> dict[str, Any]:
-    tool = TOOL_BY_NAME.get(tool_call.get("name", ""))
-    if tool is None:
-        return {
-            "status": "failed",
-            "data": None,
-            "error": f"Unknown tool: {tool_call.get('name')}",
-        }
-    return await tool.ainvoke(tool_call.get("args") or {})
-
-
 async def prepare_node(state: AgentState) -> dict[str, Any]:
     messages = list(state.get("messages") or [])
     if state.get("user_input") and not any(isinstance(m, HumanMessage) for m in messages):
@@ -118,6 +110,7 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
         index = state.get("current_step", 0)
         steps = state.get("steps") or []
         step = steps[index] if index < len(steps) else {}
+        execution_id = state.get("execution_id") or ""
         system_prompt = step.get("system_prompt") or f"You are the {role} agent."
 
         with tracer.start_as_current_span(f"{role}_agent") as span:
@@ -159,17 +152,27 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
             executed_tool = False
             for tool_call in getattr(response, "tool_calls", None) or []:
                 tool_name = tool_call.get("name", "")
+                tool_args = tool_call.get("args") or {}
                 if tool_name in APPROVAL_REQUIRED_TOOLS:
                     span.set_attribute("approval_required", tool_name)
+                    record = await tool_executor.create_tool_call(
+                        tool_name,
+                        tool_args,
+                        execution_id,
+                        requires_approval=True,
+                    )
                     return {
                         "messages": new_messages,
                         "pending_approval": {
                             "tool_name": tool_name,
-                            "tool_args": tool_call.get("args") or {},
+                            "tool_args": tool_args,
+                            "tool_call_id": str(record.id),
                         },
                     }
 
-                result = await _execute_tool_call(tool_call)
+                result = await tool_executor.execute_tool(
+                    tool_name, tool_args, execution_id
+                )
                 new_messages.append(
                     ToolMessage(
                         content=json.dumps(result, ensure_ascii=False, default=str),
@@ -202,6 +205,17 @@ async def waiting_for_approval_node(state: AgentState) -> dict[str, Any]:
     decision = interrupt({"type": "approval_required", "tool_call": pending})
 
     rejected = isinstance(decision, dict) and decision.get("approved") is False
+    if pending.get("tool_call_id"):
+        try:
+            tool_call_id = uuid.UUID(pending["tool_call_id"])
+        except (ValueError, TypeError):
+            tool_call_id = None
+        if tool_call_id is not None:
+            if rejected:
+                await tool_executor.mark_tool_call_rejected(tool_call_id)
+            else:
+                await tool_executor.execute_pending_tool_call(tool_call_id)
+
     return {
         "pending_approval": None,
         "current_step": state.get("current_step", 0) + 1,
@@ -276,6 +290,7 @@ def make_dynamic_agent_node(
     node_id = node.get("id", "node")
 
     async def dynamic_node(state: AgentState) -> dict[str, Any]:
+        execution_id = state.get("execution_id") or ""
         system_prompt = node.get("system_prompt") or f"You are the {role} agent."
         with tracer.start_as_current_span(f"{node_id}_{role}") as span:
             span.set_attribute("agent.role", role)
@@ -303,7 +318,31 @@ def make_dynamic_agent_node(
 
             new_messages: list[BaseMessage] = [*state.get("messages", []), response]
             for tool_call in getattr(response, "tool_calls", None) or []:
-                result = await _execute_tool_call(tool_call)
+                tool_name = tool_call.get("name", "")
+                tool_args = tool_call.get("args") or {}
+                if tool_name in APPROVAL_REQUIRED_TOOLS:
+                    record = await tool_executor.create_tool_call(
+                        tool_name,
+                        tool_args,
+                        execution_id,
+                        requires_approval=True,
+                    )
+                    return {
+                        "messages": new_messages,
+                        "pending_approval": {
+                            "tool_name": tool_name,
+                            "tool_args": tool_args,
+                            "tool_call_id": str(record.id),
+                        },
+                        "node_outputs": {
+                            **(state.get("node_outputs") or {}),
+                            node_id: "waiting_for_approval",
+                        },
+                    }
+
+                result = await tool_executor.execute_tool(
+                    tool_name, tool_args, execution_id
+                )
                 new_messages.append(
                     ToolMessage(
                         content=json.dumps(result, ensure_ascii=False, default=str),

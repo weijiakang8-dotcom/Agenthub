@@ -72,6 +72,22 @@ async def get_execution(execution_id: uuid.UUID, session: SessionDep) -> Executi
     return detail
 
 
+@router.get("/{execution_id}/tool_calls", response_model=list[ToolCallRead])
+async def list_execution_tool_calls(
+    execution_id: uuid.UUID, session: SessionDep
+) -> list[ToolCall]:
+    execution = await session.get(Execution, execution_id)
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    result = await session.execute(
+        select(ToolCall)
+        .where(ToolCall.execution_id == execution_id)
+        .order_by(ToolCall.started_at)
+    )
+    return list(result.scalars().all())
+
+
 @router.post(
     "",
     response_model=ExecutionAccepted,
