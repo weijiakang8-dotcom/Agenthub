@@ -135,6 +135,9 @@ async def run_execution(execution_id: uuid.UUID) -> None:
         "messages": [HumanMessage(content=execution.user_input or "")],
         "current_step": 0,
         "execution_id": str(execution_id),
+        "organization_id": (
+            str(execution.organization_id) if execution.organization_id else None
+        ),
         "checkpoint": None,
         "user_input": execution.user_input or "",
         "final_output": None,

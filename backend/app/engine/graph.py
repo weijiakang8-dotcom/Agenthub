@@ -23,12 +23,14 @@ from app.core.telemetry import get_tracer
 from app.engine import tool_executor
 from app.engine.event_bus import publish_execution_event
 from app.engine.tools import query_db, search_web, send_email
+from app.rag.retrieval import retrieve_documents
 
 
 class AgentState(TypedDict, total=False):
     messages: list[Any]
     current_step: int
     execution_id: str | None
+    organization_id: str | None
     checkpoint: dict[str, Any] | None
     user_input: str
     final_output: str | None
@@ -137,6 +139,16 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
                         "final_output": cached,
                     }
                 span.set_attribute("cache.hit", False)
+
+            if role == "research":
+                docs = await retrieve_documents(
+                    state.get("user_input", ""),
+                    state.get("organization_id"),
+                    top_k=3,
+                )
+                if docs:
+                    snippets = "\n---\n".join(d["content"][:1000] for d in docs)
+                    system_prompt += f"\n\n以下是知识库中的相关文档片段：\n{snippets}"
 
             messages: list[BaseMessage] = [SystemMessage(content=system_prompt)]
             messages.extend(state.get("messages") or [])
