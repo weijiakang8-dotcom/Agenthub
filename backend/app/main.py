@@ -14,6 +14,7 @@ from app.api import api_router
 from app.api.websocket import router as websocket_router
 from app.api.routes.metrics import router as metrics_router
 from app.core.security import decode_token
+from app.core.rate_limit import rate_limit
 from app.core.telemetry import setup_telemetry
 from app.database import async_session_factory, init_db, master_engine
 from app.models import AuditLog
@@ -41,6 +42,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    path = request.url.path
+    if path in {"/health", "/metrics", "/docs", "/openapi.json"} or path.startswith(
+        ("/docs", "/openapi.json")
+    ):
+        return await call_next(request)
+
+    client_ip = request.client.host if request.client else "unknown"
+    if not await rate_limit(f"ip:{client_ip}", limit=300, window_seconds=60):
+        return JSONResponse(status_code=429, content={"detail": "Too Many Requests"})
+    return await call_next(request)
 
 
 @app.middleware("http")
