@@ -7,6 +7,7 @@ from app.api.routes import (
     auth,
     conversations,
     executions,
+    models,
     tasks,
     tool_calls,
     workflow_templates,
@@ -23,6 +24,7 @@ api_router.include_router(alerts.router)
 api_router.include_router(alert_rules.router)
 api_router.include_router(auth.router)
 api_router.include_router(conversations.router)
+api_router.include_router(models.router)
 api_router.include_router(tasks.router)
 api_router.include_router(workflow_templates.router)
 
