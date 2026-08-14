@@ -87,10 +87,14 @@ export type Intervention = {
 };
 
 const BASE = "/api";
+const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY as string | undefined;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(ADMIN_API_KEY ? { "X-API-Key": ADMIN_API_KEY } : {}),
+    },
     ...init,
   });
   if (!res.ok) {

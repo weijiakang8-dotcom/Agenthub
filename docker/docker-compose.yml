@@ -62,6 +62,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.frontend
+      args:
+        VITE_ADMIN_API_KEY: ${ADMIN_API_KEY}
     container_name: agenthub-frontend
     restart: unless-stopped
     depends_on:

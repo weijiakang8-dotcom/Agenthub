@@ -5,6 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db as _get_db
+import logging
+
+
+logger = logging.getLogger(__name__)
+
+if not settings.ADMIN_API_KEY:
+    logger.warning(
+        "ADMIN_API_KEY is not set; API authentication is disabled (development mode)."
+    )
 
 
 SessionDep = Annotated[AsyncSession, Depends(_get_db)]
