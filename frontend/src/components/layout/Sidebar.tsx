@@ -54,7 +54,7 @@ export function Sidebar() {
           type="button"
           onClick={() => {
             setAccessToken(null);
-            navigate("/login");
+            navigate("/");
           }}
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
