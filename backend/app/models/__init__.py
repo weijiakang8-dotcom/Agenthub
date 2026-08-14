@@ -17,6 +17,7 @@ from app.models.intervention_log import InterventionLog
 from app.models.alert_event import AlertEvent
 from app.models.alert_rule import AlertRule
 from app.models.conversation import Conversation
+from app.models.eval import EvalDataset, EvalRun
 from app.models.model_config import ModelConfig
 
 __all__ = [
@@ -40,5 +41,7 @@ __all__ = [
     "AlertEvent",
     "AlertRule",
     "Conversation",
+    "EvalDataset",
+    "EvalRun",
     "ModelConfig",
 ]
