@@ -45,6 +45,9 @@ class Execution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     eval_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     eval_details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     feedback: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
     )
