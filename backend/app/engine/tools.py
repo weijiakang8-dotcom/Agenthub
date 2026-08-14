@@ -1,0 +1,85 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+import smtplib
+from email.message import EmailMessage
+from typing import Any
+
+import httpx
+from langchain_core.tools import tool
+from sqlalchemy import text
+
+from app.config import settings
+from app.database import engine
+
+
+_SELECT_RE = re.compile(r"^\s*SELECT\b", re.IGNORECASE)
+_DANGEROUS_RE = re.compile(
+    r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|COPY|GRANT|REVOKE|CALL|DO|VACUUM|REINDEX)\b",
+    re.IGNORECASE,
+)
+
+
+def _jsonable(value: Any) -> Any:
+    return json.loads(json.dumps(value, default=str))
+
+
+@tool
+async def search_web(query: str) -> dict:
+    """Search the web for the given query using Tavily."""
+    if not settings.TAVILY_API_KEY:
+        return {"status": "failed", "data": None, "error": "TAVILY_API_KEY is not configured"}
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                "https://api.tavily.com/search",
+                json={"api_key": settings.TAVILY_API_KEY, "query": query, "max_results": 5},
+            )
+            response.raise_for_status()
+            data = response.json()
+        return {"status": "success", "data": data.get("results", []), "error": None}
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "failed", "data": None, "error": str(exc)}
+
+
+@tool
+async def query_db(sql: str) -> dict:
+    """Run a single read-only SELECT query against the AgentHub database."""
+    statement = sql.strip().rstrip(";").strip()
+    if not _SELECT_RE.match(statement) or _DANGEROUS_RE.search(statement) or ";" in statement:
+        return {"status": "failed", "data": None, "error": "Only a single read-only SELECT is allowed"}
+
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(text(statement))
+            rows = [_jsonable(dict(row._mapping)) for row in result.fetchall()]
+        return {"status": "success", "data": rows, "error": None}
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "failed", "data": None, "error": str(exc)}
+
+
+def _send_email_sync(to: str, subject: str, body: str) -> None:
+    message = EmailMessage()
+    message["From"] = settings.SMTP_FROM
+    message["To"] = to
+    message["Subject"] = subject
+    message.set_content(body)
+
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as smtp:
+        smtp.starttls()
+        if settings.SMTP_USERNAME:
+            smtp.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+        smtp.send_message(message)
+
+
+@tool
+async def send_email(to: str, subject: str, body: str) -> dict:
+    """Send an email via SMTP. Requires human approval before execution."""
+    try:
+        await asyncio.to_thread(_send_email_sync, to, subject, body)
+        return {"status": "success", "data": {"to": to, "subject": subject}, "error": None}
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "failed", "data": None, "error": str(exc)}

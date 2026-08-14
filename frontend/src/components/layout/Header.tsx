@@ -1,0 +1,59 @@
+import { Bell, Menu } from "lucide-react";
+
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+export function Header({
+  title,
+  onMenuClick,
+}: {
+  title: string;
+  onMenuClick: () => void;
+}) {
+  return (
+    <header className="flex h-14 items-center justify-between border-b bg-white px-4">
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="lg:hidden"
+          onClick={onMenuClick}
+        >
+          <Menu className="h-4 w-4" />
+        </Button>
+        <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon">
+          <Bell className="h-4 w-4" />
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 rounded-full p-0">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-primary text-xs text-primary-foreground">
+                  魏
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel>魏家康</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>个人设置</DropdownMenuItem>
+            <DropdownMenuItem>退出登录</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
+  );
+}
