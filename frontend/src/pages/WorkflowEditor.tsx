@@ -149,7 +149,7 @@ export default function WorkflowEditor() {
               onDragStart={(e) =>
                 e.dataTransfer.setData("application/reactflow", n.type)
               }
-              className="flex cursor-grab items-center gap-2 rounded-md border bg-card p-2 text-sm transition-colors hover:bg-muted/50"
+              className="flex cursor-grab items-center gap-2 rounded-md border bg-card p-2 text-sm transition-all duration-150 hover:bg-muted/50 active:scale-[0.98]"
             >
               <n.icon className="h-4 w-4" style={{ color: n.color }} />
               {n.label}

@@ -254,6 +254,8 @@ export default function ExecutionDetail() {
                       className={cn(
                         "mt-1.5 block h-1.5 w-1.5 shrink-0 rounded-full",
                         activityDotClass(step.state),
+                        (step.state === "running" || step.state === "waiting") &&
+                          "animate-pulse",
                       )}
                     />
                     <div className="min-w-0 flex-1">
