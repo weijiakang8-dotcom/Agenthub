@@ -8,9 +8,12 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
+import redis.asyncio as aioredis
 
+from app.config import settings
 from app.api.deps import CurrentUserDep, SessionDep
 from app.database import async_session_factory
+from app.engine.event_bus import CHANNEL_PREFIX
 from app.models import Conversation, Execution, Workflow
 from app.models.enums import ExecutionStatus
 from app.engine.tasks import execute_workflow_task
@@ -172,8 +175,10 @@ async def stream_conversation(
     execute_workflow_task.delay(str(execution_id))
 
     async def event_stream():
+        redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(f"{CHANNEL_PREFIX}{execution_id}")
         while True:
-            await asyncio.sleep(1)
             async with async_session_factory() as session:
                 execution = await session.get(Execution, execution_id)
                 if execution is None:
@@ -199,6 +204,18 @@ async def stream_conversation(
                         conversation.messages = messages
                         await session.commit()
                     yield f"data: {json.dumps({'event': 'done', 'status': execution.status.value, 'final_output': execution.final_output}, ensure_ascii=False)}\n\n"
+                    await pubsub.unsubscribe(f"{CHANNEL_PREFIX}{execution_id}")
+                    await pubsub.aclose()
+                    await redis.aclose()
                     return
+
+            while True:
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=0)
+                if message is None:
+                    break
+                if message.get("type") == "message":
+                    yield f"{message['data']}\n\n"
+
+            await asyncio.sleep(1)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

@@ -79,6 +79,21 @@ async def _call_llm(llm, messages):
             await asyncio.sleep(2 ** attempt)
 
 
+async def _stream_llm_text(
+    llm, messages: list[BaseMessage], execution_id: str, node_id: str
+) -> AIMessage:
+    parts: list[str] = []
+    async for chunk in llm.astream(messages):
+        text = getattr(chunk, "content", None)
+        if isinstance(text, str) and text:
+            parts.append(text)
+            await publish_execution_event(
+                execution_id,
+                {"event": "token", "node": node_id, "token": text},
+            )
+    return AIMessage(content="".join(parts))
+
+
 def _get_llm() -> ChatOpenAI:
     return ChatOpenAI(
         model=settings.LLM_MODEL,
@@ -161,7 +176,12 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
                 llm = llm.bind_tools(tools)
 
             try:
-                response = await _call_llm(llm, messages)
+                if tools:
+                    response = await _call_llm(llm, messages)
+                else:
+                    response = await _stream_llm_text(
+                        llm, messages, execution_id, role
+                    )
             except RuntimeError as exc:
                 return {
                     "messages": state.get("messages", []),
@@ -207,7 +227,9 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
             final_response = response
             if executed_tool:
                 final_messages = [SystemMessage(content=system_prompt), *new_messages]
-                final_response = await _call_llm(llm, final_messages)
+                final_response = await _stream_llm_text(
+                    _get_llm(), final_messages, execution_id, role
+                )
                 new_messages.append(final_response)
 
             final_output = getattr(final_response, "content", "") or ""
@@ -345,7 +367,12 @@ def make_dynamic_agent_node(
                 llm = llm.bind_tools(tools)
 
             try:
-                response = await _call_llm(llm, messages)
+                if tools:
+                    response = await _call_llm(llm, messages)
+                else:
+                    response = await _stream_llm_text(
+                        llm, messages, execution_id, node_id
+                    )
             except RuntimeError as exc:
                 return {
                     "messages": state.get("messages", []),

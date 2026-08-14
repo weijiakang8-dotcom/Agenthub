@@ -90,6 +90,10 @@ export default function Chat() {
           if (!line.startsWith("data: ")) continue;
           try {
             const data = JSON.parse(line.slice(6));
+            if (data.event === "token" && typeof data.token === "string") {
+              assistant += data.token;
+              updateAssistant(assistant);
+            }
             if (data.final_output) updateAssistant(data.final_output);
             if (data.event === "done") {
               updateAssistant(data.final_output ?? assistant);
