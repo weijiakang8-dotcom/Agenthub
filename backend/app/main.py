@@ -53,7 +53,12 @@ app.include_router(workflow_templates_router)
 
 @app.get("/")
 async def root():
-    return {"message": "AgentHub API is running"}
+    return {
+        "service": "AgentHub API",
+        "docs": "/docs",
+        "health": "/health",
+        "status": "running",
+    }
 
 
 @app.get("/health")
