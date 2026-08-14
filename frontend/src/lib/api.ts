@@ -88,11 +88,23 @@ export type Intervention = {
 
 const BASE = "/api";
 const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY as string | undefined;
+const TOKEN_KEY = "agenthub.access_token";
+
+export function getAccessToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAccessToken(token: string | null) {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getAccessToken();
   const res = await fetch(`${BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(ADMIN_API_KEY ? { "X-API-Key": ADMIN_API_KEY } : {}),
     },
     ...init,
@@ -161,4 +173,34 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   request: <T,>(path: string, init?: RequestInit) => request<T>(path, init),
+};
+
+export const auth = {
+  register: (payload: { email: string; password: string; full_name: string }) =>
+    request<AuthResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  login: (payload: { email: string; password: string }) =>
+    request<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  me: () => request<AuthUser>("/auth/me"),
+};
+
+export type AuthUser = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  is_active: boolean;
+  organization_id: string | null;
+};
+
+export type AuthResponse = {
+  user: AuthUser;
+  organization: { id: string; name: string; slug: string; settings: unknown };
+  access_token: string;
+  refresh_token: string;
 };

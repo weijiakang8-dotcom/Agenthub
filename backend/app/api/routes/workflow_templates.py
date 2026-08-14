@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.deps import SessionDep, get_current_user
+from app.api.deps import CurrentUserDep, SessionDep, get_current_user
 from app.models import Workflow
 from app.schemas.workflow import WorkflowRead
 
@@ -68,7 +68,7 @@ async def list_templates() -> list[dict]:
 
 
 @router.post("/{slug}/clone", response_model=WorkflowRead, dependencies=[Depends(get_current_user)])
-async def clone_template(slug: str, session: SessionDep) -> Workflow:
+async def clone_template(slug: str, session: SessionDep, user: CurrentUserDep) -> Workflow:
     template = next((t for t in TEMPLATES if t["slug"] == slug), None)
     if template is None:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -78,6 +78,7 @@ async def clone_template(slug: str, session: SessionDep) -> Workflow:
         agent_chain=[node["id"] for node in template["nodes"]],
         dag_definition={"nodes": template["nodes"], "edges": template["edges"]},
         created_by="template",
+        organization_id=user.organization_id,
     )
     session.add(workflow)
     await session.commit()

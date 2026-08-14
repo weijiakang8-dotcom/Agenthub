@@ -1,6 +1,7 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 
 import { Layout } from "@/components/layout/Layout";
+import { getAccessToken } from "@/lib/api";
 import Dashboard from "@/pages/Dashboard";
 import ExecutionDetail from "@/pages/ExecutionDetail";
 import Executions from "@/pages/Executions";
@@ -10,11 +11,27 @@ import Workflows from "@/pages/Workflows";
 import WorkflowEditor from "@/pages/WorkflowEditor";
 import Alerts from "@/pages/Alerts";
 import AlertRules from "@/pages/AlertRules";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const token = getAccessToken();
+  if (!token) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
 
 export default function App() {
   return (
     <Routes>
-      <Route element={<Layout />}>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route
+        element={
+          <RequireAuth>
+            <Layout />
+          </RequireAuth>
+        }
+      >
         <Route index element={<Dashboard />} />
         <Route path="/workflows" element={<Workflows />} />
         <Route path="/workflows/editor" element={<WorkflowEditor />} />

@@ -3,7 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 
-from app.api.deps import SessionDep, get_current_user
+from app.api.deps import CurrentUserDep, SessionDep, get_current_user
 from app.models import Agent, Execution, Workflow, WorkflowVersion
 from app.models.enums import ExecutionStatus
 from app.schemas.agent import AgentRead
@@ -69,11 +69,15 @@ async def _snapshot_version(
 @router.get("", response_model=list[WorkflowRead])
 async def list_workflows(
     session: SessionDep,
+    user: CurrentUserDep,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
 ) -> list[Workflow]:
+    stmt = select(Workflow)
+    if user.organization_id is not None:
+        stmt = stmt.where(Workflow.organization_id == user.organization_id)
     stmt = (
-        select(Workflow)
+        stmt
         .order_by(Workflow.created_at.desc())
         .offset(skip)
         .limit(limit)
@@ -83,9 +87,13 @@ async def list_workflows(
 
 
 @router.get("/{workflow_id}", response_model=WorkflowDetail)
-async def get_workflow(workflow_id: uuid.UUID, session: SessionDep) -> WorkflowDetail:
+async def get_workflow(
+    workflow_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
+) -> WorkflowDetail:
     workflow = await session.get(Workflow, workflow_id)
     if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    if user.organization_id is not None and workflow.organization_id != user.organization_id:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     detail = WorkflowDetail.model_validate(workflow)
@@ -102,8 +110,10 @@ async def get_workflow(workflow_id: uuid.UUID, session: SessionDep) -> WorkflowD
     status_code=201,
     dependencies=[Depends(get_current_user)],
 )
-async def create_workflow(payload: WorkflowCreate, session: SessionDep) -> Workflow:
-    workflow = Workflow(**payload.model_dump())
+async def create_workflow(
+    payload: WorkflowCreate, session: SessionDep, user: CurrentUserDep
+) -> Workflow:
+    workflow = Workflow(**payload.model_dump(), organization_id=user.organization_id)
     session.add(workflow)
     await session.commit()
     await session.refresh(workflow)
@@ -116,10 +126,12 @@ async def create_workflow(payload: WorkflowCreate, session: SessionDep) -> Workf
     dependencies=[Depends(get_current_user)],
 )
 async def update_workflow(
-    workflow_id: uuid.UUID, payload: WorkflowUpdate, session: SessionDep
+    workflow_id: uuid.UUID, payload: WorkflowUpdate, session: SessionDep, user: CurrentUserDep
 ) -> Workflow:
     workflow = await session.get(Workflow, workflow_id)
     if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    if user.organization_id is not None and workflow.organization_id != user.organization_id:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     for key, value in payload.model_dump(exclude_unset=True).items():
