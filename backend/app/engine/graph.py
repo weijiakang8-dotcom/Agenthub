@@ -21,6 +21,7 @@ from app.core.cache import get_cached_response, set_cached_response
 from app.core.circuit_breaker import llm_breaker
 from app.core.telemetry import get_tracer
 from app.engine import tool_executor
+from app.engine.event_bus import publish_execution_event
 from app.engine.tools import query_db, search_web, send_email
 
 
@@ -117,6 +118,14 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
             span.set_attribute("agent.role", role)
             span.set_attribute("agent.step_index", index)
             span.set_attribute("user_input", state.get("user_input", ""))
+            await publish_execution_event(
+                execution_id,
+                {
+                    "event": "node_started",
+                    "node": role,
+                    "step_index": index,
+                },
+            )
 
             if role == "research":
                 cached = await get_cached_response(state.get("user_input", ""))
@@ -191,6 +200,15 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
             span.set_attribute("output_length", len(final_output))
             if role == "research":
                 await set_cached_response(state.get("user_input", ""), final_output)
+            await publish_execution_event(
+                execution_id,
+                {
+                    "event": "node_completed",
+                    "node": role,
+                    "step_index": index,
+                    "output": final_output,
+                },
+            )
             return {
                 "messages": new_messages,
                 "current_step": index + 1,
@@ -292,6 +310,14 @@ def make_dynamic_agent_node(
     async def dynamic_node(state: AgentState) -> dict[str, Any]:
         execution_id = state.get("execution_id") or ""
         system_prompt = node.get("system_prompt") or f"You are the {role} agent."
+        await publish_execution_event(
+            execution_id,
+            {
+                "event": "node_started",
+                "node": node_id,
+                "step_index": state.get("current_step", 0),
+            },
+        )
         with tracer.start_as_current_span(f"{node_id}_{role}") as span:
             span.set_attribute("agent.role", role)
             messages: list[BaseMessage] = [SystemMessage(content=system_prompt)]
@@ -351,6 +377,14 @@ def make_dynamic_agent_node(
                 )
 
             final_output = getattr(response, "content", "") or ""
+            await publish_execution_event(
+                execution_id,
+                {
+                    "event": "node_completed",
+                    "node": node_id,
+                    "output": final_output,
+                },
+            )
             return {
                 "messages": new_messages,
                 "final_output": final_output,

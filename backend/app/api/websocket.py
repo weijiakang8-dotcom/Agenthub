@@ -1,0 +1,85 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import uuid
+
+import redis.asyncio as aioredis
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
+from app.config import settings
+from app.database import master_session_factory
+from app.engine.event_bus import CHANNEL_PREFIX
+from app.models import Execution, ToolCall
+from sqlalchemy import select
+
+
+router = APIRouter()
+
+
+async def _execution_status(execution_id: uuid.UUID) -> dict:
+    async with master_session_factory() as session:
+        execution = await session.get(Execution, execution_id)
+        if execution is None:
+            return {"event": "not_found", "execution_id": str(execution_id)}
+        tool_calls = (
+            await session.execute(
+                select(ToolCall)
+                .where(ToolCall.execution_id == execution_id)
+                .order_by(ToolCall.started_at)
+            )
+        ).scalars().all()
+        return {
+            "event": "status",
+            "execution_id": str(execution_id),
+            "status": execution.status.value,
+            "current_step_index": execution.current_step_index,
+            "final_output": execution.final_output,
+            "error_message": execution.error_message,
+            "tool_calls": [
+                {
+                    "id": str(tc.id),
+                    "tool_name": tc.tool_name,
+                    "status": tc.status.value,
+                    "input_params": tc.input_params,
+                    "output_result": tc.output_result,
+                    "started_at": tc.started_at.isoformat() if tc.started_at else None,
+                    "completed_at": tc.completed_at.isoformat() if tc.completed_at else None,
+                }
+                for tc in tool_calls
+            ],
+        }
+
+
+@router.websocket("/ws/executions/{execution_id}")
+async def execution_websocket(websocket: WebSocket, execution_id: uuid.UUID) -> None:
+    await websocket.accept()
+
+    redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    pubsub = redis.pubsub()
+    await pubsub.subscribe(f"{CHANNEL_PREFIX}{execution_id}")
+
+    try:
+        while True:
+            status = await _execution_status(execution_id)
+            await websocket.send_json(status)
+
+            if status.get("event") == "not_found":
+                break
+            if status.get("status") in {"completed", "failed", "rolled_back"}:
+                break
+
+            try:
+                message = await asyncio.wait_for(pubsub.get_message(timeout=1), timeout=1.05)
+            except asyncio.TimeoutError:
+                continue
+
+            if message and message.get("type") == "message":
+                await websocket.send_text(message["data"])
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await pubsub.unsubscribe(f"{CHANNEL_PREFIX}{execution_id}")
+        await pubsub.aclose()
+        await redis.aclose()
