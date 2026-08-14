@@ -20,6 +20,9 @@ duckduckgo-search
 # Document parsing
 pypdf
 
+# Semantic embeddings
+sentence-transformers
+
 # 数据库迁移
 alembic
 

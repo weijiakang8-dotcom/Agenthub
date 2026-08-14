@@ -28,7 +28,9 @@ def _load_model() -> Any:
     try:
         from sentence_transformers import SentenceTransformer
 
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
+        _model = SentenceTransformer(
+            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        )
     except Exception:  # noqa: BLE001
         _model = False
     return _model
