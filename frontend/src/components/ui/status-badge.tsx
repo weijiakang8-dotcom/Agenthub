@@ -14,12 +14,19 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors duration-200",
         meta.className,
         className,
       )}
     >
-      <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot)} />
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          meta.dot,
+          (status === "running" || status === "waiting_for_approval") &&
+            "animate-pulse",
+        )}
+      />
       {meta.label}
     </span>
   );

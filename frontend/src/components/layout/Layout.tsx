@@ -39,7 +39,10 @@ export function Layout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Header title={title} onMenuClick={() => setOpen(true)} />
-        <main className="flex-1 overflow-auto p-4 lg:p-6">
+        <main
+          key={location.pathname}
+          className="flex-1 overflow-auto p-4 lg:p-6 animate-in fade-in-0 duration-200"
+        >
           <Outlet />
         </main>
       </div>
