@@ -41,19 +41,25 @@ async def get_current_user(
             if user is not None and user.is_active:
                 return user
 
-    if settings.ADMIN_API_KEY and x_api_key == settings.ADMIN_API_KEY:
-        return User(
-            email="admin@local",
-            full_name="Super Admin",
-            role="admin",
-            is_active=True,
-            organization_id=None,
-        )
-
     raise HTTPException(status_code=401, detail="Invalid or missing authentication")
 
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
+
+
+async def get_admin_api_key_user(
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+) -> User:
+    """仅用于明确的 admin-only 运维接口。"""
+    if not settings.ADMIN_API_KEY or x_api_key != settings.ADMIN_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid admin API key")
+    return User(
+        email="admin@local",
+        full_name="Super Admin",
+        role="admin",
+        is_active=True,
+        organization_id=None,
+    )
 
 
 async def get_current_user_ws(

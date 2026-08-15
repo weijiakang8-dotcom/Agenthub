@@ -6,6 +6,7 @@ from typing import Any
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphInterrupt
 from langgraph.types import Command
+from sqlalchemy import update
 
 from app.database import async_session_factory
 from app.core.billing import record_execution_usage
@@ -127,9 +128,33 @@ async def run_execution(execution_id: uuid.UUID) -> None:
         workflow = await session.get(Workflow, execution.workflow_id)
         steps = await _build_steps(session, workflow)
         dag = workflow.dag_definition if workflow else None
+        if execution.status in {
+            ExecutionStatus.RUNNING,
+            ExecutionStatus.WAITING_FOR_APPROVAL,
+            ExecutionStatus.COMPLETED,
+            ExecutionStatus.ROLLED_BACK,
+        }:
+            return
+
+        result = await session.execute(
+            update(Execution)
+            .where(
+                Execution.id == execution_id,
+                Execution.status == execution.status,
+            )
+            .values(
+                status=ExecutionStatus.RUNNING,
+                current_step_index=0,
+                error_message=None,
+            )
+        )
+        await session.commit()
+        if result.rowcount == 0:
+            return
+
         execution.status = ExecutionStatus.RUNNING
         execution.current_step_index = 0
-        await session.commit()
+        execution.error_message = None
 
     initial_state = {
         "messages": [HumanMessage(content=execution.user_input or "")],
