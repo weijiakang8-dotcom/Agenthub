@@ -99,7 +99,7 @@ async def _send_code(email: str) -> dict:
     result = await send_email(
         email,
         "AgentHub 登录验证码",
-        f"<p>你的验证码是：<strong>{code}</strong>，5 分钟内有效。</p>",
+        f"你的验证码是：{code}，5 分钟内有效。",
     )
     return result
 
