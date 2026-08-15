@@ -78,6 +78,64 @@ export type AlertEvent = {
   resolved_at: string | null;
 };
 
+export type ModelConfig = {
+  id: string;
+  name: string;
+  provider: string;
+  base_url: string;
+  model: string;
+  max_tokens: number;
+  cost_per_1k_tokens: number;
+  is_active: boolean;
+  is_default: boolean;
+};
+
+export type DocumentItem = {
+  id: string;
+  name: string;
+  content: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type NotificationItem = {
+  id: string;
+  channel: string;
+  template: string;
+  params: Record<string, unknown>;
+  status: string;
+  error: string;
+  created_at: string;
+};
+
+export type UsageSummary = {
+  total_executions: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  total_cost: number;
+  today_tokens: number;
+  today_cost: number;
+};
+
+export type EvalDataset = {
+  id: string;
+  name: string;
+  description: string;
+  items: Array<{ input?: string; expected?: string }>;
+  created_at: string;
+};
+
+export type EvalRun = {
+  id: string;
+  dataset_id: string;
+  status: string;
+  score: number | null;
+  report: Record<string, unknown>;
+  created_at: string;
+  completed_at: string | null;
+};
+
 export type Intervention = {
   id: string;
   operator: string;
@@ -172,6 +230,110 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  listModels: () => request<ModelConfig[]>("/models"),
+  createModel: (payload: {
+    name: string;
+    provider: string;
+    base_url: string;
+    api_key?: string;
+    model: string;
+    max_tokens?: number;
+    cost_per_1k_tokens?: number;
+    is_default?: boolean;
+  }) =>
+    request<ModelConfig>("/models", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateModel: (
+    id: string,
+    payload: Partial<{
+      name: string;
+      provider: string;
+      base_url: string;
+      api_key: string;
+      model: string;
+      max_tokens: number;
+      cost_per_1k_tokens: number;
+      is_active: boolean;
+      is_default: boolean;
+    }>,
+  ) =>
+    request<ModelConfig>(`/models/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  testModel: (id: string) =>
+    request<{ ok: boolean; response?: string; error?: string }>(
+      `/models/${id}/test`,
+      { method: "POST" },
+    ),
+  listDocuments: () => request<DocumentItem[]>("/documents"),
+  createDocument: (payload: {
+    name: string;
+    content: string;
+    metadata?: Record<string, unknown>;
+  }) =>
+    request<DocumentItem>("/documents", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  uploadDocument: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const token = getAccessToken();
+    return fetch(`${BASE}/documents/upload`, {
+      method: "POST",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(ADMIN_API_KEY ? { "X-API-Key": ADMIN_API_KEY } : {}),
+      },
+      body: form,
+    }).then((res) => {
+      if (!res.ok) return res.text().then((text) => Promise.reject(new Error(text)));
+      return res.json() as Promise<DocumentItem>;
+    });
+  },
+  deleteDocument: (id: string) =>
+    request<void>(`/documents/${id}`, { method: "DELETE" }),
+  searchDocuments: (query: string, top_k = 5) =>
+    request<DocumentItem[]>("/documents/search", {
+      method: "POST",
+      body: JSON.stringify({ query, top_k }),
+    }),
+  listNotifications: () => request<NotificationItem[]>("/notifications"),
+  testNotification: (payload: {
+    channel: string;
+    template?: string;
+    params?: Record<string, unknown>;
+  }) =>
+    request<{ status: string; error: string }>("/notifications/test", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getUsage: () => request<UsageSummary>("/usage"),
+  listEvalDatasets: () => request<EvalDataset[]>("/eval/datasets"),
+  createEvalDataset: (payload: {
+    name: string;
+    description?: string;
+    items: Array<Record<string, unknown>>;
+  }) =>
+    request<EvalDataset>("/eval/datasets", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  deleteEvalDataset: (id: string) =>
+    request<void>(`/eval/datasets/${id}`, { method: "DELETE" }),
+  runEval: (payload: {
+    dataset_id: string;
+    workflow_id?: string;
+    threshold?: number;
+  }) =>
+    request<EvalRun>("/eval/run", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  listEvalReports: () => request<EvalRun[]>("/eval/reports"),
   request: <T,>(path: string, init?: RequestInit) => request<T>(path, init),
 };
 
