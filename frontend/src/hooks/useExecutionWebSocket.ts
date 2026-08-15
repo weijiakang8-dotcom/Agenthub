@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { api, getAccessToken } from "@/lib/api";
+
 export type ExecutionEvent = {
   event: string;
   [key: string]: unknown;
@@ -19,8 +21,10 @@ export function useExecutionWebSocket(executionId: string | undefined) {
 
     const connect = () => {
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
+      const token = getAccessToken();
+      const query = token ? `?token=${encodeURIComponent(token)}` : "";
       ws = new WebSocket(
-        `${proto}://${window.location.host}/ws/executions/${executionId}`,
+        `${proto}://${window.location.host}/ws/executions/${executionId}${query}`,
       );
 
       ws.onopen = () => {
@@ -52,11 +56,8 @@ export function useExecutionWebSocket(executionId: string | undefined) {
     poll = window.setInterval(async () => {
       if (ws && ws.readyState === WebSocket.OPEN) return;
       try {
-        const res = await fetch(`/api/executions/${executionId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setLastEvent({ event: "status", ...data });
-        }
+        const data = await api.getExecution(executionId);
+        setLastEvent({ event: "status", ...data });
       } catch {
         // ignore polling errors
       }
