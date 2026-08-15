@@ -5,7 +5,7 @@ import random
 import redis.asyncio as aioredis
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
@@ -21,6 +21,7 @@ from app.models import Organization, User, utcnow
 from app.api.deps import CurrentUserDep
 from app.config import settings
 from app.core.email import send_email
+from app.core.rate_limit import rate_limit
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -77,8 +78,12 @@ class SendCodeRequest(BaseModel):
 async def _verify_code(email: str, code: str) -> bool:
     client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
     try:
-        stored = await client.get(f"auth:code:{email}")
-        return bool(stored and stored == code)
+        key = f"auth:code:{email}"
+        stored = await client.get(key)
+        if not stored or stored != code:
+            return False
+        await client.delete(key)
+        return True
     finally:
         await client.aclose()
 
@@ -99,8 +104,18 @@ async def _send_code(email: str) -> dict:
 
 
 @router.post("/send-code")
-async def send_code(payload: SendCodeRequest) -> dict:
+async def send_code(payload: SendCodeRequest, request: Request) -> dict:
     email = payload.email.strip().lower()
+    client_ip = (
+        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        or (request.client.host if request.client else "unknown")
+    )
+
+    if not await rate_limit(f"send-code:email:{email}", limit=1, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Too many code requests for this email")
+    if not await rate_limit(f"send-code:ip:{client_ip}", limit=10, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Too many code requests from this IP")
+
     result = await _send_code(email)
     if not result.get("ok"):
         raise HTTPException(status_code=502, detail=result.get("error") or "Failed to send code")
