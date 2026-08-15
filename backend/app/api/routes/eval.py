@@ -127,7 +127,6 @@ async def _get_or_create_workflow(
             )
             session.add(workflow)
             await session.commit()
-            await session.refresh(workflow)
         return workflow.id
 
 

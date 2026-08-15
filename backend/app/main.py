@@ -32,8 +32,9 @@ setup_telemetry()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 开发环境快速建表；生产环境使用 Alembic。create_all 是幂等操作。
-    await init_db()
+    # 开发环境快速建表；生产环境只允许 Alembic 管理 schema。
+    if settings.ENVIRONMENT != "production":
+        await init_db()
     yield
 
 
