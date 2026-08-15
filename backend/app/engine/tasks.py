@@ -3,14 +3,19 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from celery import Celery
 from celery.signals import worker_process_init
 import redis.asyncio as aioredis
+from sqlalchemy import update
 
 from app.config import settings
 from app.core.telemetry import setup_telemetry
+from app.database import async_session_factory
+from app.models import Execution
+from app.models.enums import ExecutionStatus
 
 
 celery_app = Celery(
@@ -32,6 +37,10 @@ celery_app.conf.beat_schedule = {
     "evaluate-alerts": {
         "task": "agenthub.evaluate_all_rules",
         "schedule": 60.0,
+    },
+    "mark-stale-executions": {
+        "task": "agenthub.mark_stale_executions",
+        "schedule": 120.0,
     },
 }
 
@@ -85,3 +94,26 @@ def evaluate_all_rules_task() -> None:
     from app.core.alert_evaluator import evaluate_all_rules
 
     asyncio.run(evaluate_all_rules())
+
+
+@celery_app.task(name="agenthub.mark_stale_executions")
+def mark_stale_executions_task() -> int:
+    async def _mark() -> int:
+        stale_before = datetime.now(timezone.utc) - timedelta(minutes=15)
+        async with async_session_factory() as session:
+            result = await session.execute(
+                update(Execution)
+                .where(
+                    Execution.status == ExecutionStatus.RUNNING,
+                    Execution.updated_at < stale_before,
+                )
+                .values(
+                    status=ExecutionStatus.FAILED,
+                    error_message="Execution timed out after 15 minutes",
+                    completed_at=datetime.now(timezone.utc),
+                )
+            )
+            await session.commit()
+            return result.rowcount or 0
+
+    return asyncio.run(_mark())

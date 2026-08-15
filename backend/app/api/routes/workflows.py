@@ -116,7 +116,6 @@ async def create_workflow(
     workflow = Workflow(**payload.model_dump(), organization_id=user.organization_id)
     session.add(workflow)
     await session.commit()
-    await session.refresh(workflow)
     return workflow
 
 
@@ -139,7 +138,6 @@ async def update_workflow(
 
     await _snapshot_version(session, workflow, changelog=payload.changelog if hasattr(payload, "changelog") else "")
     await session.commit()
-    await session.refresh(workflow)
     return workflow
 
 
@@ -211,7 +209,6 @@ async def rollback_workflow(
     workflow.agent_chain = snapshot.get("agent_chain", workflow.agent_chain)
     await _snapshot_version(session, workflow, changelog=f"rollback to v{version}")
     await session.commit()
-    await session.refresh(workflow)
     return workflow
 
 

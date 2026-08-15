@@ -82,5 +82,4 @@ async def clone_template(slug: str, session: SessionDep, user: CurrentUserDep) -
     )
     session.add(workflow)
     await session.commit()
-    await session.refresh(workflow)
     return workflow
