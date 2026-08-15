@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 
 import httpx
 import redis.asyncio as aioredis
@@ -13,6 +14,7 @@ from sqlalchemy import text
 from app.api import api_router
 from app.api.websocket import router as websocket_router
 from app.api.routes.metrics import router as metrics_router
+from app.core.audit import build_audit_details
 from app.core.request_utils import get_client_ip
 from app.core.security import decode_token
 from app.core.rate_limit import rate_limit
@@ -21,6 +23,8 @@ from app.database import async_session_factory, init_db, master_engine
 from app.models import AuditLog
 from app.engine.tasks import celery_app  # noqa: F401  # 加载 Celery 配置
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # 必须在创建 FastAPI 实例前调用，FastAPIInstrumentor 会替换 fastapi.FastAPI 类
 setup_telemetry()
@@ -61,6 +65,14 @@ async def rate_limit_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def audit_middleware(request: Request, call_next):
+    body: bytes | None = None
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            content_length = request.headers.get("content-length")
+            if content_length and int(content_length) <= 50_000:
+                body = await request.body()
+
     response = await call_next(request)
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
         user_id = None
@@ -80,18 +92,21 @@ async def audit_middleware(request: Request, call_next):
                     except (ValueError, TypeError):
                         organization_id = None
 
-        async with async_session_factory() as session:
-            session.add(
-                AuditLog(
-                    user_id=user_id,
-                    organization_id=organization_id,
-                    method=request.method,
-                    path=request.url.path,
-                    status_code=response.status_code,
-                    details={},
+        try:
+            async with async_session_factory() as session:
+                session.add(
+                    AuditLog(
+                        user_id=user_id,
+                        organization_id=organization_id,
+                        method=request.method,
+                        path=request.url.path,
+                        status_code=response.status_code,
+                        details=build_audit_details(request, body),
+                    )
                 )
-            )
-            await session.commit()
+                await session.commit()
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to persist audit log for %s", request.url.path)
 
     return response
 
