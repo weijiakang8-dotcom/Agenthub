@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "AgentHub"
     DEBUG: bool = False
+    ENVIRONMENT: str = "development"
 
     DATABASE_URL: str = (
         "postgresql+asyncpg://postgres:postgres@localhost:5433/agenthub"
@@ -24,6 +25,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     ADMIN_API_KEY: str = ""
     JWT_SECRET_KEY: str = "change-me-in-production"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:8080"
     REPLICA_DATABASE_URL: str = ""
     LLM_BASE_URL: str = "https://api.deepseek.com/v1"
     LLM_MODEL: str = "deepseek-chat"
@@ -38,6 +40,10 @@ class Settings(BaseSettings):
     ALERT_WEBHOOK_URL: str = ""
     FEISHU_WEBHOOK_URL: str = ""
 
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
 
 @lru_cache
 def get_settings() -> Settings:
@@ -45,3 +51,10 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+
+
+if settings.ENVIRONMENT == "production":
+    if settings.JWT_SECRET_KEY in {"", "change-me-in-production"} or len(settings.JWT_SECRET_KEY) < 32:
+        raise RuntimeError(
+            "JWT_SECRET_KEY must be set to a strong secret (>= 32 chars) in production"
+        )
