@@ -8,20 +8,26 @@ import redis.asyncio as aioredis
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.config import settings
+from app.api.deps import CurrentUserWsDep
 from app.database import master_session_factory
 from app.engine.event_bus import CHANNEL_PREFIX
-from app.models import Execution, ToolCall
+from app.models import Execution, ToolCall, User
 from sqlalchemy import select
 
 
 router = APIRouter()
 
 
-async def _execution_status(execution_id: uuid.UUID) -> dict:
+async def _execution_status(execution_id: uuid.UUID, user: User) -> dict:
     async with master_session_factory() as session:
         execution = await session.get(Execution, execution_id)
         if execution is None:
             return {"event": "not_found", "execution_id": str(execution_id)}
+        if (
+            user.organization_id is not None
+            and execution.organization_id != user.organization_id
+        ):
+            return {"event": "forbidden", "execution_id": str(execution_id)}
         tool_calls = (
             await session.execute(
                 select(ToolCall)
@@ -52,7 +58,11 @@ async def _execution_status(execution_id: uuid.UUID) -> dict:
 
 
 @router.websocket("/ws/executions/{execution_id}")
-async def execution_websocket(websocket: WebSocket, execution_id: uuid.UUID) -> None:
+async def execution_websocket(
+    websocket: WebSocket,
+    execution_id: uuid.UUID,
+    user: CurrentUserWsDep,
+) -> None:
     await websocket.accept()
 
     redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -61,10 +71,10 @@ async def execution_websocket(websocket: WebSocket, execution_id: uuid.UUID) -> 
 
     try:
         while True:
-            status = await _execution_status(execution_id)
+            status = await _execution_status(execution_id, user)
             await websocket.send_json(status)
 
-            if status.get("event") == "not_found":
+            if status.get("event") in {"not_found", "forbidden"}:
                 break
             if status.get("status") in {"completed", "failed", "rolled_back"}:
                 break

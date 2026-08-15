@@ -4,7 +4,7 @@ import logging
 import uuid
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, Header, HTTPException, Query, WebSocket
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -54,6 +54,27 @@ async def get_current_user(
 
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
+
+
+async def get_current_user_ws(
+    websocket: WebSocket,
+    session: SessionDep,
+    token: Annotated[str | None, Query()] = None,
+    authorization: Annotated[str | None, Header()] = None,
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+) -> User:
+    """WebSocket 认证：优先从 Header 读取，其次从 ?token= 读取。"""
+    auth_header = authorization
+    if not auth_header and token:
+        auth_header = f"Bearer {token}"
+    try:
+        return await get_current_user(session, auth_header, x_api_key)
+    except HTTPException:
+        await websocket.close(code=1008)
+        raise
+
+
+CurrentUserWsDep = Annotated[User, Depends(get_current_user_ws)]
 
 
 async def get_current_org(user: CurrentUserDep) -> uuid.UUID | None:
