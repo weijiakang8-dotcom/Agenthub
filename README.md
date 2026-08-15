@@ -24,6 +24,16 @@ AgentHub 是一个可部署到云端的多智能体协作平台。用户可以�
 - 通知中心：邮件、Webhook、飞书、钉钉、企微通道
 - 安全合规：JWT、组织隔离、审计日志、限流、CORS 白名单
 
+## 功能截图
+
+### 工作区 / 对话入口
+
+![AgentHub Dashboard](docs/screenshots/dashboard.png)
+
+### API 文档（Swagger）
+
+![AgentHub Swagger](docs/screenshots/swagger.png)
+
 ## 系统架构
 
 ```mermaid
@@ -57,6 +67,32 @@ flowchart LR
     Graph <--> PG
     Celery <--> PG
     API <--> PG
+```
+
+## 执行流程
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Web as React 前端
+    participant API as FastAPI
+    participant Redis as Redis
+    participant Worker as Celery Worker
+    participant Graph as LangGraph
+    participant LLM as 多模型网关
+    participant DB as PostgreSQL
+
+    User->>Web: 输入任务
+    Web->>API: POST /api/executions
+    API->>DB: 创建 Execution
+    API->>Redis: 投递 Celery 任务
+    API-->>Web: 202 Accepted
+    Redis-->>Worker: 消费任务
+    Worker->>Graph: 执行 Agent 工作流
+    Graph->>LLM: 调用模型 / 自动 fallback
+    Graph->>DB: 写入 Checkpoint / ToolCall
+    Graph-->>Web: WebSocket / SSE 状态推送
+    Worker->>DB: 更新 Execution 状态
 ```
 
 ## 技术栈
@@ -136,6 +172,20 @@ npm run dev
 访问：
 
 - 前端：`http://localhost:5173`
+- API 文档：`http://localhost:8000/docs`
+- 健康检查：`http://localhost:8000/health`
+
+### Docker Compose 一键启动
+
+```bash
+cp .env.example .env
+docker compose -f docker/docker-compose.yml up -d --build
+docker compose -f docker/docker-compose.yml exec backend alembic upgrade head
+```
+
+打开：
+
+- 前端：`http://localhost:8080`
 - API 文档：`http://localhost:8000/docs`
 - 健康检查：`http://localhost:8000/health`
 
@@ -241,9 +291,43 @@ docker compose -f docker/docker-compose.yml up -d --build
 - [ ] NPM 包 / 本地 CLI
 - [ ] 更多内置工具
 
-## 贡献
+## 贡献指南
 
-欢迎提交 Issue 和 Pull Request。请先阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)，开发规范见 [AGENTS.md](./AGENTS.md)。
+欢迎提交 Issue 和 Pull Request。
+
+快速参与方式：
+
+```bash
+# Fork 仓库并克隆
+git clone https://github.com/你的用户名/Agenthub.git
+cd agenthub
+
+# 创建功能分支
+git checkout -b feat/my-feature
+
+# 后端测试
+cd backend
+pytest -q
+
+# 前端检查
+cd ../frontend
+npm run test:run
+npm run build
+```
+
+提交前请阅读：
+
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [AGENTS.md](./AGENTS.md)
+
+Commit 建议遵循 Conventional Commits：
+
+```text
+feat: 新增功能
+fix: 修复问题
+docs: 更新文档
+chore: 维护任务
+```
 
 ## License
 
