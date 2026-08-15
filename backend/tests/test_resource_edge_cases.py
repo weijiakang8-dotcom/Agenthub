@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 
 from app.api.routes import documents as documents_routes
 from app.api.routes import eval as eval_routes
@@ -93,11 +94,18 @@ class FakeSession:
 
 
 class FakeUpload:
-    filename = "doc.txt"
-    content_type = "text/plain"
+    def __init__(
+        self,
+        filename: str = "doc.txt",
+        content_type: str = "text/plain",
+        content: bytes = b"hello world",
+    ):
+        self.filename = filename
+        self.content_type = content_type
+        self.content = content
 
     async def read(self):
-        return b"hello world"
+        return self.content
 
 
 def make_document(name: str, content: str) -> Document:
@@ -187,6 +195,48 @@ def test_upload_document_uses_embedding(monkeypatch):
 
     assert result["name"] == "doc.txt"
     assert session.added[0].embedding == [0.1, 0.2]
+
+
+def test_upload_document_rejects_unsupported_type(monkeypatch):
+    session = FakeSession()
+
+    async def fake_embed(_text):
+        return [0.1]
+
+    monkeypatch.setattr(documents_routes, "embed_text", fake_embed)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            documents_routes.upload_document(
+                session=session,
+                user=make_user(),
+                file=FakeUpload(filename="notes.docx", content_type="application/zip"),
+            )
+        )
+
+    assert exc.value.status_code == 422
+    assert session.added == []
+
+
+def test_upload_document_rejects_empty_content(monkeypatch):
+    session = FakeSession()
+
+    async def fake_embed(_text):
+        return [0.1]
+
+    monkeypatch.setattr(documents_routes, "embed_text", fake_embed)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            documents_routes.upload_document(
+                session=session,
+                user=make_user(),
+                file=FakeUpload(filename="empty.txt", content=b"   "),
+            )
+        )
+
+    assert exc.value.status_code == 422
+    assert session.added == []
 
 
 def test_search_documents_scores_keywords(monkeypatch):
