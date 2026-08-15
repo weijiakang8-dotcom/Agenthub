@@ -19,6 +19,7 @@ from langgraph.types import interrupt
 from app.config import settings
 from app.core.cache import get_cached_response, set_cached_response
 from app.core.circuit_breaker import llm_breaker
+from app.core.safe_expression import evaluate_condition
 from app.core.telemetry import get_tracer
 from app.engine import tool_executor
 from app.engine.event_bus import publish_execution_event
@@ -384,21 +385,12 @@ def _condition_router(state: AgentState) -> bool:
 
 
 def _eval_condition(expression: str, state: AgentState) -> bool:
-    if not expression:
-        return True
     namespace = {
         "final_output": state.get("final_output", ""),
         "messages": state.get("messages", []),
         "node_outputs": state.get("node_outputs", {}),
-        "len": len,
-        "int": int,
-        "str": str,
-        "float": float,
     }
-    try:
-        return bool(eval(expression, {"__builtins__": {}}, namespace))
-    except Exception:  # noqa: BLE001
-        return False
+    return evaluate_condition(expression, namespace)
 
 
 def make_condition_node(node: dict[str, Any]) -> Callable[[AgentState], dict[str, Any]]:
