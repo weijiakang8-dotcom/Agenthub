@@ -22,6 +22,7 @@ from app.api.deps import CurrentUserDep
 from app.config import settings
 from app.core.email import send_email
 from app.core.rate_limit import rate_limit
+from app.core.request_utils import get_client_ip
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -106,10 +107,7 @@ async def _send_code(email: str) -> dict:
 @router.post("/send-code")
 async def send_code(payload: SendCodeRequest, request: Request) -> dict:
     email = payload.email.strip().lower()
-    client_ip = (
-        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-        or (request.client.host if request.client else "unknown")
-    )
+    client_ip = get_client_ip(request)
 
     if not await rate_limit(f"send-code:email:{email}", limit=1, window_seconds=60):
         raise HTTPException(status_code=429, detail="Too many code requests for this email")
