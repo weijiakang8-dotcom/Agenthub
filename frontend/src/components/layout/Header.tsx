@@ -1,5 +1,5 @@
 import { Bell, Menu } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,16 @@ export function Header({
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const loggedIn = Boolean(getAccessToken());
+
+  useEffect(() => {
+    const openAuth = (event: Event) => {
+      const mode = (event as CustomEvent<string>).detail === "register" ? "register" : "login";
+      setAuthMode(mode);
+      setAuthOpen(true);
+    };
+    window.addEventListener("agenthub:open-auth", openAuth);
+    return () => window.removeEventListener("agenthub:open-auth", openAuth);
+  }, []);
 
   return (
     <header className="flex h-14 items-center justify-between border-b bg-white px-4">

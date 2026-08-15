@@ -119,11 +119,15 @@ export default function Chat() {
         }
       }
     } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "请求失败，请稍后重试";
       setMessages((m) => {
         const next = [...m];
         const idx = next.length - 1;
         if (next[idx]?.role === "assistant") {
-          next[idx] = { role: "assistant", content: `请求失败：${String(err)}` };
+          next[idx] = { role: "assistant", content: `请求失败：${message}` };
         }
         return next;
       });
