@@ -68,16 +68,27 @@ export function AuthModal({
         <DialogHeader>
           <DialogTitle>{mode === "login" ? "登录" : "注册"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
+        <form
+          className="space-y-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
           {mode === "register" && (
             <div className="space-y-2">
               <Label>姓名</Label>
-              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              <Input
+                autoFocus={mode === "register"}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+              />
             </div>
           )}
           <div className="space-y-2">
             <Label>邮箱</Label>
             <Input
+              autoFocus={mode === "login"}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -96,12 +107,17 @@ export function AuthModal({
             <Label>验证码</Label>
             <div className="flex gap-2">
               <Input value={code} onChange={(e) => setCode(e.target.value)} />
-              <Button variant="outline" onClick={sendCode} disabled={countdown > 0}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={sendCode}
+                disabled={countdown > 0}
+              >
                 {countdown > 0 ? `${countdown}s` : "获取验证码"}
               </Button>
             </div>
           </div>
-          <Button className="w-full" onClick={submit} disabled={submitting}>
+          <Button type="submit" className="w-full" disabled={submitting}>
             {submitting ? "提交中…" : mode === "login" ? "登录" : "注册"}
           </Button>
           <button
@@ -111,7 +127,7 @@ export function AuthModal({
           >
             {mode === "login" ? "没有账号？注册" : "已有账号？登录"}
           </button>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
