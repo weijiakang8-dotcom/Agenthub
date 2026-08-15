@@ -169,7 +169,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    let message = text || `HTTP ${res.status}`;
+    try {
+      const data = JSON.parse(text);
+      if (data?.detail) {
+        message =
+          typeof data.detail === "string"
+            ? data.detail
+            : JSON.stringify(data.detail);
+      }
+    } catch {
+      // 保持原始错误文本
+    }
+    throw new Error(message);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;

@@ -59,14 +59,28 @@ export default function Dashboard() {
             <span className="type-caption text-muted-foreground">
               回车后选择工作流并启动
             </span>
-            <Button
-              type="submit"
-              disabled={!loggedIn || !draft.trim()}
-              className="w-full sm:w-auto"
-            >
-              <Sparkles className="h-4 w-4" />
-              开始执行
-            </Button>
+            {loggedIn ? (
+              <Button
+                type="submit"
+                disabled={!draft.trim()}
+                className="w-full sm:w-auto"
+              >
+                <Sparkles className="h-4 w-4" />
+                开始执行
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                className="w-full sm:w-auto"
+                onClick={() =>
+                  window.dispatchEvent(
+                    new CustomEvent("agenthub:open-auth", { detail: "login" }),
+                  )
+                }
+              >
+                登录 / 注册
+              </Button>
+            )}
           </div>
         </form>
       </Card>
