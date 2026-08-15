@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from app.api.routes import documents as documents_routes
 from app.api.routes import eval as eval_routes
 from app.core import notification as notification_routes
-from app.models import Document, EvalDataset
+from app.models import Document, EvalDataset, ExecutionStatus
 
 
 ORG_ID = uuid.uuid4()
@@ -298,3 +298,104 @@ def test_run_eval_empty_dataset_reports_zero_items(monkeypatch):
     assert result["report"]["scored"] == 0
     assert result["report"]["passed"] == 0
     assert result["report"]["average_score"] is None
+
+
+def test_run_one_timeout_returns_timeout_status(monkeypatch):
+    session = FakeSession()
+    factory = FakeSessionFactory(session)
+    delay_calls = []
+
+    def fake_delay(execution_id):
+        delay_calls.append(execution_id)
+
+    async def fake_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(eval_routes, "async_session_factory", factory)
+    monkeypatch.setattr(eval_routes.execute_workflow_task, "delay", fake_delay)
+    monkeypatch.setattr(eval_routes.asyncio, "sleep", fake_sleep)
+
+    result = asyncio.run(
+        eval_routes._run_one(
+            workflow_id=uuid.uuid4(),
+            user_input="hello",
+            org_id=ORG_ID,
+        )
+    )
+
+    assert result == {"input": "hello", "status": "timeout", "score": None}
+    assert delay_calls == [str(session.added[0].id)]
+
+
+def test_run_one_failed_execution_returns_error(monkeypatch):
+    session = FakeSession()
+    factory = FakeSessionFactory(session)
+
+    def fail_execution(_execution_id):
+        execution = session.added[-1]
+        execution.status = ExecutionStatus.FAILED
+        execution.error_message = "worker crashed"
+
+    async def fake_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(eval_routes, "async_session_factory", factory)
+    monkeypatch.setattr(eval_routes.execute_workflow_task, "delay", fail_execution)
+    monkeypatch.setattr(eval_routes.asyncio, "sleep", fake_sleep)
+
+    result = asyncio.run(
+        eval_routes._run_one(
+            workflow_id=uuid.uuid4(),
+            user_input="broken prompt",
+            org_id=ORG_ID,
+        )
+    )
+
+    assert result["input"] == "broken prompt"
+    assert result["status"] == "failed"
+    assert result["score"] is None
+    assert result["error"] == "worker crashed"
+
+
+def test_run_eval_failure_report_has_zero_score(monkeypatch):
+    dataset = EvalDataset(
+        id=uuid.uuid4(),
+        organization_id=ORG_ID,
+        name="failure-dataset",
+        description="failure report edge case",
+        items=[{"input": "trigger failure"}],
+        created_at=datetime(2026, 8, 15, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 8, 15, tzinfo=timezone.utc),
+    )
+    session = FakeSession()
+    session.objects[dataset.id] = dataset
+    factory = FakeSessionFactory(session)
+
+    async def fake_workflow(*_args):
+        return uuid.uuid4()
+
+    async def fake_run_one(_workflow_id, user_input, _org_id):
+        return {
+            "input": user_input,
+            "status": "failed",
+            "score": None,
+            "error": "evaluation failed",
+        }
+
+    monkeypatch.setattr(eval_routes, "async_session_factory", factory)
+    monkeypatch.setattr(eval_routes, "_get_or_create_workflow", fake_workflow)
+    monkeypatch.setattr(eval_routes, "_run_one", fake_run_one)
+
+    result = asyncio.run(
+        eval_routes.run_eval(
+            payload=eval_routes.RunRequest(dataset_id=dataset.id),
+            user=make_user(),
+        )
+    )
+
+    assert result["status"] == "completed"
+    assert result["report"]["total"] == 1
+    assert result["report"]["scored"] == 0
+    assert result["report"]["passed"] == 0
+    assert result["report"]["average_score"] is None
+    assert result["report"]["items"][0]["status"] == "failed"
