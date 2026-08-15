@@ -16,9 +16,9 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
-from app.config import settings
 from app.core.cache import get_cached_response, set_cached_response
 from app.core.circuit_breaker import llm_breaker
+from app.core.model_gateway import get_chat_models
 from app.core.safe_expression import evaluate_condition
 from app.core.telemetry import get_tracer
 from app.engine import tool_executor
@@ -68,43 +68,64 @@ TOOL_BY_NAME = {
 tracer = get_tracer("agenthub.engine")
 
 
-async def _call_llm(llm, messages):
-    if not llm_breaker.allow():
-        raise RuntimeError("AI 服务暂时不可用，请稍后再试")
-    for attempt in range(3):
-        try:
-            response = await llm.ainvoke(messages)
-            llm_breaker.record_success()
-            return response
-        except Exception as exc:  # noqa: BLE001
-            llm_breaker.record_failure()
-            if attempt == 2:
-                raise exc
-            await asyncio.sleep(2 ** attempt)
+async def _call_llm_with_fallback(llms: list[ChatOpenAI], messages: list[BaseMessage]):
+    if not llms:
+        raise RuntimeError("没有可用的模型")
+
+    last_error: Exception | None = None
+    for llm in llms:
+        if not llm_breaker.allow():
+            continue
+        for attempt in range(3):
+            try:
+                response = await llm.ainvoke(messages)
+                llm_breaker.record_success()
+                return response
+            except Exception as exc:  # noqa: BLE001
+                llm_breaker.record_failure()
+                last_error = exc
+                if attempt == 2:
+                    break
+                await asyncio.sleep(2**attempt)
+
+    raise last_error or RuntimeError("AI 服务暂时不可用，请稍后再试")
 
 
 async def _stream_llm_text(
-    llm, messages: list[BaseMessage], execution_id: str, node_id: str
+    llms: list[ChatOpenAI],
+    messages: list[BaseMessage],
+    execution_id: str,
+    node_id: str,
 ) -> AIMessage:
-    parts: list[str] = []
-    async for chunk in llm.astream(messages):
-        text = getattr(chunk, "content", None)
-        if isinstance(text, str) and text:
-            parts.append(text)
-            await publish_execution_event(
-                execution_id,
-                {"event": "token", "node": node_id, "token": text},
-            )
-    return AIMessage(content="".join(parts))
+    last_error: Exception | None = None
+    for llm in llms:
+        if not llm_breaker.allow():
+            continue
+        parts: list[str] = []
+        try:
+            async for chunk in llm.astream(messages):
+                text = getattr(chunk, "content", None)
+                if isinstance(text, str) and text:
+                    parts.append(text)
+                    await publish_execution_event(
+                        execution_id,
+                        {"event": "token", "node": node_id, "token": text},
+                    )
+            llm_breaker.record_success()
+            return AIMessage(content="".join(parts))
+        except Exception as exc:  # noqa: BLE001
+            llm_breaker.record_failure()
+            last_error = exc
+
+    raise last_error or RuntimeError("AI 服务暂时不可用，请稍后再试")
 
 
-def _get_llm() -> ChatOpenAI:
-    return ChatOpenAI(
-        model=settings.LLM_MODEL,
-        base_url=settings.LLM_BASE_URL,
-        api_key=settings.OPENAI_API_KEY or "not-configured",
-        temperature=0,
-    )
+async def _get_llms(
+    organization_id: str | None = None,
+    *,
+    complexity: str = "simple",
+) -> list[ChatOpenAI]:
+    return await get_chat_models(organization_id, complexity=complexity)
 
 
 async def prepare_node(state: AgentState) -> dict[str, Any]:
@@ -119,14 +140,15 @@ async def classify_task_node(state: AgentState) -> dict[str, Any]:
     loop_count = state.get("loop_count", 0)
     if loop_count == 0:
         try:
-            llm = _get_llm()
+            llms = await _get_llms(state.get("organization_id"))
             prompt = (
                 "你是任务分派器。根据用户输入，只输出一个类别："
                 "research / analysis / execution / general。"
                 f"\n用户输入：{user_input}"
             )
-            response = await _call_llm(
-                llm, [SystemMessage(content=prompt), HumanMessage(content=user_input)]
+            response = await _call_llm_with_fallback(
+                llms,
+                [SystemMessage(content=prompt), HumanMessage(content=user_input)],
             )
             category = str(getattr(response, "content", "")).strip().lower()
         except Exception:  # noqa: BLE001
@@ -157,13 +179,16 @@ async def loop_check_node(state: AgentState) -> dict[str, Any]:
         return {"revision_requested": False}
 
     try:
-        llm = _get_llm()
+        llms = await _get_llms(state.get("organization_id"))
         prompt = (
             "你是质量审查员。给下面的 Agent 输出按 1-5 打分，只输出整数分数。"
             f"\n用户输入：{state.get('user_input', '')}"
             f"\nAgent 输出：{final_output}"
         )
-        response = await _call_llm(llm, [HumanMessage(content=prompt)])
+        response = await _call_llm_with_fallback(
+            llms,
+            [HumanMessage(content=prompt)],
+        )
         score = int(str(getattr(response, "content", "5")).strip())
     except Exception:  # noqa: BLE001
         score = 5
@@ -242,17 +267,17 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
             if not any(isinstance(m, HumanMessage) for m in messages):
                 messages.append(HumanMessage(content=state.get("user_input", "")))
 
-            llm = _get_llm()
+            llms = await _get_llms(state.get("organization_id"))
             tools = ROLE_TOOLS.get(role, [])
             if tools:
-                llm = llm.bind_tools(tools)
+                llms = [llm.bind_tools(tools) for llm in llms]
 
             try:
                 if tools:
-                    response = await _call_llm(llm, messages)
+                    response = await _call_llm_with_fallback(llms, messages)
                 else:
                     response = await _stream_llm_text(
-                        llm, messages, execution_id, role
+                        llms, messages, execution_id, role
                     )
             except RuntimeError as exc:
                 return {
@@ -300,7 +325,10 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
             if executed_tool:
                 final_messages = [SystemMessage(content=system_prompt), *new_messages]
                 final_response = await _stream_llm_text(
-                    _get_llm(), final_messages, execution_id, role
+                    await _get_llms(state.get("organization_id")),
+                    final_messages,
+                    execution_id,
+                    role,
                 )
                 new_messages.append(final_response)
 
@@ -430,17 +458,17 @@ def make_dynamic_agent_node(
             if not any(isinstance(m, HumanMessage) for m in messages):
                 messages.append(HumanMessage(content=state.get("user_input", "")))
 
-            llm = _get_llm()
+            llms = await _get_llms(state.get("organization_id"))
             tools = ROLE_TOOLS.get(role, [])
             if tools:
-                llm = llm.bind_tools(tools)
+                llms = [llm.bind_tools(tools) for llm in llms]
 
             try:
                 if tools:
-                    response = await _call_llm(llm, messages)
+                    response = await _call_llm_with_fallback(llms, messages)
                 else:
                     response = await _stream_llm_text(
-                        llm, messages, execution_id, node_id
+                        llms, messages, execution_id, node_id
                     )
             except RuntimeError as exc:
                 return {

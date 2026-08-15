@@ -6,6 +6,7 @@ from typing import Any
 from langchain_openai import ChatOpenAI
 from sqlalchemy import select
 
+from app.config import settings
 from app.database import async_session_factory
 from app.models import ModelConfig
 
@@ -30,6 +31,31 @@ async def resolve_model(
     if complexity == "complex":
         return max(models, key=lambda m: m.cost_per_1k_tokens)
     return min(models, key=lambda m: m.cost_per_1k_tokens)
+
+
+async def get_chat_models(
+    organization_id: str | None = None,
+    *,
+    complexity: str = "simple",
+) -> list[ChatOpenAI]:
+    """返回按成本排序的可用模型列表，用于执行引擎的自动 fallback。"""
+    models = await list_active_models(organization_id)
+    if not models:
+        return [
+            ChatOpenAI(
+                model=settings.LLM_MODEL,
+                base_url=settings.LLM_BASE_URL,
+                api_key=settings.OPENAI_API_KEY or "not-configured",
+                temperature=0,
+            )
+        ]
+
+    if complexity == "complex":
+        models = sorted(models, key=lambda m: m.cost_per_1k_tokens, reverse=True)
+    else:
+        models = sorted(models, key=lambda m: m.cost_per_1k_tokens)
+
+    return [get_chat_model(model) for model in models]
 
 
 def get_chat_model(model: ModelConfig) -> ChatOpenAI:
