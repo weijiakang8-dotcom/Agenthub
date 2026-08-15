@@ -1,63 +1,51 @@
+import { Cpu, FileText, BellRing, BarChart3, FlaskConical } from "lucide-react";
+
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Link } from "react-router-dom";
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import DocumentsPanel from "@/pages/settings/DocumentsPanel";
+import EvalPanel from "@/pages/settings/EvalPanel";
+import ModelsPanel from "@/pages/settings/ModelsPanel";
+import NotificationsPanel from "@/pages/settings/NotificationsPanel";
+import UsagePanel from "@/pages/settings/UsagePanel";
+
+const tabs = [
+  { value: "models", label: "模型", icon: Cpu, panel: ModelsPanel },
+  { value: "documents", label: "文档", icon: FileText, panel: DocumentsPanel },
+  { value: "notifications", label: "通知", icon: BellRing, panel: NotificationsPanel },
+  { value: "usage", label: "用量", icon: BarChart3, panel: UsagePanel },
+  { value: "eval", label: "评测", icon: FlaskConical, panel: EvalPanel },
+];
 
 export default function Settings() {
   return (
-    <div className="space-y-4">
-      <h2 className="text-2xl font-semibold tracking-tight">设置</h2>
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>关于 AgentHub</CardTitle>
-          <CardDescription>多智能体协作平台</CardDescription>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          <p>版本：0.1.0</p>
-          <p>协议：MIT</p>
-          <Separator className="my-3" />
-          <p>
-            API 文档：
-            <a
-              className="text-primary underline-offset-4 hover:underline"
-              href={`${window.location.protocol}//${window.location.hostname}:8000/docs`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              打开 Swagger 文档
-            </a>
-          </p>
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <div>
+        <h2 className="type-h2">系统设置</h2>
+        <p className="type-body text-muted-foreground">
+          模型网关、知识库、通知、用量统计与评测闭环
+        </p>
+      </div>
 
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>管理工具</CardTitle>
-          <CardDescription>工作流与执行的高级管理入口</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-2 text-sm">
-          <Link className="text-primary underline-offset-4 hover:underline" to="/executions">
-            执行记录
-          </Link>
-          <Link className="text-primary underline-offset-4 hover:underline" to="/workflows">
-            工作流
-          </Link>
-          <Link className="text-primary underline-offset-4 hover:underline" to="/workflows/editor">
-            工作流编辑器
-          </Link>
-          <Link className="text-primary underline-offset-4 hover:underline" to="/alerts">
-            告警中心
-          </Link>
-          <Link className="text-primary underline-offset-4 hover:underline" to="/quality">
-            质量看板
-          </Link>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="models" className="w-full">
+        <TabsList variant="line" className="w-full justify-start overflow-x-auto">
+          {tabs.map(({ value, label, icon: Icon }) => (
+            <TabsTrigger key={value} value={value}>
+              <Icon className="h-4 w-4" />
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        {tabs.map(({ value, panel: Panel }) => (
+          <TabsContent key={value} value={value} className="mt-5">
+            <Panel />
+          </TabsContent>
+        ))}
+      </Tabs>
     </div>
   );
 }
