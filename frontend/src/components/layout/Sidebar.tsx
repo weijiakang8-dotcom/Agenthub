@@ -2,20 +2,19 @@ import { NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 import {
   LogOut,
-  LayoutDashboard,
   MessageSquare,
   Settings,
   Sparkles,
+  History,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { setAccessToken } from "@/lib/api";
 
 const items = [
-  { to: "/", label: "工作区", icon: LayoutDashboard, end: true },
-  { to: "/chat", label: "Chat", icon: MessageSquare, end: false },
-  { to: "/history", label: "History", icon: MessageSquare, end: false },
-  { to: "/settings", label: "Settings", icon: Settings, end: false },
+  { to: "/chat", label: "对话", icon: MessageSquare },
+  { to: "/history", label: "历史记录", icon: History },
+  { to: "/settings", label: "设置", icon: Settings },
 ];
 
 export function Sidebar() {
@@ -31,11 +30,10 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
-        {items.map(({ to, label, icon: Icon, end }) => (
+        {items.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
-            end={end}
             className={({ isActive }) =>
               cn(
                 "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground",
