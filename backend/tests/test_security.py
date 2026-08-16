@@ -1,3 +1,9 @@
+from datetime import datetime, timedelta, timezone
+
+import jwt
+import pytest
+
+from app.core import security
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -25,3 +31,30 @@ def test_refresh_token_roundtrip():
     token = create_refresh_token("user-1", "org-1")
     payload = decode_token(token)
     assert payload["type"] == "refresh"
+
+
+def test_token_expiry_policies():
+    assert security.ACCESS_TOKEN_EXPIRE == timedelta(minutes=30)
+    assert security.REFRESH_TOKEN_EXPIRE == timedelta(days=7)
+
+
+def test_decode_token_checked_distinguishes_expired():
+    now = datetime.now(timezone.utc)
+    expired = jwt.encode(
+        {
+            "sub": "user-1",
+            "type": "refresh",
+            "iat": now,
+            "exp": now - timedelta(seconds=1),
+        },
+        security.settings.JWT_SECRET_KEY,
+        algorithm="HS256",
+    )
+
+    with pytest.raises(security.TokenExpiredError):
+        security.decode_token_checked(expired)
+
+
+def test_decode_token_checked_rejects_invalid():
+    with pytest.raises(security.TokenInvalidError):
+        security.decode_token_checked("not-a-jwt")

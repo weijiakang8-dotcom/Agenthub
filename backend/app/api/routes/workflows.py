@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 
 from app.api.deps import CurrentUserDep, SessionDep, get_current_user
+from app.core.permissions import require_permission
 from app.models import Agent, Execution, Workflow, WorkflowVersion
 from app.models.enums import ExecutionStatus
 from app.schemas.agent import AgentRead
@@ -112,7 +113,10 @@ async def get_workflow(
     "",
     response_model=WorkflowRead,
     status_code=201,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(get_current_user),
+        Depends(require_permission("resources:write")),
+    ],
 )
 async def create_workflow(
     payload: WorkflowCreate, session: SessionDep, user: CurrentUserDep
@@ -126,7 +130,10 @@ async def create_workflow(
 @router.put(
     "/{workflow_id}",
     response_model=WorkflowRead,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(get_current_user),
+        Depends(require_permission("resources:write")),
+    ],
 )
 async def update_workflow(
     workflow_id: uuid.UUID,
@@ -273,7 +280,10 @@ def _has_cycle(edges: list[dict]) -> bool:
 @router.delete(
     "/{workflow_id}",
     status_code=204,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(get_current_user),
+        Depends(require_permission("resources:write")),
+    ],
 )
 async def delete_workflow(
     workflow_id: uuid.UUID, session: SessionDep, user: CurrentUserDep

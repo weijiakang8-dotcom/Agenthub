@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import CurrentUserDep, SessionDep
 from app.core.model_gateway import test_model
+from app.core.permissions import require_permission
 from app.models import ModelConfig
 
 router = APIRouter(prefix="/models", tags=["models"])
@@ -59,7 +60,11 @@ async def list_models(session: SessionDep, user: CurrentUserDep) -> list[dict]:
     return [_serialize(m) for m in result.scalars().all()]
 
 
-@router.post("", status_code=201)
+@router.post(
+    "",
+    status_code=201,
+    dependencies=[Depends(require_permission("models:manage"))],
+)
 async def create_model(
     payload: ModelCreate, session: SessionDep, user: CurrentUserDep
 ) -> dict:
@@ -73,7 +78,10 @@ async def create_model(
     return _serialize(model)
 
 
-@router.put("/{model_id}")
+@router.put(
+    "/{model_id}",
+    dependencies=[Depends(require_permission("models:manage"))],
+)
 async def update_model(
     model_id: uuid.UUID,
     payload: ModelUpdate,
@@ -93,7 +101,10 @@ async def update_model(
     return _serialize(model)
 
 
-@router.post("/{model_id}/test")
+@router.post(
+    "/{model_id}/test",
+    dependencies=[Depends(require_permission("models:manage"))],
+)
 async def test_model_endpoint(
     model_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
 ) -> dict:

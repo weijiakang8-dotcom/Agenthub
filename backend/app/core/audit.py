@@ -68,3 +68,26 @@ def build_audit_details(request: Request, body: bytes | None) -> dict[str, Any]:
         }
 
     return details
+
+
+def classify_audit_event(method: str, path: str) -> tuple[str, str | None, str | None]:
+    """根据 HTTP 方法与路径，将请求归类为企业审计动作。"""
+    method = method.upper()
+    parts = [part for part in path.split("/") if part]
+
+    if method == "POST" and len(parts) >= 3 and parts[:2] == ["api", "auth"]:
+        return parts[2], "auth", None
+
+    if method == "POST" and parts[:2] == ["api", "executions"]:
+        return "create_execution", "execution", None
+
+    if method in {"PUT", "PATCH"} and len(parts) >= 3 and parts[1] == "models":
+        return "update_model", "model", parts[2]
+
+    if method == "DELETE" and len(parts) >= 3:
+        resource_type = parts[1].rstrip("s")
+        return "delete_resource", resource_type, parts[2]
+
+    resource_type = parts[1] if len(parts) > 1 else None
+    resource_id = parts[2] if len(parts) > 2 else None
+    return f"{method.lower()}_{resource_type or 'request'}", resource_type, resource_id

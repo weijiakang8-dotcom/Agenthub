@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { setAccessToken } from "@/lib/api";
+import { clearTokens } from "@/lib/api";
 
 const items = [
   { to: "/chat", label: "对话", icon: MessageSquare },
@@ -51,7 +51,7 @@ export function Sidebar() {
         <button
           type="button"
           onClick={() => {
-            setAccessToken(null);
+            clearTokens();
             navigate("/");
           }}
           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"

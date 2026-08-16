@@ -26,3 +26,6 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_login: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

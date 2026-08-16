@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { AuthModal } from "@/components/AuthModal";
-import { getAccessToken } from "@/lib/api";
+import { getAccessToken, logout } from "@/lib/api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -99,7 +99,7 @@ export function Header({
             <DropdownMenuLabel>魏家康</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem>个人设置</DropdownMenuItem>
-            <DropdownMenuItem>退出登录</DropdownMenuItem>
+            <DropdownMenuItem onClick={logout}>退出登录</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

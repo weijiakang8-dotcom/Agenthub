@@ -14,7 +14,7 @@ from app.api import api_router
 from app.api.routes.metrics import router as metrics_router
 from app.api.websocket import router as websocket_router
 from app.config import settings
-from app.core.audit import build_audit_details
+from app.core.audit import build_audit_details, classify_audit_event
 from app.core.rate_limit import rate_limit
 from app.core.request_utils import get_client_ip
 from app.core.security import decode_token
@@ -93,11 +93,18 @@ async def audit_middleware(request: Request, call_next):
                         organization_id = None
 
         try:
+            action, resource_type, resource_id = classify_audit_event(
+                request.method, request.url.path
+            )
             async with async_session_factory() as session:
                 session.add(
                     AuditLog(
                         user_id=user_id,
                         organization_id=organization_id,
+                        action=action,
+                        resource_type=resource_type,
+                        resource_id=resource_id,
+                        ip_address=get_client_ip(request),
                         method=request.method,
                         path=request.url.path,
                         status_code=response.status_code,

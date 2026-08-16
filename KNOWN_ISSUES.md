@@ -13,7 +13,7 @@
 - ADMIN_API_KEY fallback is documented but not implemented in `get_current_user()`.
 - RAG stores whole documents without chunking and scans all documents in memory.
 - No automated IDOR concurrency suite beyond the new unit-level tests.
-- Frontend global 401/JWT expiry handling is incomplete.
+- ~~Frontend global 401/JWT expiry handling is incomplete.~~ Resolved in Phase 6.
 
 ## UNVERIFIED
 
@@ -61,8 +61,29 @@
 - PostgreSQL backup/restore drill: PASS.
 - Remaining: real two-model fallback unverified; public HTTPS from current Mac still reset while server-side HTTPS is 200.
 - Production Kubernetes/TLS/DNS.
-- Real SMTP/Resend provider.
+- Real SMTP/Resend provider credentials.
 - PostgreSQL backup/restore.
+
+## Phase 6 Resolved
+
+- Access token lifetime reduced to 30 minutes.
+- Refresh token lifecycle and frontend 401 auto-refresh implemented.
+- Forgot/reset password flow implemented with code rate limiting and enumeration protection.
+- Email service now supports SMTP (MailHog) with Resend fallback.
+- Unified auth error codes replace raw technical messages.
+
+## Phase 7 Resolved
+
+- RBAC roles `admin` / `member` / `viewer` and route-level permissions.
+- Organization member management API.
+- `AuditLog` action/resource/ip fields and middleware classification.
+
+## Remaining
+
+- Production SMTP/Resend account credentials still need to be configured.
+- refresh token still stored in localStorage (XSS exposure tradeoff).
+- RAG chunking / vector database not implemented.
+- Real two-model fallback still unverified.
 
 ## MANUAL_REQUIRED
 
