@@ -19,6 +19,7 @@
 
 - Real multi-model fallback.
 - Celery retry end-to-end with delayed failures was not fully observed in this phase.
+- `GET /api/documents/{id}` and `GET /api/models/{id}` are not implemented and return 405. List endpoints are correctly isolated.
 - Production Kubernetes/TLS/DNS.
 - Real SMTP/Resend provider.
 - PostgreSQL backup/restore.

@@ -1,10 +1,10 @@
 # AgentHub Project State
 
-Last updated: 2026-08-16 (Phase 3)
+Last updated: 2026-08-16 (Phase 4)
 
 ## Overall Status
 
-Phase 2 P1 fixes completed. Phase 3 added real API multi-tenant, real resume concurrency, and current-step persistence verification.
+Phase 2 P1 fixes completed. Phase 3 added real API multi-tenant, real resume concurrency, and current-step persistence verification. Phase 4 added live auth/multi-tenant/boundary/state-machine security checks.
 
 ## Current Verified
 
@@ -17,6 +17,12 @@ Phase 2 P1 fixes completed. Phase 3 added real API multi-tenant, real resume con
 - Real multi-tenant API test: cross-org workflow access returns 404
 - Real resume concurrency test: one request 202, one 409
 - Real Execution current_step_index persisted as 3 after completion
+- Phase 4: no-auth/bad-JWT normal API returns 401
+- Phase 4: ADMIN_API_KEY does not grant normal `/api/executions` access
+- Phase 4: cross-org list isolation verified for documents/models/conversations/workflows/executions
+- Phase 4: RAG search returns 0 cross-org results
+- Phase 4: upload empty/invalid file returns 422
+- Phase 4: terminal execution cancel/resume returns 409
 
 ## Phase 2 Changes
 
@@ -32,4 +38,4 @@ See `KNOWN_ISSUES.md`.
 
 ## Next Phase
 
-Phase 4 — Boundary, fault, and security testing.
+Phase 5 — Production environment verification.
