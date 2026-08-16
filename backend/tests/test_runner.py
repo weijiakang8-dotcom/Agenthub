@@ -4,6 +4,8 @@ import asyncio
 import uuid
 from types import SimpleNamespace
 
+import pytest
+
 from app.engine import runner
 from app.models.enums import ExecutionStatus
 
@@ -174,6 +176,41 @@ def test_run_execution_marks_failed_on_engine_exception(monkeypatch):
     assert execution.status == ExecutionStatus.FAILED
     assert execution.error_message == "checkpoint unavailable"
     assert events[-1]["event"] == "execution_failed"
+
+
+def test_run_execution_retryable_error_marks_pending_and_raises(monkeypatch):
+    execution = make_execution(ExecutionStatus.PENDING)
+    workflow = make_workflow(dag_definition={"nodes": [{"type": "research"}]})
+    session = FakeSession(execution=execution, workflow=workflow, rowcount=1)
+    monkeypatch.setattr(
+        runner,
+        "async_session_factory",
+        FakeSessionFactory(
+            [session, FakeSession(execution=execution, workflow=workflow)]
+        ),
+    )
+
+    class FailingCheckpointManager:
+        def __aenter__(self):
+            raise TimeoutError("llm request timed out")
+
+        def __aexit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(runner, "get_checkpoint_manager", FailingCheckpointManager)
+
+    events = []
+
+    async def fake_publish(execution_id, event):
+        events.append(event)
+
+    monkeypatch.setattr(runner, "publish_execution_event", fake_publish)
+
+    with pytest.raises(runner.ExecutionRetryableError):
+        asyncio.run(runner.run_execution(execution.id))
+
+    assert execution.status == ExecutionStatus.PENDING
+    assert "timed out" in execution.error_message
 
 
 def test_run_execution_sets_waiting_for_approval_on_interrupt_result(monkeypatch):

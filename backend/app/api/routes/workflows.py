@@ -65,6 +65,20 @@ async def _snapshot_version(
     return version
 
 
+async def _get_workflow_for_user(
+    session, workflow_id: uuid.UUID, user: CurrentUserDep
+) -> Workflow:
+    workflow = await session.get(Workflow, workflow_id)
+    if workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    if (
+        user.organization_id is not None
+        and workflow.organization_id != user.organization_id
+    ):
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    return workflow
+
+
 @router.get("", response_model=list[WorkflowRead])
 async def list_workflows(
     session: SessionDep,
@@ -84,14 +98,7 @@ async def list_workflows(
 async def get_workflow(
     workflow_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
 ) -> WorkflowDetail:
-    workflow = await session.get(Workflow, workflow_id)
-    if workflow is None:
-        raise HTTPException(status_code=404, detail="Workflow not found")
-    if (
-        user.organization_id is not None
-        and workflow.organization_id != user.organization_id
-    ):
-        raise HTTPException(status_code=404, detail="Workflow not found")
+    workflow = await _get_workflow_for_user(session, workflow_id, user)
 
     detail = WorkflowDetail.model_validate(workflow)
     agent_ids = _extract_agent_ids(workflow.agent_chain)
@@ -127,14 +134,7 @@ async def update_workflow(
     session: SessionDep,
     user: CurrentUserDep,
 ) -> Workflow:
-    workflow = await session.get(Workflow, workflow_id)
-    if workflow is None:
-        raise HTTPException(status_code=404, detail="Workflow not found")
-    if (
-        user.organization_id is not None
-        and workflow.organization_id != user.organization_id
-    ):
-        raise HTTPException(status_code=404, detail="Workflow not found")
+    workflow = await _get_workflow_for_user(session, workflow_id, user)
 
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(workflow, key, value)
@@ -150,11 +150,9 @@ async def update_workflow(
 
 @router.get("/{workflow_id}/versions")
 async def list_workflow_versions(
-    workflow_id: uuid.UUID, session: SessionDep
+    workflow_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
 ) -> list[dict]:
-    workflow = await session.get(Workflow, workflow_id)
-    if workflow is None:
-        raise HTTPException(status_code=404, detail="Workflow not found")
+    await _get_workflow_for_user(session, workflow_id, user)
     result = await session.execute(
         select(WorkflowVersion)
         .where(WorkflowVersion.workflow_id == workflow_id)
@@ -178,12 +176,10 @@ async def list_workflow_versions(
 async def create_workflow_version(
     workflow_id: uuid.UUID,
     session: SessionDep,
+    user: CurrentUserDep,
     changelog: str = "",
-    _: str = Depends(get_current_user),
 ) -> dict:
-    workflow = await session.get(Workflow, workflow_id)
-    if workflow is None:
-        raise HTTPException(status_code=404, detail="Workflow not found")
+    workflow = await _get_workflow_for_user(session, workflow_id, user)
     version = await _snapshot_version(session, workflow, changelog)
     await session.commit()
     return {"version": version.version, "id": str(version.id)}
@@ -194,11 +190,9 @@ async def rollback_workflow(
     workflow_id: uuid.UUID,
     version: int,
     session: SessionDep,
-    _: str = Depends(get_current_user),
+    user: CurrentUserDep,
 ) -> Workflow:
-    workflow = await session.get(Workflow, workflow_id)
-    if workflow is None:
-        raise HTTPException(status_code=404, detail="Workflow not found")
+    workflow = await _get_workflow_for_user(session, workflow_id, user)
     target = (
         await session.execute(
             select(WorkflowVersion).where(
@@ -220,10 +214,10 @@ async def rollback_workflow(
 
 
 @router.post("/{workflow_id}/validate-dag")
-async def validate_dag(workflow_id: uuid.UUID, session: SessionDep) -> dict:
-    workflow = await session.get(Workflow, workflow_id)
-    if workflow is None:
-        raise HTTPException(status_code=404, detail="Workflow not found")
+async def validate_dag(
+    workflow_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
+) -> dict:
+    workflow = await _get_workflow_for_user(session, workflow_id, user)
     dag = workflow.dag_definition or {}
     nodes = [n for n in (dag.get("nodes") or []) if isinstance(n, dict)]
     edges = [e for e in (dag.get("edges") or []) if isinstance(e, dict)]
@@ -281,10 +275,10 @@ def _has_cycle(edges: list[dict]) -> bool:
     status_code=204,
     dependencies=[Depends(get_current_user)],
 )
-async def delete_workflow(workflow_id: uuid.UUID, session: SessionDep) -> None:
-    workflow = await session.get(Workflow, workflow_id)
-    if workflow is None:
-        raise HTTPException(status_code=404, detail="Workflow not found")
+async def delete_workflow(
+    workflow_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
+) -> None:
+    workflow = await _get_workflow_for_user(session, workflow_id, user)
 
     active = await session.execute(
         select(Execution).where(
