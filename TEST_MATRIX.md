@@ -47,6 +47,10 @@
 | Phase 5.5 production port scan | Python socket scan | FAIL |
 | Phase 5.5 DNS resolution | DNS-over-HTTPS | PASS |
 | Phase 5.5 HTTPS | `curl https://synplex.xyz` | FAIL |
+| Phase 5.6 production deploy | `docker compose up -d --build` | PASS |
+| Phase 5.6 port hardening | `sudo ss -lntp` | PASS |
+| Phase 5.6 HTTPS server-local | `curl -k https://synplex.xyz` | PASS |
+| Phase 5.6 production smoke | document/RAG/execution/approval | PASS |
 
 ## Not Covered Yet
 
