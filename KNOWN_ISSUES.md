@@ -20,6 +20,15 @@
 - Real multi-model fallback.
 - Celery retry end-to-end with delayed failures was not fully observed in this phase.
 - `GET /api/documents/{id}` and `GET /api/models/{id}` are not implemented and return 405. List endpoints are correctly isolated.
+
+## Phase 5 Production Blockers
+
+- HTTPS/TLS is not working on `synplex.xyz`.
+- Public HTTP root is empty; frontend/Nginx public entry is not verified.
+- Real two-model fallback is unverified.
+- PostgreSQL backup/restore is unverified.
+- Redis/DB/LLM fault injection is not complete.
+- Email/Resend domain verification is unverified.
 - Production Kubernetes/TLS/DNS.
 - Real SMTP/Resend provider.
 - PostgreSQL backup/restore.

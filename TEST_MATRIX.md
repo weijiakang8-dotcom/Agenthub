@@ -39,6 +39,10 @@
 | Phase 4 RAG cross-org search | live API script | PASS |
 | Phase 4 upload boundary | live API script | PASS |
 | Phase 4 terminal state transitions | live API script | PASS |
+| Phase 5 public backend health | `curl http://193.112.130.181:8000/health` | PASS |
+| Phase 5 HTTPS check | `curl https://synplex.xyz` | FAIL |
+| Phase 5 HTTP root | `curl http://193.112.130.181/` | FAIL |
+| Phase 5 Compose port hardening | `docker compose config --quiet` | PASS |
 
 ## Not Covered Yet
 
