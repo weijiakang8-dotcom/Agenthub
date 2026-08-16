@@ -144,6 +144,7 @@ async def _update_status(
     final_output: str | None = None,
     error_message: str | None = None,
     checkpoint_data: dict[str, Any] | None = None,
+    current_step_index: int | None = None,
 ) -> None:
     async with async_session_factory() as session:
         execution = await session.get(Execution, execution_id)
@@ -156,6 +157,8 @@ async def _update_status(
             execution.error_message = error_message
         if checkpoint_data is not None:
             execution.checkpoint_data = checkpoint_data
+        if current_step_index is not None:
+            execution.current_step_index = current_step_index
         if status in (
             ExecutionStatus.COMPLETED,
             ExecutionStatus.FAILED,
@@ -232,6 +235,7 @@ async def run_execution(execution_id: uuid.UUID) -> None:
                 execution_id,
                 ExecutionStatus.WAITING_FOR_APPROVAL,
                 checkpoint_data={"interrupt": interrupt_value},
+                current_step_index=result.get("current_step"),
             )
             await publish_execution_event(
                 str(execution_id),
@@ -242,6 +246,7 @@ async def run_execution(execution_id: uuid.UUID) -> None:
             execution_id,
             ExecutionStatus.COMPLETED,
             final_output=result.get("final_output"),
+            current_step_index=result.get("current_step"),
         )
         await record_execution_usage(execution_id)
         await publish_execution_event(
@@ -306,6 +311,7 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
                 execution_id,
                 ExecutionStatus.WAITING_FOR_APPROVAL,
                 checkpoint_data={"interrupt": interrupt_value},
+                current_step_index=result.get("current_step"),
             )
             await publish_execution_event(
                 str(execution_id),
@@ -316,6 +322,7 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
             execution_id,
             ExecutionStatus.COMPLETED,
             final_output=result.get("final_output"),
+            current_step_index=result.get("current_step"),
         )
         await record_execution_usage(execution_id)
         await publish_execution_event(
