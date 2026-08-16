@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import uuid
 from collections.abc import Callable
 from typing import Any, TypedDict
@@ -67,6 +68,7 @@ TOOL_BY_NAME = {
 }
 
 tracer = get_tracer("agenthub.engine")
+logger = logging.getLogger(__name__)
 
 
 async def _call_llm_with_fallback(llms: list[ChatOpenAI], messages: list[BaseMessage]):
@@ -74,9 +76,14 @@ async def _call_llm_with_fallback(llms: list[ChatOpenAI], messages: list[BaseMes
         raise RuntimeError("没有可用的模型")
 
     last_error: Exception | None = None
-    for llm in llms:
+    for llm_index, llm in enumerate(llms):
         if not llm_breaker.allow():
             continue
+        if llm_index > 0:
+            logger.warning(
+                "LLM fallback triggered: previous_error=%s",
+                last_error,
+            )
         for attempt in range(3):
             try:
                 response = await llm.ainvoke(messages)
@@ -99,9 +106,14 @@ async def _stream_llm_text(
     node_id: str,
 ) -> AIMessage:
     last_error: Exception | None = None
-    for llm in llms:
+    for llm_index, llm in enumerate(llms):
         if not llm_breaker.allow():
             continue
+        if llm_index > 0:
+            logger.warning(
+                "LLM stream fallback triggered: previous_error=%s",
+                last_error,
+            )
         parts: list[str] = []
         try:
             async for chunk in llm.astream(messages):
