@@ -20,7 +20,10 @@ export default function Alerts() {
   const [loading, setLoading] = useState(true);
 
   async function load() {
-    const [list, stat] = await Promise.all([api.listAlerts(), api.alertStats()]);
+    const [list, stat] = await Promise.all([
+      api.listAlerts(),
+      api.alertStats(),
+    ]);
     setAlerts(list);
     setStats(stat);
     setLoading(false);

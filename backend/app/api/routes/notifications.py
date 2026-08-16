@@ -8,7 +8,6 @@ from app.api.deps import CurrentUserDep, SessionDep
 from app.core.notification import send_notification
 from app.models import Notification
 
-
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 

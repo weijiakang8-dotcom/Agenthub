@@ -39,7 +39,10 @@ export function CreateExecutionDialog({
 
   useEffect(() => {
     if (!open) return;
-    api.listWorkflows().then(setWorkflows).catch(() => undefined);
+    api
+      .listWorkflows()
+      .then(setWorkflows)
+      .catch(() => undefined);
   }, [open]);
 
   useEffect(() => {

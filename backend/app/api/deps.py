@@ -12,7 +12,6 @@ from app.core.security import decode_token
 from app.database import get_db as _get_db
 from app.models import User
 
-
 logger = logging.getLogger(__name__)
 
 if not settings.ADMIN_API_KEY:

@@ -10,7 +10,6 @@ from app.api.deps import CurrentUserDep, SessionDep
 from app.core.model_gateway import test_model
 from app.models import ModelConfig
 
-
 router = APIRouter(prefix="/models", tags=["models"])
 
 

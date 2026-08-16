@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 
 import redis.asyncio as aioredis
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
 
-from app.config import settings
 from app.api.deps import CurrentUserWsDep
+from app.config import settings
 from app.database import master_session_factory
 from app.engine.event_bus import CHANNEL_PREFIX
 from app.models import Execution, ToolCall, User
-from sqlalchemy import select
-
 
 router = APIRouter()
 
@@ -29,12 +27,16 @@ async def _execution_status(execution_id: uuid.UUID, user: User) -> dict:
         ):
             return {"event": "forbidden", "execution_id": str(execution_id)}
         tool_calls = (
-            await session.execute(
-                select(ToolCall)
-                .where(ToolCall.execution_id == execution_id)
-                .order_by(ToolCall.started_at)
+            (
+                await session.execute(
+                    select(ToolCall)
+                    .where(ToolCall.execution_id == execution_id)
+                    .order_by(ToolCall.started_at)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return {
             "event": "status",
             "execution_id": str(execution_id),
@@ -50,7 +52,9 @@ async def _execution_status(execution_id: uuid.UUID, user: User) -> dict:
                     "input_params": tc.input_params,
                     "output_result": tc.output_result,
                     "started_at": tc.started_at.isoformat() if tc.started_at else None,
-                    "completed_at": tc.completed_at.isoformat() if tc.completed_at else None,
+                    "completed_at": (
+                        tc.completed_at.isoformat() if tc.completed_at else None
+                    ),
                 }
                 for tc in tool_calls
             ],
@@ -80,7 +84,9 @@ async def execution_websocket(
                 break
 
             try:
-                message = await asyncio.wait_for(pubsub.get_message(timeout=1), timeout=1.05)
+                message = await asyncio.wait_for(
+                    pubsub.get_message(timeout=1), timeout=1.05
+                )
             except asyncio.TimeoutError:
                 continue
 

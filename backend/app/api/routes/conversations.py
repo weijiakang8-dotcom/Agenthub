@@ -4,20 +4,19 @@ import asyncio
 import json
 import uuid
 
-from fastapi import APIRouter, HTTPException, Query
+import redis.asyncio as aioredis
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
-import redis.asyncio as aioredis
 
-from app.config import settings
 from app.api.deps import CurrentUserDep, SessionDep
+from app.config import settings
 from app.database import async_session_factory
 from app.engine.event_bus import CHANNEL_PREFIX
+from app.engine.tasks import execute_workflow_task
 from app.models import Conversation, Execution, Workflow
 from app.models.enums import ExecutionStatus
-from app.engine.tasks import execute_workflow_task
-
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -200,7 +199,9 @@ async def stream_conversation(
                 }:
                     if execution.final_output:
                         messages = list(conversation.messages or [])
-                        messages.append({"role": "assistant", "content": execution.final_output})
+                        messages.append(
+                            {"role": "assistant", "content": execution.final_output}
+                        )
                         conversation.messages = messages
                         await session.commit()
                     yield f"data: {json.dumps({'event': 'done', 'status': execution.status.value, 'final_output': execution.final_output}, ensure_ascii=False)}\n\n"
@@ -210,7 +211,9 @@ async def stream_conversation(
                     return
 
             while True:
-                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=0)
+                message = await pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=0
+                )
                 if message is None:
                     break
                 if message.get("type") == "message":

@@ -17,4 +17,36 @@ export default defineConfig({
       "/metrics": "http://127.0.0.1:8000",
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+
+          if (id.includes("/recharts/") || id.includes("/d3-")) {
+            return "charts";
+          }
+
+          if (id.includes("/@xyflow/")) {
+            return "flow";
+          }
+
+          if (
+            id.includes("/radix-ui/") ||
+            id.includes("/lucide-react/") ||
+            id.includes("/sonner/") ||
+            id.includes("/next-themes/") ||
+            id.includes("/tw-animate-css/") ||
+            id.includes("/class-variance-authority/") ||
+            id.includes("/tailwind-merge/") ||
+            id.includes("/clsx/")
+          ) {
+            return "ui-vendor";
+          }
+
+          return "vendor";
+        },
+      },
+    },
+  },
 });

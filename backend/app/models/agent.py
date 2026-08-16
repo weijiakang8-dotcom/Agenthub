@@ -27,5 +27,8 @@ class Agent(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=AgentStatus.ACTIVE,
     )
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid,
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )

@@ -51,7 +51,9 @@ export default function Dashboard() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             disabled={!loggedIn}
-            placeholder={loggedIn ? "例如：调研 LangGraph 的最新进展…" : "请先登录后再使用"}
+            placeholder={
+              loggedIn ? "例如：调研 LangGraph 的最新进展…" : "请先登录后再使用"
+            }
             rows={4}
             className="min-h-24 resize-none border-0 bg-transparent px-3 py-2 shadow-none focus-visible:ring-0"
           />
@@ -100,7 +102,10 @@ export default function Dashboard() {
             <Skeleton className="h-12 w-full" />
           </div>
         ) : !loggedIn ? (
-          <EmptyState title="请先登录后再使用" description="登录后可查看你的执行记录。" />
+          <EmptyState
+            title="请先登录后再使用"
+            description="登录后可查看你的执行记录。"
+          />
         ) : executions.length === 0 ? (
           <EmptyState
             icon={Inbox}

@@ -1,11 +1,28 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, Enum, Float, ForeignKey, Integer, String, Text, Uuid
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Uuid,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import ExecutionStatus
+
+if TYPE_CHECKING:
+    from app.models.tool_call import ToolCall
+    from app.models.workflow import Workflow
 
 
 class Execution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -20,7 +37,10 @@ class Execution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
     workflow_version_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("workflow_versions.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid,
+        ForeignKey("workflow_versions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     status: Mapped[ExecutionStatus] = mapped_column(
         Enum(
@@ -31,9 +51,7 @@ class Execution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
         default=ExecutionStatus.PENDING,
     )
-    current_step_index: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0
-    )
+    current_step_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # LangGraph 的 Checkpoint 状态快照，开始运行前可为空
     checkpoint_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     user_input: Mapped[str] = mapped_column(Text, nullable=False)
@@ -49,12 +67,15 @@ class Execution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     cost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid,
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
 
-    workflow: Mapped["Workflow"] = relationship(
+    workflow: Mapped[Workflow] = relationship(
         back_populates="executions", lazy="selectin"
     )
-    tool_calls: Mapped[list["ToolCall"]] = relationship(
+    tool_calls: Mapped[list[ToolCall]] = relationship(
         back_populates="execution", cascade="all, delete-orphan", lazy="selectin"
     )

@@ -18,9 +18,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
 
-    DATABASE_URL: str = (
-        "postgresql+asyncpg://postgres:postgres@localhost:5433/agenthub"
-    )
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5433/agenthub"
     REDIS_URL: str = "redis://localhost:6379/0"
     OPENAI_API_KEY: str = ""
     ADMIN_API_KEY: str = ""
@@ -42,7 +40,9 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        return [
+            origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()
+        ]
 
 
 @lru_cache
@@ -53,8 +53,10 @@ def get_settings() -> Settings:
 settings = get_settings()
 
 
-if settings.ENVIRONMENT == "production":
-    if settings.JWT_SECRET_KEY in {"", "change-me-in-production"} or len(settings.JWT_SECRET_KEY) < 32:
-        raise RuntimeError(
-            "JWT_SECRET_KEY must be set to a strong secret (>= 32 chars) in production"
-        )
+if settings.ENVIRONMENT == "production" and (
+    settings.JWT_SECRET_KEY in {"", "change-me-in-production"}
+    or len(settings.JWT_SECRET_KEY) < 32
+):
+    raise RuntimeError(
+        "JWT_SECRET_KEY must be set to a strong secret (>= 32 chars) in production"
+    )

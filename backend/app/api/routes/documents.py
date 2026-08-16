@@ -10,7 +10,6 @@ from app.api.deps import CurrentUserDep, SessionDep
 from app.models import Document
 from app.rag.embedder import cosine, embed_text
 
-
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
@@ -48,7 +47,7 @@ async def list_documents(session: SessionDep, user: CurrentUserDep) -> list[dict
 async def upload_document(
     session: SessionDep,
     user: CurrentUserDep,
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  # noqa: B008
 ) -> dict:
     raw = await file.read()
     filename = file.filename or "document.txt"
@@ -58,8 +57,9 @@ async def upload_document(
         content = raw.decode("utf-8", errors="ignore")
     elif lower.endswith(".pdf"):
         try:
-            from pypdf import PdfReader
             from io import BytesIO
+
+            from pypdf import PdfReader
 
             reader = PdfReader(BytesIO(raw))
             content = "\n".join((page.extract_text() or "") for page in reader.pages)

@@ -7,7 +7,6 @@ import redis.asyncio as aioredis
 
 from app.config import settings
 
-
 CHANNEL_PREFIX = "agenthub:execution:"
 
 

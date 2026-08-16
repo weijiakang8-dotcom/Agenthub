@@ -30,7 +30,9 @@ def verify_password(password: str, stored: str) -> bool:
         return False
 
 
-def create_access_token(user_id: str | uuid.UUID, organization_id: str | uuid.UUID | None) -> str:
+def create_access_token(
+    user_id: str | uuid.UUID, organization_id: str | uuid.UUID | None
+) -> str:
     payload = {
         "sub": str(user_id),
         "org": str(organization_id) if organization_id else None,

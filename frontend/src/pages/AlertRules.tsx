@@ -43,7 +43,11 @@ export default function AlertRules() {
       body: JSON.stringify({
         name,
         severity,
-        condition: { metric: "execution_failure_rate", operator: "gt", threshold: Number(threshold) },
+        condition: {
+          metric: "execution_failure_rate",
+          operator: "gt",
+          threshold: Number(threshold),
+        },
       }),
     });
     toast.success("规则已创建");
@@ -59,17 +63,25 @@ export default function AlertRules() {
       </div>
 
       <Card className="shadow-sm">
-        <CardHeader><CardTitle className="text-base">新建规则</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">新建规则</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-3">
             <div className="space-y-2">
               <Label>名称</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="执行失败率告警" />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="执行失败率告警"
+              />
             </div>
             <div className="space-y-2">
               <Label>严重程度</Label>
               <Select value={severity} onValueChange={setSeverity}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="info">info</SelectItem>
                   <SelectItem value="warning">warning</SelectItem>
@@ -79,7 +91,10 @@ export default function AlertRules() {
             </div>
             <div className="space-y-2">
               <Label>失败率阈值</Label>
-              <Input value={threshold} onChange={(e) => setThreshold(e.target.value)} />
+              <Input
+                value={threshold}
+                onChange={(e) => setThreshold(e.target.value)}
+              />
             </div>
           </div>
           <Button onClick={create}>创建规则</Button>
@@ -93,17 +108,22 @@ export default function AlertRules() {
               <div>
                 <p className="font-medium">{r.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  阈值 {r.condition.threshold ?? "—"} · {r.condition.metric ?? "—"}
+                  阈值 {r.condition.threshold ?? "—"} ·{" "}
+                  {r.condition.metric ?? "—"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <Badge>{r.severity}</Badge>
-                <Badge variant={r.enabled ? "default" : "outline"}>{r.enabled ? "启用" : "停用"}</Badge>
+                <Badge variant={r.enabled ? "default" : "outline"}>
+                  {r.enabled ? "启用" : "停用"}
+                </Badge>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={async () => {
-                    await api.request(`/alert-rules/${r.id}`, { method: "DELETE" });
+                    await api.request(`/alert-rules/${r.id}`, {
+                      method: "DELETE",
+                    });
                     load();
                   }}
                 >

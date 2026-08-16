@@ -8,7 +8,6 @@ from app.api.routes import (
     auth,
     conversations,
     documents,
-    eval as eval_routes,
     executions,
     models,
     notifications,
@@ -18,7 +17,9 @@ from app.api.routes import (
     workflow_templates,
     workflows,
 )
-
+from app.api.routes import (
+    eval as eval_routes,
+)
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(agents.router)

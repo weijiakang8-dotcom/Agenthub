@@ -15,7 +15,9 @@ def _hash_embed(text: str, dims: int = 384) -> list[float]:
     for i in range(len(tokens)):
         for n in (1, 2, 3):
             gram = " ".join(tokens[i : i + n])
-            idx = int.from_bytes(hashlib.md5(gram.encode()).digest()[:4], "little") % dims
+            idx = (
+                int.from_bytes(hashlib.md5(gram.encode()).digest()[:4], "little") % dims
+            )
             vec[idx] += 1.0
     norm = math.sqrt(sum(x * x for x in vec)) or 1.0
     return [x / norm for x in vec]

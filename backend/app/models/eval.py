@@ -4,14 +4,17 @@ from datetime import datetime
 from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin, utcnow
+from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class EvalDataset(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "eval_datasets"
 
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid,
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -22,10 +25,16 @@ class EvalRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "eval_runs"
 
     dataset_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("eval_datasets.id", ondelete="CASCADE"), index=True, nullable=False
+        Uuid,
+        ForeignKey("eval_datasets.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
     )
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid,
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
     score: Mapped[float | None] = mapped_column(Float, nullable=True)

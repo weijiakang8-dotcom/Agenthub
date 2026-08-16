@@ -6,7 +6,6 @@ from sqlalchemy import select
 from app.api.deps import CurrentUserDep, SessionDep
 from app.models import AuditLog
 
-
 router = APIRouter(prefix="/audit-logs", tags=["audit-logs"])
 
 

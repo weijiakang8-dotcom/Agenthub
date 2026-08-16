@@ -11,7 +11,10 @@ class InterventionLog(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "intervention_logs"
 
     execution_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("executions.id", ondelete="CASCADE"), index=True, nullable=False
+        Uuid,
+        ForeignKey("executions.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
     )
     operator: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     action: Mapped[str] = mapped_column(String(50), nullable=False)

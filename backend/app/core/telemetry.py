@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 
+from openinference.instrumentation.langchain import LangChainInstrumentor
 from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -25,7 +26,6 @@ from opentelemetry.sdk.resources import (
 )
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from openinference.instrumentation.langchain import LangChainInstrumentor
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,9 @@ def setup_telemetry() -> None:
     )
 
     tracer_provider = TracerProvider(resource=resource)
-    tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint)))
+    tracer_provider.add_span_processor(
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint))
+    )
     trace.set_tracer_provider(tracer_provider)
 
     metric_reader = PeriodicExportingMetricReader(

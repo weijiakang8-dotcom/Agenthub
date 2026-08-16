@@ -25,7 +25,9 @@ export default function Chat() {
     const existingId = searchParams.get("id");
     if (existingId) {
       api
-        .request<{ id: string; messages: Message[] }>(`/conversations/${existingId}`)
+        .request<{ id: string; messages: Message[] }>(
+          `/conversations/${existingId}`,
+        )
         .then((c) => {
           setConversationId(c.id);
           setMessages(c.messages ?? []);
@@ -177,7 +179,9 @@ export default function Chat() {
                 }`}
               >
                 {m.content || (sending && i === messages.length - 1 ? "…" : "")}
-                {m.role === "assistant" && i === messages.length - 1 && details ? (
+                {m.role === "assistant" &&
+                i === messages.length - 1 &&
+                details ? (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-xs text-muted-foreground">
                       查看执行详情

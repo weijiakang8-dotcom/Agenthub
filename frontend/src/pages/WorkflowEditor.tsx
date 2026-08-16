@@ -28,8 +28,18 @@ const NODE_TYPES = [
   { type: "research", label: "Research Agent", icon: Search, color: "#3b82f6" },
   { type: "analyze", label: "Analyze Agent", icon: Brain, color: "#8b5cf6" },
   { type: "execute", label: "Execute Agent", icon: Zap, color: "#10b981" },
-  { type: "condition", label: "Condition Node", icon: GitBranch, color: "#f59e0b" },
-  { type: "human_approval", label: "Human Approval", icon: UserCheck, color: "#ef4444" },
+  {
+    type: "condition",
+    label: "Condition Node",
+    icon: GitBranch,
+    color: "#f59e0b",
+  },
+  {
+    type: "human_approval",
+    label: "Human Approval",
+    icon: UserCheck,
+    color: "#ef4444",
+  },
 ];
 
 const TOOLS = ["search_web", "query_db", "send_email"];
@@ -41,7 +51,9 @@ function WorkflowNode({ data }: NodeProps) {
     <div className="rounded-md border bg-card px-4 py-2 text-sm shadow-xs">
       <Handle type="target" position={Position.Top} />
       <div className="flex items-center gap-2 font-medium">
-        {meta ? <meta.icon className="h-4 w-4" style={{ color: meta.color }} /> : null}
+        {meta ? (
+          <meta.icon className="h-4 w-4" style={{ color: meta.color }} />
+        ) : null}
         {String(data.label ?? "")}
       </div>
       <Handle type="source" position={Position.Bottom} />
@@ -230,9 +242,9 @@ export default function WorkflowEditor() {
                       <input
                         type="checkbox"
                         className="accent-primary"
-                        checked={((selected.data.tools as string[]) ?? []).includes(
-                          tool,
-                        )}
+                        checked={(
+                          (selected.data.tools as string[]) ?? []
+                        ).includes(tool)}
                         onChange={() => toggleTool(tool)}
                       />
                       {tool}

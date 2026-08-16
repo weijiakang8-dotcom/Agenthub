@@ -12,7 +12,6 @@ from app.config import settings
 from app.database import async_session_factory
 from app.models import Notification
 
-
 TEMPLATES: dict[str, str] = {
     "execution_completed": "执行完成：{{execution_id}}，状态：{{status}}",
     "alert": "告警：{{message}}",
@@ -33,7 +32,9 @@ async def _send_email(to: str, subject: str, body: str) -> None:
     message["Subject"] = subject
     message.set_content(body)
     if settings.SMTP_PORT == 465:
-        with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as smtp:
+        with smtplib.SMTP_SSL(
+            settings.SMTP_HOST, settings.SMTP_PORT, timeout=30
+        ) as smtp:
             if settings.SMTP_USERNAME:
                 smtp.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
             smtp.send_message(message)

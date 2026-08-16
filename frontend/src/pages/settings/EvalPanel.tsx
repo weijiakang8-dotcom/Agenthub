@@ -17,12 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  api,
-  type EvalDataset,
-  type EvalRun,
-  type Workflow,
-} from "@/lib/api";
+import { api, type EvalDataset, type EvalRun, type Workflow } from "@/lib/api";
 
 export default function EvalPanel() {
   const [datasets, setDatasets] = useState<EvalDataset[]>([]);
@@ -169,7 +164,10 @@ export default function EvalPanel() {
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <Label>数据集</Label>
-              <Select value={selectedDataset} onValueChange={setSelectedDataset}>
+              <Select
+                value={selectedDataset}
+                onValueChange={setSelectedDataset}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="选择数据集" />
                 </SelectTrigger>
@@ -294,7 +292,8 @@ export default function EvalPanel() {
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {new Date(r.created_at).toLocaleString()} ·{" "}
-                        {String((r.report as { total?: number })?.total ?? 0)} 项
+                        {String((r.report as { total?: number })?.total ?? 0)}{" "}
+                        项
                       </p>
                     </div>
                   </div>

@@ -14,7 +14,6 @@ from app.engine.tasks import execute_workflow_task
 from app.models import EvalDataset, EvalRun, Execution, Workflow, utcnow
 from app.models.enums import ExecutionStatus
 
-
 router = APIRouter(prefix="/eval", tags=["eval"])
 
 
@@ -130,7 +129,9 @@ async def _get_or_create_workflow(
         return workflow.id
 
 
-async def _run_one(workflow_id: uuid.UUID, user_input: str, org_id: uuid.UUID | None) -> dict:
+async def _run_one(
+    workflow_id: uuid.UUID, user_input: str, org_id: uuid.UUID | None
+) -> dict:
     async with async_session_factory() as session:
         execution = Execution(
             workflow_id=workflow_id,
@@ -157,7 +158,10 @@ async def _run_one(workflow_id: uuid.UUID, user_input: str, org_id: uuid.UUID | 
                 ExecutionStatus.FAILED,
                 ExecutionStatus.ROLLED_BACK,
             }:
-                if execution.status == ExecutionStatus.COMPLETED and execution.final_output:
+                if (
+                    execution.status == ExecutionStatus.COMPLETED
+                    and execution.final_output
+                ):
                     await evaluate_execution(str(execution_id))
                     async with async_session_factory() as s2:
                         refreshed = await s2.get(Execution, execution_id)
@@ -201,7 +205,9 @@ async def run_eval(payload: RunRequest, user: CurrentUserDep) -> dict:
         await session.refresh(run)
         run_id = run.id
 
-    workflow_id = await _get_or_create_workflow(user.organization_id, payload.workflow_id)
+    workflow_id = await _get_or_create_workflow(
+        user.organization_id, payload.workflow_id
+    )
     items = []
     for item in dataset.items:
         if not isinstance(item, dict):
@@ -212,7 +218,11 @@ async def run_eval(payload: RunRequest, user: CurrentUserDep) -> dict:
         items.append(await _run_one(workflow_id, user_input, user.organization_id))
 
     scored = [i for i in items if i.get("score") is not None]
-    avg = round(sum(float(i["score"]) for i in scored) / len(scored), 2) if scored else None
+    avg = (
+        round(sum(float(i["score"]) for i in scored) / len(scored), 2)
+        if scored
+        else None
+    )
     passed = sum(1 for i in scored if float(i["score"]) >= payload.threshold)
     report = {
         "total": len(items),

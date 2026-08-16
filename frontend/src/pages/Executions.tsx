@@ -13,11 +13,7 @@ import { api, type Execution, type ExecutionStatus } from "@/lib/api";
 import { timeAgo, truncate } from "@/lib/format";
 
 type TabKey =
-  | "all"
-  | "running"
-  | "waiting_for_approval"
-  | "completed"
-  | "failed";
+  "all" | "running" | "waiting_for_approval" | "completed" | "failed";
 
 const TABS: { value: TabKey; label: string }[] = [
   { value: "all", label: "全部" },
@@ -59,7 +55,10 @@ export default function Executions() {
             追踪所有 AI 工作流的运行状态
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="w-full sm:w-auto">
+        <Button
+          onClick={() => setDialogOpen(true)}
+          className="w-full sm:w-auto"
+        >
           <Plus className="h-4 w-4" />
           新建执行
         </Button>
@@ -120,10 +119,7 @@ export default function Executions() {
         </div>
       )}
 
-      <CreateExecutionDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-      />
+      <CreateExecutionDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
 }

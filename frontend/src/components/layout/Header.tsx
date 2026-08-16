@@ -27,7 +27,10 @@ export function Header({
 
   useEffect(() => {
     const openAuth = (event: Event) => {
-      const mode = (event as CustomEvent<string>).detail === "register" ? "register" : "login";
+      const mode =
+        (event as CustomEvent<string>).detail === "register"
+          ? "register"
+          : "login";
       setAuthMode(mode);
       setAuthOpen(true);
     };
@@ -50,16 +53,31 @@ export function Header({
           AgentHub
         </span>
         <span className="hidden text-slate-300 sm:inline">/</span>
-        <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
+        <h1 className="truncate text-lg font-semibold tracking-tight">
+          {title}
+        </h1>
       </div>
 
       <div className="flex items-center gap-2">
         {!loggedIn && (
           <>
-            <Button variant="ghost" size="sm" onClick={() => { setAuthMode("login"); setAuthOpen(true); }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setAuthMode("login");
+                setAuthOpen(true);
+              }}
+            >
               登录
             </Button>
-            <Button size="sm" onClick={() => { setAuthMode("register"); setAuthOpen(true); }}>
+            <Button
+              size="sm"
+              onClick={() => {
+                setAuthMode("register");
+                setAuthOpen(true);
+              }}
+            >
               注册
             </Button>
           </>

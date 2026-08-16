@@ -31,7 +31,9 @@ class FakeRedis:
 def test_verify_code_is_one_time_use(monkeypatch):
     redis = FakeRedis()
     redis.data["auth:code:user@example.com"] = "123456"
-    monkeypatch.setattr(auth_routes.aioredis, "from_url", lambda *_args, **_kwargs: redis)
+    monkeypatch.setattr(
+        auth_routes.aioredis, "from_url", lambda *_args, **_kwargs: redis
+    )
 
     assert asyncio.run(auth_routes._verify_code("user@example.com", "123456")) is True
     assert asyncio.run(auth_routes._verify_code("user@example.com", "123456")) is False
@@ -40,7 +42,9 @@ def test_verify_code_is_one_time_use(monkeypatch):
 def test_verify_code_rejects_wrong_code(monkeypatch):
     redis = FakeRedis()
     redis.data["auth:code:user@example.com"] = "123456"
-    monkeypatch.setattr(auth_routes.aioredis, "from_url", lambda *_args, **_kwargs: redis)
+    monkeypatch.setattr(
+        auth_routes.aioredis, "from_url", lambda *_args, **_kwargs: redis
+    )
 
     assert asyncio.run(auth_routes._verify_code("user@example.com", "000000")) is False
     assert redis.data.get("auth:code:user@example.com") == "123456"

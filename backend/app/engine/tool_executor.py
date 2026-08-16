@@ -35,7 +35,9 @@ async def create_tool_call(
         return tool_call
 
 
-async def _finish_tool_call(tool_call_id: uuid.UUID, result: dict[str, Any]) -> ToolCall:
+async def _finish_tool_call(
+    tool_call_id: uuid.UUID, result: dict[str, Any]
+) -> ToolCall:
     async with async_session_factory() as session:
         tool_call = await session.get(ToolCall, tool_call_id)
         if tool_call is None:
@@ -63,7 +65,11 @@ async def mark_tool_call_rejected(
 
         tool_call.status = ToolCallStatus.REJECTED
         tool_call.approved_by = operator or "anonymous"
-        tool_call.output_result = {"status": "rejected", "data": None, "error": "Rejected by human"}
+        tool_call.output_result = {
+            "status": "rejected",
+            "data": None,
+            "error": "Rejected by human",
+        }
         tool_call.completed_at = utcnow()
         await session.commit()
         await session.refresh(tool_call)

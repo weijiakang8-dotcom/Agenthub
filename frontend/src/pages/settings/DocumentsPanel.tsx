@@ -97,10 +97,7 @@ export default function DocumentsPanel() {
               className="hidden"
               onChange={(e) => upload(e.target.files?.[0])}
             />
-            <Button
-              variant="outline"
-              onClick={() => fileRef.current?.click()}
-            >
+            <Button variant="outline" onClick={() => fileRef.current?.click()}>
               <Upload className="mr-2 h-4 w-4" />
               上传文件
             </Button>
@@ -157,10 +154,7 @@ export default function DocumentsPanel() {
                 找到 {results.length} 条相关文档
               </p>
               {results.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="rounded-lg border bg-muted/30 p-3"
-                >
+                <div key={doc.id} className="rounded-lg border bg-muted/30 p-3">
                   <p className="text-sm font-medium">{doc.name}</p>
                   <p className="mt-1 line-clamp-3 text-sm text-muted-foreground">
                     {doc.content}
