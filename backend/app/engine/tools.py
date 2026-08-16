@@ -110,7 +110,7 @@ def _send_email_sync(to: str, subject: str, body: str) -> dict:
         smtp_cls = smtplib.SMTP
 
     with smtp_cls(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as smtp:
-        if settings.SMTP_PORT != 465:
+        if settings.SMTP_PORT != 465 and settings.SMTP_USERNAME:
             smtp.starttls()
         if settings.SMTP_USERNAME:
             smtp.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
