@@ -35,6 +35,16 @@ services:
     networks:
       - agenthub-network
 
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: agenthub-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - agenthub-network
+
   backend:
     build:
       context: ..
@@ -44,6 +54,9 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/agenthub
       REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_FROM: agenthub@local
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
       HF_ENDPOINT: https://hf-mirror.com
@@ -94,6 +107,9 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/agenthub
       REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_FROM: agenthub@local
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
       HF_ENDPOINT: https://hf-mirror.com
