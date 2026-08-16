@@ -8,7 +8,6 @@ from sqlalchemy import func, select
 from app.api.deps import CurrentUserDep, SessionDep
 from app.models import Execution
 
-
 router = APIRouter(prefix="/usage", tags=["usage"])
 
 

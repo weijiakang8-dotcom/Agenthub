@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, JSON, String, Uuid
+from sqlalchemy import JSON, Boolean, Float, ForeignKey, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -10,7 +10,10 @@ class ModelConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "model_configs"
 
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid,
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     provider: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -18,7 +21,9 @@ class ModelConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     api_key: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     model: Mapped[str] = mapped_column(String(255), nullable=False)
     max_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=4096)
-    cost_per_1k_tokens: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    cost_per_1k_tokens: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)

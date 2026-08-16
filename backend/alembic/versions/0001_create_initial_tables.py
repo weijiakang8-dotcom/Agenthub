@@ -5,17 +5,18 @@ Revises:
 Create Date: 2026-08-13
 
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
 
 revision: str = "0001"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -173,7 +174,9 @@ def upgrade() -> None:
         sa.Column("approved_by", sa.String(255), nullable=True),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["execution_id"], ["executions.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["execution_id"], ["executions.id"], ondelete="CASCADE"
+        ),
     )
     op.create_index("ix_tool_calls_execution_id", "tool_calls", ["execution_id"])
 
@@ -189,5 +192,10 @@ def downgrade() -> None:
     op.drop_table("workflows")
     op.drop_table("agents")
 
-    for name in ("tool_call_status", "execution_status", "workflow_status", "agent_status"):
+    for name in (
+        "tool_call_status",
+        "execution_status",
+        "workflow_status",
+        "agent_status",
+    ):
         postgresql.ENUM(name=name).drop(bind, checkfirst=True)

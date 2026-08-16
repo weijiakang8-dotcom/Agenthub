@@ -7,11 +7,7 @@ export type ExecutionStatus =
   | "rolled_back";
 
 export type ToolCallStatus =
-  | "pending"
-  | "success"
-  | "failed"
-  | "approved"
-  | "rejected";
+  "pending" | "success" | "failed" | "approved" | "rejected";
 
 export type Execution = {
   id: string;
@@ -229,14 +225,20 @@ export const api = {
   listAlerts: (status?: string) =>
     request<AlertEvent[]>(`/alerts${status ? `?status=${status}` : ""}`),
   alertStats: () =>
-    request<{ total: number; active: number; resolved: number }>("/alerts/stats"),
+    request<{ total: number; active: number; resolved: number }>(
+      "/alerts/stats",
+    ),
   resolveAlert: (id: string) =>
     request<AlertEvent>(`/alerts/${id}/resolve`, { method: "PUT" }),
   listInterventions: (id: string) =>
     request<Intervention[]>(`/executions/${id}/interventions`),
   intervene: (
     id: string,
-    payload: { operator: string; action: string; modified_plan?: string | null },
+    payload: {
+      operator: string;
+      action: string;
+      modified_plan?: string | null;
+    },
   ) =>
     request<{ status: string }>(`/executions/${id}/intervene`, {
       method: "POST",
@@ -302,7 +304,8 @@ export const api = {
       },
       body: form,
     }).then((res) => {
-      if (!res.ok) return res.text().then((text) => Promise.reject(new Error(text)));
+      if (!res.ok)
+        return res.text().then((text) => Promise.reject(new Error(text)));
       return res.json() as Promise<DocumentItem>;
     });
   },
@@ -346,7 +349,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   listEvalReports: () => request<EvalRun[]>("/eval/reports"),
-  request: <T,>(path: string, init?: RequestInit) => request<T>(path, init),
+  request: <T>(path: string, init?: RequestInit) => request<T>(path, init),
 };
 
 export const auth = {
@@ -355,7 +358,12 @@ export const auth = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  register: (payload: { email: string; password: string; full_name: string; code: string }) =>
+  register: (payload: {
+    email: string;
+    password: string;
+    full_name: string;
+    code: string;
+  }) =>
     request<AuthResponse>("/auth/register", {
       method: "POST",
       body: JSON.stringify(payload),

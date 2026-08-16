@@ -12,7 +12,6 @@ from sqlalchemy.pool import NullPool
 from app.config import settings
 from app.models import Base
 
-
 _POOL_SIZE = (os.cpu_count() or 4) * 2 + 1
 
 

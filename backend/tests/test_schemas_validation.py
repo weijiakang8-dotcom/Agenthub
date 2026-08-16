@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.agent import AgentCreate
-from app.schemas.execution import ExecutionCreate, FeedbackCreate, ExecutionResume
+from app.schemas.execution import ExecutionCreate, ExecutionResume, FeedbackCreate
 from app.schemas.workflow import WorkflowCreate
 
 

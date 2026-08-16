@@ -8,13 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api, type Execution } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-function bin(score: number) {
-  if (score >= 9) return "9-10";
-  if (score >= 7) return "7-8";
-  if (score >= 5) return "5-6";
-  return "<5";
-}
-
 const binColor: Record<string, string> = {
   "<5": "bg-agent-failed/60",
   "5-6": "bg-agent-waiting/70",

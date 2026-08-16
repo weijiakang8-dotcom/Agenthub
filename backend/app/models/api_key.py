@@ -15,5 +15,9 @@ class ApiKey(UUIDPrimaryKeyMixin, Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False, default="default")
     key_hash: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

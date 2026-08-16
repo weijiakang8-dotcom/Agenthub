@@ -13,7 +13,10 @@ class Conversation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
     )
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid,
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="新对话")
     messages: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

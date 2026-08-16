@@ -27,7 +27,9 @@ async def record_execution_usage(execution_id: uuid.UUID | str) -> None:
             return
 
         input_tokens = estimate_tokens(execution.user_input or "")
-        output_tokens = estimate_tokens(execution.final_output or execution.error_message or "")
+        output_tokens = estimate_tokens(
+            execution.final_output or execution.error_message or ""
+        )
 
         stmt = select(ModelConfig).where(
             ModelConfig.is_active.is_(True),

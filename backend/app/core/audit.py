@@ -7,7 +7,6 @@ from fastapi import Request
 
 from app.core.request_utils import get_client_ip
 
-
 SENSITIVE_KEYS = {
     "api_key",
     "authorization",
@@ -58,7 +57,7 @@ def build_audit_details(request: Request, body: bytes | None) -> dict[str, Any]:
     if "application/json" in content_type:
         try:
             details["body"] = sanitize_audit_data(json.loads(body.decode("utf-8")))
-        except Exception:
+        except Exception:  # noqa: BLE001
             details["body"] = {
                 "_raw": _truncate(body.decode("utf-8", errors="ignore")),
             }

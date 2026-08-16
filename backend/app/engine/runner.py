@@ -8,15 +8,14 @@ from langgraph.errors import GraphInterrupt
 from langgraph.types import Command
 from sqlalchemy import update
 
-from app.database import async_session_factory
 from app.core.billing import record_execution_usage
+from app.database import async_session_factory
 from app.engine.checkpoint import get_checkpoint_manager
 from app.engine.event_bus import publish_execution_event
 from app.engine.graph import build_graph
 from app.engine.tasks import evaluate_execution_task
 from app.models import Agent, Execution, Workflow, utcnow
 from app.models.enums import ExecutionStatus
-
 
 ROLES = ["research", "analyze", "execute"]
 
@@ -58,13 +57,25 @@ async def _build_steps(session, workflow: Workflow) -> list[dict[str, Any]]:
         }
         steps = []
         for node in nodes:
-            node_type = (node or {}).get("type", "analyze") if isinstance(node, dict) else "analyze"
+            node_type = (
+                (node or {}).get("type", "analyze")
+                if isinstance(node, dict)
+                else "analyze"
+            )
             steps.append(
                 {
                     "role": role_map.get(node_type, "analyze"),
                     "agent_id": None,
-                    "name": (node or {}).get("label", node_type) if isinstance(node, dict) else node_type,
-                    "system_prompt": (node or {}).get("system_prompt", "") if isinstance(node, dict) else "",
+                    "name": (
+                        (node or {}).get("label", node_type)
+                        if isinstance(node, dict)
+                        else node_type
+                    ),
+                    "system_prompt": (
+                        (node or {}).get("system_prompt", "")
+                        if isinstance(node, dict)
+                        else ""
+                    ),
                 }
             )
         if steps:
@@ -185,7 +196,10 @@ async def run_execution(execution_id: uuid.UUID) -> None:
         await record_execution_usage(execution_id)
         await publish_execution_event(
             str(execution_id),
-            {"event": "execution_completed", "final_output": result.get("final_output")},
+            {
+                "event": "execution_completed",
+                "final_output": result.get("final_output"),
+            },
         )
         evaluate_execution_task.delay(str(execution_id))
     except GraphInterrupt as exc:
@@ -196,7 +210,10 @@ async def run_execution(execution_id: uuid.UUID) -> None:
         )
         await publish_execution_event(
             str(execution_id),
-            {"event": "waiting_for_approval", "checkpoint": exc.args[0] if exc.args else None},
+            {
+                "event": "waiting_for_approval",
+                "checkpoint": exc.args[0] if exc.args else None,
+            },
         )
     except Exception as exc:  # noqa: BLE001
         await _update_status(
@@ -216,7 +233,6 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
         if execution is None:
             return
         workflow = await session.get(Workflow, execution.workflow_id)
-        steps = await _build_steps(session, workflow)
         dag = workflow.dag_definition if workflow else None
         execution.status = ExecutionStatus.RUNNING
         await session.commit()
@@ -235,7 +251,10 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
         await record_execution_usage(execution_id)
         await publish_execution_event(
             str(execution_id),
-            {"event": "execution_completed", "final_output": result.get("final_output")},
+            {
+                "event": "execution_completed",
+                "final_output": result.get("final_output"),
+            },
         )
     except GraphInterrupt as exc:
         await _update_status(
@@ -245,7 +264,10 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
         )
         await publish_execution_event(
             str(execution_id),
-            {"event": "waiting_for_approval", "checkpoint": exc.args[0] if exc.args else None},
+            {
+                "event": "waiting_for_approval",
+                "checkpoint": exc.args[0] if exc.args else None,
+            },
         )
     except Exception as exc:  # noqa: BLE001
         await _update_status(

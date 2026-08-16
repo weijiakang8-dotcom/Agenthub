@@ -16,7 +16,11 @@ async def evaluate_all_rules() -> list[AlertEvent]:
     created: list[AlertEvent] = []
     async with master_session_factory() as session:
         rules = (
-            (await session.execute(select(AlertRule).where(AlertRule.enabled.is_(True))))
+            (
+                await session.execute(
+                    select(AlertRule).where(AlertRule.enabled.is_(True))
+                )
+            )
             .scalars()
             .all()
         )
@@ -27,7 +31,9 @@ async def evaluate_all_rules() -> list[AlertEvent]:
             recent = (
                 (
                     await session.execute(
-                        select(Execution).order_by(Execution.created_at.desc()).limit(10)
+                        select(Execution)
+                        .order_by(Execution.created_at.desc())
+                        .limit(10)
                     )
                 )
                 .scalars()

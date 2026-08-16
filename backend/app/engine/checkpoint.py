@@ -27,7 +27,9 @@ class CheckpointManager:
     def _config(thread_id: str) -> dict[str, Any]:
         return {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
 
-    async def save_checkpoint(self, thread_id: str, state: dict[str, Any]) -> dict[str, Any]:
+    async def save_checkpoint(
+        self, thread_id: str, state: dict[str, Any]
+    ) -> dict[str, Any]:
         config = self._config(thread_id)
         version = 1
         checkpoint: Checkpoint = {

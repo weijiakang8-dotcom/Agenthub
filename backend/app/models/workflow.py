@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Enum, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import WorkflowStatus
+
+if TYPE_CHECKING:
+    from app.models.execution import Execution
 
 
 class Workflow(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -28,9 +34,12 @@ class Workflow(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     created_by: Mapped[str] = mapped_column(String(255), nullable=False)
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid,
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
 
-    executions: Mapped[list["Execution"]] = relationship(
+    executions: Mapped[list[Execution]] = relationship(
         back_populates="workflow", cascade="all, delete-orphan", lazy="selectin"
     )

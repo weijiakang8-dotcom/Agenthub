@@ -6,9 +6,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import redis.asyncio as aioredis
 from celery import Celery
 from celery.signals import worker_process_init
-import redis.asyncio as aioredis
 from sqlalchemy import update
 
 from app.config import settings
@@ -16,7 +16,6 @@ from app.core.telemetry import setup_telemetry
 from app.database import async_session_factory
 from app.models import Execution
 from app.models.enums import ExecutionStatus
-
 
 celery_app = Celery(
     "agenthub",
@@ -58,21 +57,25 @@ def execute_workflow_task(self, execution_id: str) -> None:
         asyncio.run(run_execution(uuid.UUID(execution_id)))
     except Exception as exc:  # noqa: BLE001
         if self.request.retries < self.max_retries:
-            raise self.retry(exc=exc, countdown=2 ** self.request.retries)
+            raise self.retry(exc=exc, countdown=2**self.request.retries)
 
-        async def _push_dlq() -> None:
+        async def _push_dlq(error_message: str) -> None:
             client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
             try:
                 await client.rpush(
                     "dead_letter_queue",
                     json.dumps(
-                        {"execution_id": execution_id, "error": str(exc), "task": "execute_workflow"}
+                        {
+                            "execution_id": execution_id,
+                            "error": error_message,
+                            "task": "execute_workflow",
+                        }
                     ),
                 )
             finally:
                 await client.aclose()
 
-        asyncio.run(_push_dlq())
+        asyncio.run(_push_dlq(str(exc)))
 
 
 @celery_app.task(name="agenthub.resume_workflow")

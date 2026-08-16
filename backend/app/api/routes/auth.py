@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-import uuid
 import random
-import redis.asyncio as aioredis
+import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+import redis.asyncio as aioredis
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
+from app.api.deps import CurrentUserDep
+from app.config import settings
+from app.core.email import send_email
+from app.core.rate_limit import rate_limit
+from app.core.request_utils import get_client_ip
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -18,12 +23,6 @@ from app.core.security import (
 )
 from app.database import master_session_factory
 from app.models import Organization, User, utcnow
-from app.api.deps import CurrentUserDep
-from app.config import settings
-from app.core.email import send_email
-from app.core.rate_limit import rate_limit
-from app.core.request_utils import get_client_ip
-
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -110,13 +109,19 @@ async def send_code(payload: SendCodeRequest, request: Request) -> dict:
     client_ip = get_client_ip(request)
 
     if not await rate_limit(f"send-code:email:{email}", limit=1, window_seconds=60):
-        raise HTTPException(status_code=429, detail="Too many code requests for this email")
+        raise HTTPException(
+            status_code=429, detail="Too many code requests for this email"
+        )
     if not await rate_limit(f"send-code:ip:{client_ip}", limit=10, window_seconds=60):
-        raise HTTPException(status_code=429, detail="Too many code requests from this IP")
+        raise HTTPException(
+            status_code=429, detail="Too many code requests from this IP"
+        )
 
     result = await _send_code(email)
     if not result.get("ok"):
-        raise HTTPException(status_code=502, detail=result.get("error") or "Failed to send code")
+        raise HTTPException(
+            status_code=502, detail=result.get("error") or "Failed to send code"
+        )
     return {"status": "ok"}
 
 
@@ -124,7 +129,9 @@ async def send_code(payload: SendCodeRequest, request: Request) -> dict:
 async def register(payload: RegisterRequest) -> AuthResponse:
     email = payload.email.strip().lower()
     if len(payload.password) < 8:
-        raise HTTPException(status_code=422, detail="Password must be at least 8 characters")
+        raise HTTPException(
+            status_code=422, detail="Password must be at least 8 characters"
+        )
     if not await _verify_code(email, payload.code):
         raise HTTPException(status_code=401, detail="Invalid verification code")
 

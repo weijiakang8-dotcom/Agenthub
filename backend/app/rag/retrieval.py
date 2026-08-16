@@ -35,7 +35,4 @@ async def retrieve_documents(
         scored.append((score, doc))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    return [
-        {"name": doc.name, "content": doc.content}
-        for _, doc in scored[:top_k]
-    ]
+    return [{"name": doc.name, "content": doc.content} for _, doc in scored[:top_k]]

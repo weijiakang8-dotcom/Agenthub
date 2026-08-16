@@ -1,11 +1,6 @@
 import { Cpu, FileText, BellRing, BarChart3, FlaskConical } from "lucide-react";
 
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DocumentsPanel from "@/pages/settings/DocumentsPanel";
 import EvalPanel from "@/pages/settings/EvalPanel";
 import ModelsPanel from "@/pages/settings/ModelsPanel";
@@ -15,7 +10,12 @@ import UsagePanel from "@/pages/settings/UsagePanel";
 const tabs = [
   { value: "models", label: "模型", icon: Cpu, panel: ModelsPanel },
   { value: "documents", label: "文档", icon: FileText, panel: DocumentsPanel },
-  { value: "notifications", label: "通知", icon: BellRing, panel: NotificationsPanel },
+  {
+    value: "notifications",
+    label: "通知",
+    icon: BellRing,
+    panel: NotificationsPanel,
+  },
   { value: "usage", label: "用量", icon: BarChart3, panel: UsagePanel },
   { value: "eval", label: "评测", icon: FlaskConical, panel: EvalPanel },
 ];
@@ -31,7 +31,10 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="models" className="w-full">
-        <TabsList variant="line" className="w-full justify-start overflow-x-auto">
+        <TabsList
+          variant="line"
+          className="w-full justify-start overflow-x-auto"
+        >
           {tabs.map(({ value, label, icon: Icon }) => (
             <TabsTrigger key={value} value={value}>
               <Icon className="h-4 w-4" />

@@ -1,28 +1,27 @@
-from contextlib import asynccontextmanager
 import logging
+import uuid
+from contextlib import asynccontextmanager
 
 import httpx
 import redis.asyncio as aioredis
-import uuid
-
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
 
 from app.api import api_router
-from app.api.websocket import router as websocket_router
 from app.api.routes.metrics import router as metrics_router
+from app.api.websocket import router as websocket_router
+from app.config import settings
 from app.core.audit import build_audit_details
+from app.core.rate_limit import rate_limit
 from app.core.request_utils import get_client_ip
 from app.core.security import decode_token
-from app.core.rate_limit import rate_limit
 from app.core.telemetry import setup_telemetry
 from app.database import async_session_factory, init_db, master_engine
-from app.models import AuditLog
 from app.engine.tasks import celery_app  # noqa: F401  # 加载 Celery 配置
-from app.config import settings
+from app.models import AuditLog
 
 logger = logging.getLogger(__name__)
 
@@ -106,10 +105,11 @@ async def audit_middleware(request: Request, call_next):
                     )
                 )
                 await session.commit()
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("Failed to persist audit log for %s", request.url.path)
 
     return response
+
 
 app.include_router(api_router)
 app.include_router(metrics_router)
@@ -133,23 +133,23 @@ async def health():
         async with master_engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         db_ok = True
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception:
+        logger.warning("Database health check failed", exc_info=True)
 
     try:
         client = aioredis.from_url(settings.REDIS_URL)
         await client.ping()
         await client.aclose()
         redis_ok = True
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception:
+        logger.warning("Redis health check failed", exc_info=True)
 
     try:
         async with httpx.AsyncClient(timeout=3) as client:
             await client.get(settings.LLM_BASE_URL)
         llm_ok = True
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception:
+        logger.warning("LLM health check failed", exc_info=True)
 
     healthy = db_ok and redis_ok
     return JSONResponse(

@@ -47,14 +47,17 @@ export default function History() {
               <Link to={`/chat?id=${c.id}`} className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{c.title}</p>
                 <p className="text-xs text-muted-foreground">
-                  {new Date(c.updated_at).toLocaleString()} · {c.messages.length} 条消息
+                  {new Date(c.updated_at).toLocaleString()} ·{" "}
+                  {c.messages.length} 条消息
                 </p>
               </Link>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={async () => {
-                  await api.request(`/conversations/${c.id}`, { method: "DELETE" });
+                  await api.request(`/conversations/${c.id}`, {
+                    method: "DELETE",
+                  });
                   load();
                 }}
               >

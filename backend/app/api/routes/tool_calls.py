@@ -8,7 +8,6 @@ from app.models import Execution, ToolCall, utcnow
 from app.models.enums import ExecutionStatus, ToolCallStatus
 from app.schemas.tool_call import ToolCallRead
 
-
 router = APIRouter(prefix="/tool_calls", tags=["tool_calls"])
 
 
@@ -37,7 +36,10 @@ async def get_tool_call(
     tool_call = await session.get(ToolCall, tool_call_id)
     if tool_call is None:
         raise HTTPException(status_code=404, detail="Tool call not found")
-    if user.organization_id is not None and tool_call.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and tool_call.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Tool call not found")
     return tool_call
 
@@ -49,7 +51,10 @@ async def approve_tool_call(
     tool_call = await session.get(ToolCall, tool_call_id)
     if tool_call is None:
         raise HTTPException(status_code=404, detail="Tool call not found")
-    if user.organization_id is not None and tool_call.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and tool_call.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Tool call not found")
 
     tool_call.status = ToolCallStatus.APPROVED
@@ -57,7 +62,10 @@ async def approve_tool_call(
     tool_call.completed_at = utcnow()
 
     execution = await session.get(Execution, tool_call.execution_id)
-    if execution is not None and execution.status == ExecutionStatus.WAITING_FOR_APPROVAL:
+    if (
+        execution is not None
+        and execution.status == ExecutionStatus.WAITING_FOR_APPROVAL
+    ):
         execution.status = ExecutionStatus.RUNNING
 
     await session.commit()
@@ -72,7 +80,10 @@ async def reject_tool_call(
     tool_call = await session.get(ToolCall, tool_call_id)
     if tool_call is None:
         raise HTTPException(status_code=404, detail="Tool call not found")
-    if user.organization_id is not None and tool_call.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and tool_call.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Tool call not found")
 
     tool_call.status = ToolCallStatus.REJECTED

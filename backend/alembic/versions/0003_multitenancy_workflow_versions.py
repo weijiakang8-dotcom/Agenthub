@@ -5,17 +5,18 @@ Revises: 0002
 Create Date: 2026-08-13
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
 
 revision: str = "0003"
-down_revision: Union[str, None] = "0002"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0002"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 DEFAULT_ORG_ID = "00000000-0000-0000-0000-000000000001"
 
@@ -27,8 +28,18 @@ def upgrade() -> None:
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("slug", sa.String(100), nullable=False),
         sa.Column("settings", sa.JSON(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.UniqueConstraint("slug"),
     )
     op.execute(
@@ -46,13 +57,30 @@ def upgrade() -> None:
         sa.Column("role", sa.String(20), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.Column("last_login", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
         sa.UniqueConstraint("email"),
     )
     op.create_index("ix_users_email", "users", ["email"], unique=True)
     op.create_index("ix_users_organization_id", "users", ["organization_id"])
-    op.create_foreign_key("fk_users_organization_id", "users", "organizations", ["organization_id"], ["id"], ondelete="SET NULL")
+    op.create_foreign_key(
+        "fk_users_organization_id",
+        "users",
+        "organizations",
+        ["organization_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
 
     op.create_table(
         "api_keys",
@@ -65,7 +93,14 @@ def upgrade() -> None:
         sa.UniqueConstraint("key_hash"),
     )
     op.create_index("ix_api_keys_user_id", "api_keys", ["user_id"])
-    op.create_foreign_key("fk_api_keys_user_id", "api_keys", "users", ["user_id"], ["id"], ondelete="CASCADE")
+    op.create_foreign_key(
+        "fk_api_keys_user_id",
+        "api_keys",
+        "users",
+        ["user_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
 
     op.create_table(
         "workflow_versions",
@@ -75,24 +110,64 @@ def upgrade() -> None:
         sa.Column("config_snapshot", sa.JSON(), nullable=False),
         sa.Column("changelog", sa.Text(), nullable=False),
         sa.Column("created_by", sa.String(255), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
     )
-    op.create_index("ix_workflow_versions_workflow_id", "workflow_versions", ["workflow_id"])
-    op.create_foreign_key("fk_workflow_versions_workflow_id", "workflow_versions", "workflows", ["workflow_id"], ["id"], ondelete="CASCADE")
+    op.create_index(
+        "ix_workflow_versions_workflow_id", "workflow_versions", ["workflow_id"]
+    )
+    op.create_foreign_key(
+        "fk_workflow_versions_workflow_id",
+        "workflow_versions",
+        "workflows",
+        ["workflow_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
 
     for table in ("agents", "workflows", "executions", "tool_calls"):
-        op.add_column(table, sa.Column("organization_id", postgresql.UUID(as_uuid=True), nullable=True))
+        op.add_column(
+            table,
+            sa.Column("organization_id", postgresql.UUID(as_uuid=True), nullable=True),
+        )
         op.create_index(f"ix_{table}_organization_id", table, ["organization_id"])
-        op.create_foreign_key(f"fk_{table}_organization_id", table, "organizations", ["organization_id"], ["id"], ondelete="SET NULL")
-        op.execute(f"UPDATE {table} SET organization_id = '{DEFAULT_ORG_ID}' WHERE organization_id IS NULL")
+        op.create_foreign_key(
+            f"fk_{table}_organization_id",
+            table,
+            "organizations",
+            ["organization_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
+        op.execute(
+            f"UPDATE {table} SET organization_id = '{DEFAULT_ORG_ID}' WHERE organization_id IS NULL"
+        )
 
-    op.add_column("executions", sa.Column("workflow_version_id", postgresql.UUID(as_uuid=True), nullable=True))
-    op.create_index("ix_executions_workflow_version_id", "executions", ["workflow_version_id"])
-    op.create_foreign_key("fk_executions_workflow_version_id", "executions", "workflow_versions", ["workflow_version_id"], ["id"], ondelete="SET NULL")
+    op.add_column(
+        "executions",
+        sa.Column("workflow_version_id", postgresql.UUID(as_uuid=True), nullable=True),
+    )
+    op.create_index(
+        "ix_executions_workflow_version_id", "executions", ["workflow_version_id"]
+    )
+    op.create_foreign_key(
+        "fk_executions_workflow_version_id",
+        "executions",
+        "workflow_versions",
+        ["workflow_version_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
 
 
 def downgrade() -> None:
-    op.drop_constraint("fk_executions_workflow_version_id", "executions", type_="foreignkey")
+    op.drop_constraint(
+        "fk_executions_workflow_version_id", "executions", type_="foreignkey"
+    )
     op.drop_index("ix_executions_workflow_version_id", table_name="executions")
     op.drop_column("executions", "workflow_version_id")
 

@@ -1,13 +1,17 @@
-import uuid
-from datetime import datetime
+from __future__ import annotations
 
 import uuid
+from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, UUIDPrimaryKeyMixin
 from app.models.enums import ToolCallStatus
+
+if TYPE_CHECKING:
+    from app.models.execution import Execution
 
 
 class ToolCall(UUIDPrimaryKeyMixin, Base):
@@ -44,9 +48,12 @@ class ToolCall(UUIDPrimaryKeyMixin, Base):
         DateTime(timezone=True), nullable=True
     )
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
+        Uuid,
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
 
-    execution: Mapped["Execution"] = relationship(
+    execution: Mapped[Execution] = relationship(
         back_populates="tool_calls", lazy="selectin"
     )

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import json
 import asyncio
+import json
 import uuid
-from typing import Any, Callable, TypedDict
+from collections.abc import Callable
+from typing import Any, TypedDict
 
 from langchain_core.messages import (
     AIMessage,
@@ -130,7 +131,9 @@ async def _get_llms(
 
 async def prepare_node(state: AgentState) -> dict[str, Any]:
     messages = list(state.get("messages") or [])
-    if state.get("user_input") and not any(isinstance(m, HumanMessage) for m in messages):
+    if state.get("user_input") and not any(
+        isinstance(m, HumanMessage) for m in messages
+    ):
         messages.insert(0, HumanMessage(content=state["user_input"]))
     return {"messages": messages, "current_step": state.get("current_step", 0)}
 
@@ -157,16 +160,52 @@ async def classify_task_node(state: AgentState) -> dict[str, Any]:
         category = "general"
 
     if category == "research":
-        steps = [{"role": "research", "agent_id": None, "name": "Research Agent", "system_prompt": ""}]
+        steps = [
+            {
+                "role": "research",
+                "agent_id": None,
+                "name": "Research Agent",
+                "system_prompt": "",
+            }
+        ]
     elif category == "analysis":
-        steps = [{"role": "analyze", "agent_id": None, "name": "Analyze Agent", "system_prompt": ""}]
+        steps = [
+            {
+                "role": "analyze",
+                "agent_id": None,
+                "name": "Analyze Agent",
+                "system_prompt": "",
+            }
+        ]
     elif category == "execution":
-        steps = [{"role": "execute", "agent_id": None, "name": "Execute Agent", "system_prompt": ""}]
+        steps = [
+            {
+                "role": "execute",
+                "agent_id": None,
+                "name": "Execute Agent",
+                "system_prompt": "",
+            }
+        ]
     else:
         steps = [
-            {"role": "research", "agent_id": None, "name": "Research Agent", "system_prompt": ""},
-            {"role": "analyze", "agent_id": None, "name": "Analyze Agent", "system_prompt": ""},
-            {"role": "execute", "agent_id": None, "name": "Execute Agent", "system_prompt": ""},
+            {
+                "role": "research",
+                "agent_id": None,
+                "name": "Research Agent",
+                "system_prompt": "",
+            },
+            {
+                "role": "analyze",
+                "agent_id": None,
+                "name": "Analyze Agent",
+                "system_prompt": "",
+            },
+            {
+                "role": "execute",
+                "agent_id": None,
+                "name": "Execute Agent",
+                "system_prompt": "",
+            },
         ]
 
     return {"steps": steps, "current_step": 0, "subagent_plan": steps}
@@ -246,7 +285,10 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
                 if cached:
                     span.set_attribute("cache.hit", True)
                     return {
-                        "messages": [*state.get("messages", []), AIMessage(content=cached)],
+                        "messages": [
+                            *state.get("messages", []),
+                            AIMessage(content=cached),
+                        ],
                         "current_step": index + 1,
                         "final_output": cached,
                     }
@@ -542,7 +584,7 @@ def make_dynamic_agent_node(
 
 
 def make_human_approval_node(
-    node: dict[str, Any]
+    node: dict[str, Any],
 ) -> Callable[[AgentState], dict[str, Any]]:
     node_id = node.get("id", "approval")
     label = node.get("label", "人工审批")

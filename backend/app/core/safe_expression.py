@@ -4,7 +4,6 @@ import ast
 import operator
 from typing import Any
 
-
 ALLOWED_NAMES = {"final_output", "messages", "node_outputs"}
 ALLOWED_FUNCS = {
     "len": len,
@@ -129,5 +128,5 @@ def evaluate_condition(expression: str | None, context: dict[str, Any]) -> bool:
     try:
         tree = ast.parse(str(expression), mode="eval")
         return bool(_eval_node(tree, context))
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False

@@ -10,12 +10,11 @@ os.environ.setdefault("OTEL_SDK_DISABLED", "true")
 import pytest
 from fastapi.testclient import TestClient
 
+import app.main as main_module
 from app.api.deps import get_current_user
 from app.database import get_db
-import app.main as main_module
 from app.main import app
 from app.models import Document, ModelConfig, Notification
-
 
 ORG_ID = uuid.uuid4()
 

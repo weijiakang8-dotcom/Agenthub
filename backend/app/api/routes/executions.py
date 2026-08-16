@@ -1,14 +1,13 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import CurrentUserDep, SessionDep, get_current_user
-from app.core.alerting import evaluate_alert_rules
 from app.core.telemetry import get_meter, get_tracer
 from app.engine.tasks import execute_workflow_task, resume_workflow_task
-from app.models import Execution, ToolCall, Workflow, utcnow
-from app.models import InterventionLog
+from app.models import Execution, InterventionLog, ToolCall, Workflow, utcnow
 from app.models.enums import ExecutionStatus
 from app.schemas.execution import (
     ExecutionAccepted,
@@ -20,8 +19,6 @@ from app.schemas.execution import (
     FeedbackCreate,
 )
 from app.schemas.tool_call import ToolCallRead, ToolCallSummary
-from pydantic import BaseModel
-
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 
@@ -66,7 +63,10 @@ async def get_execution(
     execution = await session.get(Execution, execution_id)
     if execution is None:
         raise HTTPException(status_code=404, detail="Execution not found")
-    if user.organization_id is not None and execution.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and execution.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Execution not found")
 
     detail = ExecutionDetail.model_validate(execution)
@@ -75,7 +75,9 @@ async def get_execution(
         .where(ToolCall.execution_id == execution_id)
         .order_by(ToolCall.started_at)
     )
-    detail.tool_calls = [ToolCallRead.model_validate(tc) for tc in result.scalars().all()]
+    detail.tool_calls = [
+        ToolCallRead.model_validate(tc) for tc in result.scalars().all()
+    ]
     return detail
 
 
@@ -86,7 +88,10 @@ async def list_execution_tool_calls(
     execution = await session.get(Execution, execution_id)
     if execution is None:
         raise HTTPException(status_code=404, detail="Execution not found")
-    if user.organization_id is not None and execution.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and execution.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Execution not found")
 
     result = await session.execute(
@@ -149,7 +154,10 @@ async def cancel_execution(
     execution = await session.get(Execution, execution_id)
     if execution is None:
         raise HTTPException(status_code=404, detail="Execution not found")
-    if user.organization_id is not None and execution.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and execution.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Execution not found")
 
     if execution.status in (
@@ -174,7 +182,10 @@ async def get_execution_trace(
     execution = await session.get(Execution, execution_id)
     if execution is None:
         raise HTTPException(status_code=404, detail="Execution not found")
-    if user.organization_id is not None and execution.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and execution.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Execution not found")
 
     result = await session.execute(
@@ -197,7 +208,10 @@ async def get_execution_status(
     execution = await session.get(Execution, execution_id)
     if execution is None:
         raise HTTPException(status_code=404, detail="Execution not found")
-    if user.organization_id is not None and execution.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and execution.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Execution not found")
     return execution
 
@@ -209,12 +223,18 @@ async def get_execution_status(
     dependencies=[Depends(get_current_user)],
 )
 async def resume_execution(
-    execution_id: uuid.UUID, payload: ExecutionResume, session: SessionDep, user: CurrentUserDep
+    execution_id: uuid.UUID,
+    payload: ExecutionResume,
+    session: SessionDep,
+    user: CurrentUserDep,
 ) -> ExecutionAccepted:
     execution = await session.get(Execution, execution_id)
     if execution is None:
         raise HTTPException(status_code=404, detail="Execution not found")
-    if user.organization_id is not None and execution.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and execution.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Execution not found")
     if execution.status != ExecutionStatus.WAITING_FOR_APPROVAL:
         raise HTTPException(
@@ -234,12 +254,18 @@ async def resume_execution(
     dependencies=[Depends(get_current_user)],
 )
 async def submit_feedback(
-    execution_id: uuid.UUID, payload: FeedbackCreate, session: SessionDep, user: CurrentUserDep
+    execution_id: uuid.UUID,
+    payload: FeedbackCreate,
+    session: SessionDep,
+    user: CurrentUserDep,
 ) -> Execution:
     execution = await session.get(Execution, execution_id)
     if execution is None:
         raise HTTPException(status_code=404, detail="Execution not found")
-    if user.organization_id is not None and execution.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and execution.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Execution not found")
 
     execution.feedback = payload.feedback
@@ -250,12 +276,18 @@ async def submit_feedback(
 
 @router.post("/{execution_id}/intervene", dependencies=[Depends(get_current_user)])
 async def intervene(
-    execution_id: uuid.UUID, payload: InterveneRequest, session: SessionDep, user: CurrentUserDep
+    execution_id: uuid.UUID,
+    payload: InterveneRequest,
+    session: SessionDep,
+    user: CurrentUserDep,
 ) -> dict:
     execution = await session.get(Execution, execution_id)
     if execution is None:
         raise HTTPException(status_code=404, detail="Execution not found")
-    if user.organization_id is not None and execution.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and execution.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Execution not found")
 
     log = InterventionLog(
@@ -286,15 +318,22 @@ async def list_interventions(
     execution = await session.get(Execution, execution_id)
     if execution is None:
         raise HTTPException(status_code=404, detail="Execution not found")
-    if user.organization_id is not None and execution.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and execution.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Execution not found")
     logs = (
-        await session.execute(
-            select(InterventionLog)
-            .where(InterventionLog.execution_id == execution_id)
-            .order_by(InterventionLog.created_at)
+        (
+            await session.execute(
+                select(InterventionLog)
+                .where(InterventionLog.execution_id == execution_id)
+                .order_by(InterventionLog.created_at)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [
         {
             "id": str(log.id),

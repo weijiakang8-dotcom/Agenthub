@@ -24,7 +24,9 @@ def test_invalid_expression_returns_false():
     context = {"final_output": "hello"}
 
     assert evaluate_condition("__import__('os').system('id')", context) is False
-    assert evaluate_condition("().__class__.__mro__[1].__subclasses__()", context) is False
+    assert (
+        evaluate_condition("().__class__.__mro__[1].__subclasses__()", context) is False
+    )
     assert evaluate_condition("final_output.__class__", context) is False
     assert evaluate_condition("open('/etc/passwd')", context) is False
 

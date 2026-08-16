@@ -11,7 +11,6 @@ from fastapi import HTTPException
 from app.api.routes import models as models_routes
 from app.models import ModelConfig
 
-
 ORG_ID = uuid.uuid4()
 OTHER_ORG_ID = uuid.uuid4()
 

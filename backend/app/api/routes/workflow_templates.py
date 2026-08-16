@@ -67,8 +67,14 @@ async def list_templates(user: CurrentUserDep) -> list[dict]:
     return TEMPLATES
 
 
-@router.post("/{slug}/clone", response_model=WorkflowRead, dependencies=[Depends(get_current_user)])
-async def clone_template(slug: str, session: SessionDep, user: CurrentUserDep) -> Workflow:
+@router.post(
+    "/{slug}/clone",
+    response_model=WorkflowRead,
+    dependencies=[Depends(get_current_user)],
+)
+async def clone_template(
+    slug: str, session: SessionDep, user: CurrentUserDep
+) -> Workflow:
     template = next((t for t in TEMPLATES if t["slug"] == slug), None)
     if template is None:
         raise HTTPException(status_code=404, detail="Template not found")

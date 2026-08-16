@@ -15,7 +15,6 @@ from app.api.routes.notifications import list_notifications
 from app.api.routes.usage import usage
 from app.models import Document, ModelConfig, Notification
 
-
 ORG_ID = uuid.uuid4()
 OTHER_ORG_ID = uuid.uuid4()
 
@@ -183,9 +182,7 @@ def test_list_documents_serializes_documents():
     document = make_document(ORG_ID)
     session = FakeSession(execute_results=[FakeResult(scalars=[document])])
 
-    result = asyncio.run(
-        list_documents(session=session, user=make_user())
-    )
+    result = asyncio.run(list_documents(session=session, user=make_user()))
 
     assert len(result) == 1
     assert result[0]["name"] == "knowledge.md"
@@ -243,9 +240,7 @@ def test_list_notifications_serializes_history():
     )
     session = FakeSession(execute_results=[FakeResult(scalars=[notification])])
 
-    result = asyncio.run(
-        list_notifications(session=session, user=make_user())
-    )
+    result = asyncio.run(list_notifications(session=session, user=make_user()))
 
     assert len(result) == 1
     assert result[0]["channel"] == "email"

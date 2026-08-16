@@ -86,12 +86,18 @@ export default function ExecutionDetail() {
 
   useEffect(() => {
     if (!id) return;
-    api.listInterventions(id).then(setInterventions).catch(() => undefined);
+    api
+      .listInterventions(id)
+      .then(setInterventions)
+      .catch(() => undefined);
   }, [id]);
 
   useEffect(() => {
     if (!id || !lastEvent) return;
-    api.getExecution(id).then(setData).catch(() => undefined);
+    api
+      .getExecution(id)
+      .then(setData)
+      .catch(() => undefined);
   }, [id, lastEvent]);
 
   const activity = useMemo(() => {
@@ -156,8 +162,7 @@ export default function ExecutionDetail() {
         type: "input",
         position: { x: 0, y: 0 },
         data: { label: <div className="text-sm font-medium">开始</div> },
-        className:
-          "rounded-md border bg-card px-4 py-2 text-sm shadow-xs",
+        className: "rounded-md border bg-card px-4 py-2 text-sm shadow-xs",
       },
     ];
 
@@ -299,7 +304,8 @@ export default function ExecutionDetail() {
                       className={cn(
                         "mt-1.5 block h-1.5 w-1.5 shrink-0 rounded-full",
                         activityDotClass(step.state),
-                        (step.state === "running" || step.state === "waiting") &&
+                        (step.state === "running" ||
+                          step.state === "waiting") &&
                           "animate-pulse",
                       )}
                     />
@@ -387,7 +393,8 @@ export default function ExecutionDetail() {
             {data.status === "waiting_for_approval" && (
               <div className="mt-4 space-y-3 border-t pt-4">
                 <p className="text-sm text-muted-foreground">
-                  Agent 想要执行：{pendingCall ? pendingCall.tool_name : "下一步计划"}
+                  Agent 想要执行：
+                  {pendingCall ? pendingCall.tool_name : "下一步计划"}
                 </p>
                 <textarea
                   className="w-full rounded-md border border-input bg-background p-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"

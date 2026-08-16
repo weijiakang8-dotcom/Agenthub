@@ -19,7 +19,7 @@ def _extract_json(text: str) -> dict[str, Any]:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        match = re.search(r"\{.*\}", text, re.S)
+        match = re.search(r"\{.*\}", text, re.DOTALL)
         if not match:
             raise
         return json.loads(match.group(0))
@@ -68,7 +68,12 @@ async def evaluate_execution(execution_id: str) -> None:
         return
 
     score = round(
-        (float(result["accuracy"]) + float(result["completeness"]) + float(result["logic"])) / 3,
+        (
+            float(result["accuracy"])
+            + float(result["completeness"])
+            + float(result["logic"])
+        )
+        / 3,
         2,
     )
     async with async_session_factory() as session:

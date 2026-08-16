@@ -8,7 +8,6 @@ from app.models import Agent
 from app.models.enums import AgentStatus
 from app.schemas.agent import AgentCreate, AgentRead, AgentUpdate
 
-
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 
@@ -31,11 +30,16 @@ async def list_agents(
 
 
 @router.get("/{agent_id}", response_model=AgentRead)
-async def get_agent(agent_id: uuid.UUID, session: SessionDep, user: CurrentUserDep) -> Agent:
+async def get_agent(
+    agent_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
+) -> Agent:
     agent = await session.get(Agent, agent_id)
     if agent is None:
         raise HTTPException(status_code=404, detail="Agent not found")
-    if user.organization_id is not None and agent.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and agent.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Agent not found")
     return agent
 
@@ -46,7 +50,9 @@ async def get_agent(agent_id: uuid.UUID, session: SessionDep, user: CurrentUserD
     status_code=201,
     dependencies=[Depends(get_current_user)],
 )
-async def create_agent(payload: AgentCreate, session: SessionDep, user: CurrentUserDep) -> Agent:
+async def create_agent(
+    payload: AgentCreate, session: SessionDep, user: CurrentUserDep
+) -> Agent:
     existing = await session.execute(
         select(Agent).where(
             Agent.name == payload.name,
@@ -74,7 +80,10 @@ async def update_agent(
     agent = await session.get(Agent, agent_id)
     if agent is None:
         raise HTTPException(status_code=404, detail="Agent not found")
-    if user.organization_id is not None and agent.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and agent.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Agent not found")
 
     data = payload.model_dump(exclude_unset=True)
@@ -102,13 +111,17 @@ async def update_agent(
     status_code=204,
     dependencies=[Depends(get_current_user)],
 )
-async def delete_agent(agent_id: uuid.UUID, session: SessionDep, user: CurrentUserDep) -> None:
+async def delete_agent(
+    agent_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
+) -> None:
     agent = await session.get(Agent, agent_id)
     if agent is None:
         raise HTTPException(status_code=404, detail="Agent not found")
-    if user.organization_id is not None and agent.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and agent.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Agent not found")
 
     agent.status = AgentStatus.INACTIVE
     await session.commit()
-    return None

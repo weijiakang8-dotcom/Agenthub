@@ -15,7 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 async def _notify(rule_id: str, severity: str, message: str) -> None:
-    webhook = settings.ALERT_WEBHOOK_URL if hasattr(settings, "ALERT_WEBHOOK_URL") else ""
+    webhook = (
+        settings.ALERT_WEBHOOK_URL if hasattr(settings, "ALERT_WEBHOOK_URL") else ""
+    )
     if not webhook:
         return
     payload = {"rule_id": rule_id, "severity": severity, "message": message}
@@ -33,10 +35,14 @@ async def evaluate_alert_rules() -> list[AlertEvent]:
     alerts: list[AlertEvent] = []
     async with master_session_factory() as session:
         recent = (
-            await session.execute(
-                select(Execution).order_by(Execution.created_at.desc()).limit(20)
+            (
+                await session.execute(
+                    select(Execution).order_by(Execution.created_at.desc()).limit(20)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         if len(recent) >= 10:
             failed = [e for e in recent[:10] if e.status == "failed"]

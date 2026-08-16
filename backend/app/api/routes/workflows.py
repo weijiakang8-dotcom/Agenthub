@@ -14,7 +14,6 @@ from app.schemas.workflow import (
     WorkflowUpdate,
 )
 
-
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
 
@@ -76,12 +75,7 @@ async def list_workflows(
     stmt = select(Workflow)
     if user.organization_id is not None:
         stmt = stmt.where(Workflow.organization_id == user.organization_id)
-    stmt = (
-        stmt
-        .order_by(Workflow.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-    )
+    stmt = stmt.order_by(Workflow.created_at.desc()).offset(skip).limit(limit)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
@@ -93,7 +87,10 @@ async def get_workflow(
     workflow = await session.get(Workflow, workflow_id)
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
-    if user.organization_id is not None and workflow.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and workflow.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     detail = WorkflowDetail.model_validate(workflow)
@@ -125,18 +122,28 @@ async def create_workflow(
     dependencies=[Depends(get_current_user)],
 )
 async def update_workflow(
-    workflow_id: uuid.UUID, payload: WorkflowUpdate, session: SessionDep, user: CurrentUserDep
+    workflow_id: uuid.UUID,
+    payload: WorkflowUpdate,
+    session: SessionDep,
+    user: CurrentUserDep,
 ) -> Workflow:
     workflow = await session.get(Workflow, workflow_id)
     if workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
-    if user.organization_id is not None and workflow.organization_id != user.organization_id:
+    if (
+        user.organization_id is not None
+        and workflow.organization_id != user.organization_id
+    ):
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(workflow, key, value)
 
-    await _snapshot_version(session, workflow, changelog=payload.changelog if hasattr(payload, "changelog") else "")
+    await _snapshot_version(
+        session,
+        workflow,
+        changelog=payload.changelog if hasattr(payload, "changelog") else "",
+    )
     await session.commit()
     return workflow
 
@@ -299,4 +306,3 @@ async def delete_workflow(workflow_id: uuid.UUID, session: SessionDep) -> None:
 
     await session.delete(workflow)
     await session.commit()
-    return None

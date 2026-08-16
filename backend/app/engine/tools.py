@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import email.utils
 import json
 import re
 import smtplib
-import email.utils
 from email.message import EmailMessage
 from typing import Any
 
@@ -14,7 +14,6 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import engine
-
 
 _SELECT_RE = re.compile(r"^\s*SELECT\b", re.IGNORECASE)
 _DANGEROUS_RE = re.compile(
@@ -35,7 +34,11 @@ async def search_web(query: str) -> dict:
             async with httpx.AsyncClient(timeout=15) as client:
                 response = await client.post(
                     "https://api.tavily.com/search",
-                    json={"api_key": settings.TAVILY_API_KEY, "query": query, "max_results": 5},
+                    json={
+                        "api_key": settings.TAVILY_API_KEY,
+                        "query": query,
+                        "max_results": 5,
+                    },
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -72,8 +75,16 @@ async def search_web(query: str) -> dict:
 async def query_db(sql: str) -> dict:
     """Run a single read-only SELECT query against the AgentHub database."""
     statement = sql.strip().rstrip(";").strip()
-    if not _SELECT_RE.match(statement) or _DANGEROUS_RE.search(statement) or ";" in statement:
-        return {"status": "failed", "data": None, "error": "Only a single read-only SELECT is allowed"}
+    if (
+        not _SELECT_RE.match(statement)
+        or _DANGEROUS_RE.search(statement)
+        or ";" in statement
+    ):
+        return {
+            "status": "failed",
+            "data": None,
+            "error": "Only a single read-only SELECT is allowed",
+        }
 
     try:
         async with engine.connect() as conn:
@@ -114,7 +125,11 @@ async def send_email(to: str, subject: str, body: str) -> dict:
         result = await asyncio.to_thread(_send_email_sync, to, subject, body)
         return {
             "status": "success",
-            "data": {"to": to, "subject": subject, "message_id": result.get("message_id")},
+            "data": {
+                "to": to,
+                "subject": subject,
+                "message_id": result.get("message_id"),
+            },
             "error": None,
         }
     except Exception as exc:  # noqa: BLE001

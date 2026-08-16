@@ -5,8 +5,8 @@ from typing import Annotated
 import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.config import settings
 from app.api.deps import get_admin_api_key_user
+from app.config import settings
 from app.database import master_session_factory
 from app.engine.tasks import execute_workflow_task
 from app.models import Execution, User

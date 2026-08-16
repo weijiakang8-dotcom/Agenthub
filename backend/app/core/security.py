@@ -39,7 +39,9 @@ def _encode_token(payload: dict[str, Any], expires_delta: timedelta) -> str:
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=ALGORITHM)
 
 
-def create_access_token(user_id: str | uuid.UUID, organization_id: str | uuid.UUID | None) -> str:
+def create_access_token(
+    user_id: str | uuid.UUID, organization_id: str | uuid.UUID | None
+) -> str:
     return _encode_token(
         {
             "sub": str(user_id),
@@ -50,7 +52,9 @@ def create_access_token(user_id: str | uuid.UUID, organization_id: str | uuid.UU
     )
 
 
-def create_refresh_token(user_id: str | uuid.UUID, organization_id: str | uuid.UUID | None) -> str:
+def create_refresh_token(
+    user_id: str | uuid.UUID, organization_id: str | uuid.UUID | None
+) -> str:
     return _encode_token(
         {
             "sub": str(user_id),
