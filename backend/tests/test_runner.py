@@ -238,9 +238,10 @@ def test_run_execution_sets_waiting_for_approval_on_interrupt_result(monkeypatch
     class FakeGraph:
         async def ainvoke(self, *_args, **_kwargs):
             return {
+                "current_step": 2,
                 "__interrupt__": [
                     SimpleNamespace(value={"type": "approval_required", "plan": "ok"})
-                ]
+                ],
             }
 
     monkeypatch.setattr(runner, "get_checkpoint_manager", lambda: FakeManager(object()))
@@ -258,7 +259,55 @@ def test_run_execution_sets_waiting_for_approval_on_interrupt_result(monkeypatch
     asyncio.run(runner.run_execution(execution.id))
 
     assert execution.status == ExecutionStatus.WAITING_FOR_APPROVAL
+    assert execution.current_step_index == 2
     assert execution.checkpoint_data == {
         "interrupt": {"type": "approval_required", "plan": "ok"}
     }
     assert events[-1]["event"] == "waiting_for_approval"
+
+
+def test_run_execution_persists_completed_current_step(monkeypatch):
+    execution = make_execution(ExecutionStatus.PENDING)
+    workflow = make_workflow(dag_definition={"nodes": [{"type": "research"}]})
+    session = FakeSession(execution=execution, workflow=workflow, rowcount=1)
+    monkeypatch.setattr(
+        runner,
+        "async_session_factory",
+        FakeSessionFactory(
+            [session, FakeSession(execution=execution, workflow=workflow)]
+        ),
+    )
+
+    class FakeManager:
+        def __init__(self, saver):
+            self.saver = saver
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+    class FakeGraph:
+        async def ainvoke(self, *_args, **_kwargs):
+            return {"current_step": 1, "final_output": "ok"}
+
+    async def noop(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(runner, "get_checkpoint_manager", lambda: FakeManager(object()))
+    monkeypatch.setattr(
+        runner, "build_graph", lambda checkpointer=None, dag=None: FakeGraph()
+    )
+    monkeypatch.setattr(runner, "record_execution_usage", noop)
+    monkeypatch.setattr(runner, "publish_execution_event", noop)
+    monkeypatch.setattr(
+        runner,
+        "evaluate_execution_task",
+        SimpleNamespace(delay=lambda *_args, **_kwargs: None),
+    )
+
+    asyncio.run(runner.run_execution(execution.id))
+
+    assert execution.status == ExecutionStatus.COMPLETED
+    assert execution.current_step_index == 1

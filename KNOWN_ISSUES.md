@@ -9,7 +9,7 @@
 
 ## P2 Remaining
 
-- `Execution.current_step_index` is not persisted from final LangGraph state after completion.
+- ~~`Execution.current_step_index` is not persisted from final LangGraph state after completion.~~ Resolved in Phase 3.
 - ADMIN_API_KEY fallback is documented but not implemented in `get_current_user()`.
 - RAG stores whole documents without chunking and scans all documents in memory.
 - No automated IDOR concurrency suite beyond the new unit-level tests.
@@ -18,6 +18,7 @@
 ## UNVERIFIED
 
 - Real multi-model fallback.
+- Celery retry end-to-end with delayed failures was not fully observed in this phase.
 - Production Kubernetes/TLS/DNS.
 - Real SMTP/Resend provider.
 - PostgreSQL backup/restore.

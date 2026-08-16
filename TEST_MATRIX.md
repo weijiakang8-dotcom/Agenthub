@@ -10,7 +10,7 @@
 | Runner interrupt / failure / retry | `test_runner.py` | PASS |
 | Resume idempotency | `test_execution_resume.py` | PASS |
 | Celery DLQ helper | `test_tasks_retry.py` | PASS |
-| Full backend suite | `pytest -q` | `92 passed` |
+| Full backend suite | `pytest -q` | `93 passed` |
 
 ## Frontend
 
@@ -30,10 +30,12 @@
 | Docker Compose config | `docker compose config --quiet` | PASS |
 | Backend health | `/health` | PASS |
 | Backend image build | `docker compose build backend worker` | PASS |
+| Real multi-tenant API attack | live backend script | PASS |
+| Real resume concurrency | live backend script | PASS |
+| Real current_step persistence | live execution | PASS |
 
 ## Not Covered Yet
 
 - Multi-tenant real API integration tests.
 - Celery retry end-to-end with delayed failures.
-- Concurrent resume under real database locking.
 - Real multi-model fallback.
