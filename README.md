@@ -189,6 +189,31 @@ docker compose -f docker/docker-compose.yml exec backend alembic upgrade head
 - API 文档：`http://localhost:8000/docs`
 - 健康检查：`http://localhost:8000/health`
 
+## 可观测性
+
+完整 Docker Compose 部署包含以下可观测性服务：
+
+| 服务 | 地址 | 说明 |
+|------|------|------|
+| Backend Metrics | `http://localhost:8000/metrics` | Prometheus 文本指标 |
+| Prometheus | `http://localhost:9090` | 采集 OTel Collector 与 Backend 指标 |
+| Grafana | `http://localhost:3000` | 默认账密 `admin/admin` |
+| Jaeger | `http://localhost:16686` | Trace 查询 |
+| MailHog | `http://localhost:8025` | 本地 SMTP 测试邮件 |
+
+启动完整可观测性组件：
+
+```bash
+docker compose -f docker/docker-compose.yml up -d \
+  otel-collector prometheus grafana jaeger mailhog
+```
+
+从项目根目录执行 Compose 命令时，建议建立 `docker/.env` 软链接，确保 Compose 能读取根目录 `.env`：
+
+```bash
+ln -sfn ../.env docker/.env
+```
+
 ## API 概览
 
 | 模块 | 路径 |
