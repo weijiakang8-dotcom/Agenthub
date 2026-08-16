@@ -42,6 +42,12 @@
   - 4317/4318 OTel
   - 1025/8025 MailHog
 - This is a critical production firewall/security blocker.
+
+## Phase 5.6 Update
+
+- Production server now running latest main `3c045e5`.
+- Internal service ports now bind `127.0.0.1`.
+- Remaining: frontend `8080` still public, HTTP 80/redirect missing, Tencent security group external ports need closure.
 - Production Kubernetes/TLS/DNS.
 - Real SMTP/Resend provider.
 - PostgreSQL backup/restore.
