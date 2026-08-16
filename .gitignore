@@ -21,6 +21,7 @@ dist/
 # ===== Node / 前端 =====
 node_modules/
 frontend/dist/
+frontend/test-results/
 *.tsbuildinfo
 
 # ===== 日志 / 临时文件 =====
