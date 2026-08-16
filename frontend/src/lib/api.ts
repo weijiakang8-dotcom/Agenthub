@@ -142,20 +142,96 @@ export type Intervention = {
 
 const BASE = "/api";
 const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY as string | undefined;
-const TOKEN_KEY = "agenthub.access_token";
+const ACCESS_TOKEN_KEY = "agenthub.access_token";
+const REFRESH_TOKEN_KEY = "agenthub.refresh_token";
+const AUTH_PUBLIC_PATHS = new Set([
+  "/auth/login",
+  "/auth/register",
+  "/auth/send-code",
+  "/auth/forgot-password",
+  "/auth/verify-reset-code",
+  "/auth/reset-password",
+  "/auth/refresh",
+]);
+
+export class ApiError extends Error {
+  code?: string;
+
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+  }
+}
 
 export function getAccessToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
 export function setAccessToken(token: string | null) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+  if (token) localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  else localStorage.removeItem(ACCESS_TOKEN_KEY);
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export function getRefreshToken() {
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function setRefreshToken(token: string | null) {
+  if (token) localStorage.setItem(REFRESH_TOKEN_KEY, token);
+  else localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+export function clearTokens() {
+  setAccessToken(null);
+  setRefreshToken(null);
+}
+
+export function logout() {
+  clearTokens();
+  if (typeof window !== "undefined") {
+    window.location.reload();
+  }
+}
+
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) return null;
+      try {
+        const res = await fetch(`${BASE}/auth/refresh`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${refreshToken}`,
+          },
+        });
+        if (!res.ok) return null;
+        const data = (await res.json()) as { access_token?: string };
+        if (data.access_token) {
+          setAccessToken(data.access_token);
+          return data.access_token;
+        }
+        return null;
+      } catch {
+        return null;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+}
+
+async function performRequest(
+  path: string,
+  init?: RequestInit,
+): Promise<Response> {
   const token = getAccessToken();
-  const res = await fetch(`${BASE}${path}`, {
+  return fetch(`${BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -163,21 +239,39 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
     ...init,
   });
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let res = await performRequest(path, init);
+
+  if (res.status === 401 && !AUTH_PUBLIC_PATHS.has(path)) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      res = await performRequest(path, init);
+    } else {
+      clearTokens();
+      throw new ApiError("登录已过期，请重新登录", "REFRESH_TOKEN_EXPIRED");
+    }
+  }
+
   if (!res.ok) {
     const text = await res.text();
     let message = text || `HTTP ${res.status}`;
+    let code: string | undefined;
     try {
       const data = JSON.parse(text);
       if (data?.detail) {
-        message =
-          typeof data.detail === "string"
-            ? data.detail
-            : JSON.stringify(data.detail);
+        if (typeof data.detail === "string") {
+          message = data.detail;
+        } else if (data.detail && typeof data.detail === "object") {
+          code = data.detail.code;
+          message = data.detail.message || JSON.stringify(data.detail);
+        }
       }
     } catch {
       // 保持原始错误文本
     }
-    throw new Error(message);
+    throw new ApiError(message, code);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -353,7 +447,7 @@ export const api = {
 };
 
 export const auth = {
-  sendCode: (payload: { email: string }) =>
+  sendCode: (payload: { email: string; mode?: "login" | "register" }) =>
     request<{ status: string }>("/auth/send-code", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -370,6 +464,25 @@ export const auth = {
     }),
   login: (payload: { email: string; password: string; code: string }) =>
     request<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  forgotPassword: (payload: { email: string }) =>
+    request<{ success: boolean; message: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  verifyResetCode: (payload: { email: string; code: string }) =>
+    request<{ success: boolean; message: string }>("/auth/verify-reset-code", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  resetPassword: (payload: {
+    email: string;
+    code: string;
+    new_password: string;
+  }) =>
+    request<{ success: boolean; message: string }>("/auth/reset-password", {
       method: "POST",
       body: JSON.stringify(payload),
     }),

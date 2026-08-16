@@ -21,4 +21,10 @@ class AuditLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     method: Mapped[str] = mapped_column(String(10), nullable=False)
     path: Mapped[str] = mapped_column(String(500), nullable=False)
     status_code: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    action: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    resource_type: Mapped[str | None] = mapped_column(
+        String(80), nullable=True, index=True
+    )
+    resource_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
     details: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)

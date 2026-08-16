@@ -11,6 +11,7 @@ from app.api.routes import (
     executions,
     models,
     notifications,
+    organizations,
     tasks,
     tool_calls,
     usage,
@@ -35,6 +36,7 @@ api_router.include_router(documents.router)
 api_router.include_router(eval_routes.router)
 api_router.include_router(models.router)
 api_router.include_router(notifications.router)
+api_router.include_router(organizations.router)
 api_router.include_router(usage.router)
 api_router.include_router(tasks.router)
 api_router.include_router(workflow_templates.router)

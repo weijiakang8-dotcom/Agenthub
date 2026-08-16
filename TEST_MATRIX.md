@@ -10,7 +10,11 @@
 | Runner interrupt / failure / retry | `test_runner.py` | PASS |
 | Resume idempotency | `test_execution_resume.py` | PASS |
 | Celery DLQ helper | `test_tasks_retry.py` | PASS |
-| Full backend suite | `pytest -q` | `93 passed` |
+| Auth / refresh / reset code | `test_auth_code.py` | PASS |
+| RBAC permissions | `test_rbac.py` | PASS |
+| Audit action classification | `test_audit_classification.py` | PASS |
+| Organization members | `test_organization_members.py` | PASS |
+| Full backend suite | `pytest -q` | `137 passed` |
 
 ## Frontend
 
@@ -21,7 +25,7 @@
 | Sidebar | `Sidebar.test.tsx` | PASS |
 | Settings panels | `SettingsPanels.test.tsx`, `SettingsTabs.test.tsx` | PASS |
 | Playwright browser smoke | `e2e/app.spec.ts` | PASS |
-| Vitest full suite | `vitest run` | `14 passed` |
+| Vitest full suite | `vitest run` | `18 passed` |
 
 ## Deployment
 
@@ -56,6 +60,8 @@
 | Phase 5.7 HTTPS | `curl -I https://synplex.xyz` | PASS |
 | Phase 5.7 backup | `pg_dump` | PASS |
 | Phase 5.7 restore drill | temp database restore | PASS |
+| Phase 6 auth refresh / reset tests | `pytest` unit tests | PASS |
+| Phase 7 RBAC / audit / members tests | `pytest` unit tests | PASS |
 
 ## Not Covered Yet
 

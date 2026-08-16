@@ -12,8 +12,16 @@ import jwt
 from app.config import settings
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE = timedelta(hours=24)
+ACCESS_TOKEN_EXPIRE = timedelta(minutes=30)
 REFRESH_TOKEN_EXPIRE = timedelta(days=7)
+
+
+class TokenExpiredError(ValueError):
+    """JWT 已过期。"""
+
+
+class TokenInvalidError(ValueError):
+    """JWT 无效。"""
 
 
 def hash_password(password: str) -> str:
@@ -70,3 +78,13 @@ def decode_token(token: str) -> dict[str, Any] | None:
         return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[ALGORITHM])
     except Exception:  # noqa: BLE001
         return None
+
+
+def decode_token_checked(token: str) -> dict[str, Any]:
+    """解码 token，并区分过期与无效，便于返回明确错误码。"""
+    try:
+        return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.ExpiredSignatureError as exc:
+        raise TokenExpiredError("token expired") from exc
+    except jwt.InvalidTokenError as exc:
+        raise TokenInvalidError("invalid token") from exc

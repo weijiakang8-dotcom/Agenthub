@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import CurrentUserDep, SessionDep
+from app.core.permissions import require_permission
 from app.models import Document
 from app.rag.embedder import cosine, embed_text
 
@@ -43,7 +44,11 @@ async def list_documents(session: SessionDep, user: CurrentUserDep) -> list[dict
     return [_serialize(d) for d in result.scalars().all()]
 
 
-@router.post("/upload", status_code=201)
+@router.post(
+    "/upload",
+    status_code=201,
+    dependencies=[Depends(require_permission("resources:write"))],
+)
 async def upload_document(
     session: SessionDep,
     user: CurrentUserDep,
@@ -86,7 +91,11 @@ async def upload_document(
     return _serialize(document)
 
 
-@router.post("", status_code=201)
+@router.post(
+    "",
+    status_code=201,
+    dependencies=[Depends(require_permission("resources:write"))],
+)
 async def create_document(
     payload: DocumentUpload, session: SessionDep, user: CurrentUserDep
 ) -> dict:
@@ -105,7 +114,11 @@ async def create_document(
     return _serialize(document)
 
 
-@router.delete("/{document_id}", status_code=204)
+@router.delete(
+    "/{document_id}",
+    status_code=204,
+    dependencies=[Depends(require_permission("resources:write"))],
+)
 async def delete_document(
     document_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
 ) -> None:

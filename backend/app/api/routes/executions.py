@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, update
 
 from app.api.deps import CurrentUserDep, SessionDep, get_current_user
+from app.core.permissions import require_permission
 from app.core.telemetry import get_meter, get_tracer
 from app.engine.tasks import execute_workflow_task, resume_workflow_task
 from app.models import Execution, InterventionLog, ToolCall, Workflow, utcnow
@@ -106,7 +107,10 @@ async def list_execution_tool_calls(
     "",
     response_model=ExecutionAccepted,
     status_code=202,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(get_current_user),
+        Depends(require_permission("executions:write")),
+    ],
 )
 async def create_execution(
     payload: ExecutionCreate, session: SessionDep, user: CurrentUserDep
@@ -146,7 +150,10 @@ async def create_execution(
 @router.post(
     "/{execution_id}/cancel",
     response_model=ExecutionRead,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(get_current_user),
+        Depends(require_permission("executions:write")),
+    ],
 )
 async def cancel_execution(
     execution_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
@@ -220,7 +227,10 @@ async def get_execution_status(
     "/{execution_id}/resume",
     response_model=ExecutionAccepted,
     status_code=202,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(get_current_user),
+        Depends(require_permission("executions:write")),
+    ],
 )
 async def resume_execution(
     execution_id: uuid.UUID,
@@ -263,7 +273,10 @@ async def resume_execution(
 @router.post(
     "/{execution_id}/feedback",
     response_model=ExecutionRead,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[
+        Depends(get_current_user),
+        Depends(require_permission("executions:write")),
+    ],
 )
 async def submit_feedback(
     execution_id: uuid.UUID,
@@ -286,7 +299,13 @@ async def submit_feedback(
     return execution
 
 
-@router.post("/{execution_id}/intervene", dependencies=[Depends(get_current_user)])
+@router.post(
+    "/{execution_id}/intervene",
+    dependencies=[
+        Depends(get_current_user),
+        Depends(require_permission("executions:write")),
+    ],
+)
 async def intervene(
     execution_id: uuid.UUID,
     payload: InterveneRequest,

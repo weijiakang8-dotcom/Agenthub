@@ -7,7 +7,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from app.api.deps import get_current_user_ws, require_role
+from app.api.deps import get_current_user_ws
+from app.core.permissions import require_role
 
 
 class FakeWebSocket:
