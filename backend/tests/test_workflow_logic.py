@@ -52,8 +52,13 @@ class FakeSession:
 
 
 def make_workflow(dag_definition):
+    return make_workflow_for_org(dag_definition, uuid.uuid4())
+
+
+def make_workflow_for_org(dag_definition, organization_id):
     return SimpleNamespace(
         id=uuid.uuid4(),
+        organization_id=organization_id,
         dag_definition=dag_definition,
         name="wf",
         description="desc",
@@ -61,22 +66,29 @@ def make_workflow(dag_definition):
     )
 
 
+def make_user(organization_id=None):
+    return SimpleNamespace(id=uuid.uuid4(), organization_id=organization_id)
+
+
 def test_validate_dag_accepts_acyclic_graph():
+    user = make_user()
     workflow = make_workflow(
         {
             "nodes": [{"id": "a"}, {"id": "b"}],
             "edges": [{"source": "a", "target": "b"}],
         }
     )
+    workflow.organization_id = user.organization_id
 
     result = asyncio.run(
-        workflows.validate_dag(workflow.id, FakeSession(get_result=workflow))
+        workflows.validate_dag(workflow.id, FakeSession(get_result=workflow), user=user)
     )
 
     assert result == {"valid": True, "issues": []}
 
 
 def test_validate_dag_reports_orphan_and_cycle():
+    user = make_user()
     workflow = make_workflow(
         {
             "nodes": [{"id": "a"}, {"id": "b"}, {"id": "c"}],
@@ -88,7 +100,7 @@ def test_validate_dag_reports_orphan_and_cycle():
     )
 
     result = asyncio.run(
-        workflows.validate_dag(workflow.id, FakeSession(get_result=workflow))
+        workflows.validate_dag(workflow.id, FakeSession(get_result=workflow), user=user)
     )
 
     assert result["valid"] is False
@@ -97,10 +109,12 @@ def test_validate_dag_reports_orphan_and_cycle():
 
 
 def test_validate_dag_requires_nodes():
+    user = make_user()
     workflow = make_workflow({"nodes": [], "edges": []})
+    workflow.organization_id = user.organization_id
 
     result = asyncio.run(
-        workflows.validate_dag(workflow.id, FakeSession(get_result=workflow))
+        workflows.validate_dag(workflow.id, FakeSession(get_result=workflow), user=user)
     )
 
     assert result == {"valid": False, "issues": ["DAG 缺少节点"]}
@@ -124,27 +138,72 @@ def test_snapshot_version_increments_existing_version():
 
 
 def test_delete_workflow_rejects_active_execution():
+    user = make_user()
     workflow = make_workflow({"nodes": [{"id": "a"}]})
+    workflow.organization_id = user.organization_id
     execution = SimpleNamespace(id=uuid.uuid4())
     result = FakeScalarResult(values=[execution])
     session = FakeSession(get_result=workflow, execute_result=result)
 
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(workflows.delete_workflow(workflow.id, session))
+        asyncio.run(workflows.delete_workflow(workflow.id, session, user=user))
 
     assert exc.value.status_code == 409
     assert session.deleted == []
 
 
 def test_delete_workflow_allows_inactive_workflow():
+    user = make_user()
     workflow = make_workflow({"nodes": [{"id": "a"}]})
+    workflow.organization_id = user.organization_id
     session = FakeSession(
         get_result=workflow,
         execute_result=FakeScalarResult(values=[]),
     )
 
-    result = asyncio.run(workflows.delete_workflow(workflow.id, session))
+    result = asyncio.run(workflows.delete_workflow(workflow.id, session, user=user))
 
     assert result is None
     assert session.deleted == [workflow]
     assert session.commits == 1
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "list_versions",
+        "create_version",
+        "rollback",
+        "validate",
+        "delete",
+    ],
+)
+def test_workflow_operations_reject_cross_org(operation):
+    org_a = uuid.uuid4()
+    org_b = uuid.uuid4()
+    workflow = make_workflow_for_org({"nodes": [{"id": "a"}]}, org_b)
+    session = FakeSession(
+        get_result=workflow,
+        execute_result=FakeScalarResult(values=[]),
+    )
+    user_a = make_user(org_a)
+
+    with pytest.raises(HTTPException) as exc:
+        if operation == "list_versions":
+            asyncio.run(
+                workflows.list_workflow_versions(workflow.id, session, user=user_a)
+            )
+        elif operation == "create_version":
+            asyncio.run(
+                workflows.create_workflow_version(workflow.id, session, user=user_a)
+            )
+        elif operation == "rollback":
+            asyncio.run(
+                workflows.rollback_workflow(workflow.id, 1, session, user=user_a)
+            )
+        elif operation == "validate":
+            asyncio.run(workflows.validate_dag(workflow.id, session, user=user_a))
+        elif operation == "delete":
+            asyncio.run(workflows.delete_workflow(workflow.id, session, user=user_a))
+
+    assert exc.value.status_code == 404

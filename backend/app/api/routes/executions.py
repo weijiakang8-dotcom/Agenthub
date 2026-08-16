@@ -2,7 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.api.deps import CurrentUserDep, SessionDep, get_current_user
 from app.core.telemetry import get_meter, get_tracer
@@ -241,9 +241,21 @@ async def resume_execution(
             status_code=409, detail="Execution is not waiting for approval"
         )
 
-    resume_workflow_task.delay(str(execution_id), payload.model_dump())
-    execution.status = ExecutionStatus.RUNNING
+    result = await session.execute(
+        update(Execution)
+        .where(
+            Execution.id == execution_id,
+            Execution.status == ExecutionStatus.WAITING_FOR_APPROVAL,
+        )
+        .values(status=ExecutionStatus.RUNNING)
+    )
     await session.commit()
+    if result.rowcount == 0:
+        raise HTTPException(
+            status_code=409, detail="Execution is already being resumed"
+        )
+
+    resume_workflow_task.delay(str(execution_id), payload.model_dump())
 
     return ExecutionAccepted(execution_id=execution_id, status=ExecutionStatus.RUNNING)
 

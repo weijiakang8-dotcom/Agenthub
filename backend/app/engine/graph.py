@@ -139,6 +139,10 @@ async def prepare_node(state: AgentState) -> dict[str, Any]:
 
 
 async def classify_task_node(state: AgentState) -> dict[str, Any]:
+    if state.get("respect_workflow_steps") and state.get("steps"):
+        steps = state["steps"]
+        return {"steps": steps, "current_step": 0, "subagent_plan": steps}
+
     user_input = state.get("user_input", "")
     loop_count = state.get("loop_count", 0)
     if loop_count == 0:

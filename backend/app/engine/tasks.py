@@ -44,6 +44,36 @@ celery_app.conf.beat_schedule = {
 }
 
 
+async def _fail_execution_and_push_dlq(execution_id: str, error_message: str) -> None:
+    execution_uuid = uuid.UUID(execution_id)
+    async with async_session_factory() as session:
+        execution = await session.get(Execution, execution_uuid)
+        if execution is not None and execution.status not in {
+            ExecutionStatus.COMPLETED,
+            ExecutionStatus.FAILED,
+            ExecutionStatus.ROLLED_BACK,
+        }:
+            execution.status = ExecutionStatus.FAILED
+            execution.error_message = error_message
+            execution.completed_at = datetime.now(timezone.utc)
+            await session.commit()
+
+    client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    try:
+        await client.rpush(
+            "dead_letter_queue",
+            json.dumps(
+                {
+                    "execution_id": execution_id,
+                    "error": error_message,
+                    "task": "execute_workflow",
+                }
+            ),
+        )
+    finally:
+        await client.aclose()
+
+
 @worker_process_init.connect
 def setup_telemetry_on_worker(**kwargs) -> None:
     setup_telemetry()
@@ -58,24 +88,7 @@ def execute_workflow_task(self, execution_id: str) -> None:
     except Exception as exc:  # noqa: BLE001
         if self.request.retries < self.max_retries:
             raise self.retry(exc=exc, countdown=2**self.request.retries)
-
-        async def _push_dlq(error_message: str) -> None:
-            client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-            try:
-                await client.rpush(
-                    "dead_letter_queue",
-                    json.dumps(
-                        {
-                            "execution_id": execution_id,
-                            "error": error_message,
-                            "task": "execute_workflow",
-                        }
-                    ),
-                )
-            finally:
-                await client.aclose()
-
-        asyncio.run(_push_dlq(str(exc)))
+        asyncio.run(_fail_execution_and_push_dlq(execution_id, str(exc)))
 
 
 @celery_app.task(name="agenthub.resume_workflow")

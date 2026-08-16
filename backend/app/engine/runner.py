@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from typing import Any
 
@@ -19,6 +20,30 @@ from app.models.enums import ExecutionStatus
 
 ROLES = ["research", "analyze", "execute"]
 _NO_INTERRUPT = object()
+
+
+class ExecutionRetryableError(Exception):
+    """可重试的执行错误，应由 Celery 层根据重试策略重新入队。"""
+
+
+def _is_retryable_exception(exc: Exception) -> bool:
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+        return True
+    text = str(exc).lower()
+    return any(
+        keyword in text
+        for keyword in (
+            "timeout",
+            "timed out",
+            "rate limit",
+            "too many requests",
+            "temporarily",
+            "overloaded",
+            "connection",
+            "service unavailable",
+            "server error",
+        )
+    )
 
 
 def _interrupt_value(result: dict[str, Any]) -> Any:
@@ -148,6 +173,9 @@ async def run_execution(execution_id: uuid.UUID) -> None:
         workflow = await session.get(Workflow, execution.workflow_id)
         steps = await _build_steps(session, workflow)
         dag = workflow.dag_definition if workflow else None
+        respect_workflow_steps = bool(
+            not dag and _extract_agent_ids(workflow.agent_chain if workflow else [])
+        )
         if execution.status in {
             ExecutionStatus.RUNNING,
             ExecutionStatus.WAITING_FOR_APPROVAL,
@@ -187,6 +215,7 @@ async def run_execution(execution_id: uuid.UUID) -> None:
         "user_input": execution.user_input or "",
         "final_output": None,
         "steps": steps,
+        "respect_workflow_steps": respect_workflow_steps,
         "pending_approval": None,
         "node_outputs": {},
         "last_condition": False,
@@ -236,7 +265,14 @@ async def run_execution(execution_id: uuid.UUID) -> None:
                 "checkpoint": exc.args[0] if exc.args else None,
             },
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
+        if _is_retryable_exception(exc):
+            await _update_status(
+                execution_id,
+                ExecutionStatus.PENDING,
+                error_message=str(exc),
+            )
+            raise ExecutionRetryableError(str(exc)) from exc
         await _update_status(
             execution_id,
             ExecutionStatus.FAILED,
@@ -302,7 +338,14 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
                 "checkpoint": exc.args[0] if exc.args else None,
             },
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
+        if _is_retryable_exception(exc):
+            await _update_status(
+                execution_id,
+                ExecutionStatus.PENDING,
+                error_message=str(exc),
+            )
+            raise ExecutionRetryableError(str(exc)) from exc
         await _update_status(
             execution_id,
             ExecutionStatus.FAILED,
