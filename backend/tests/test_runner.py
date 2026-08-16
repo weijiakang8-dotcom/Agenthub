@@ -174,3 +174,54 @@ def test_run_execution_marks_failed_on_engine_exception(monkeypatch):
     assert execution.status == ExecutionStatus.FAILED
     assert execution.error_message == "checkpoint unavailable"
     assert events[-1]["event"] == "execution_failed"
+
+
+def test_run_execution_sets_waiting_for_approval_on_interrupt_result(monkeypatch):
+    execution = make_execution(ExecutionStatus.PENDING)
+    workflow = make_workflow(dag_definition={"nodes": [{"type": "research"}]})
+    session = FakeSession(execution=execution, workflow=workflow, rowcount=1)
+    monkeypatch.setattr(
+        runner,
+        "async_session_factory",
+        FakeSessionFactory(
+            [session, FakeSession(execution=execution, workflow=workflow)]
+        ),
+    )
+
+    class FakeManager:
+        def __init__(self, saver):
+            self.saver = saver
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+    class FakeGraph:
+        async def ainvoke(self, *_args, **_kwargs):
+            return {
+                "__interrupt__": [
+                    SimpleNamespace(value={"type": "approval_required", "plan": "ok"})
+                ]
+            }
+
+    monkeypatch.setattr(runner, "get_checkpoint_manager", lambda: FakeManager(object()))
+    monkeypatch.setattr(
+        runner, "build_graph", lambda checkpointer=None, dag=None: FakeGraph()
+    )
+
+    events = []
+
+    async def fake_publish(execution_id, event):
+        events.append(event)
+
+    monkeypatch.setattr(runner, "publish_execution_event", fake_publish)
+
+    asyncio.run(runner.run_execution(execution.id))
+
+    assert execution.status == ExecutionStatus.WAITING_FOR_APPROVAL
+    assert execution.checkpoint_data == {
+        "interrupt": {"type": "approval_required", "plan": "ok"}
+    }
+    assert events[-1]["event"] == "waiting_for_approval"

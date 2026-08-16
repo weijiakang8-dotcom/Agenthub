@@ -18,6 +18,15 @@ from app.models import Agent, Execution, Workflow, utcnow
 from app.models.enums import ExecutionStatus
 
 ROLES = ["research", "analyze", "execute"]
+_NO_INTERRUPT = object()
+
+
+def _interrupt_value(result: dict[str, Any]) -> Any:
+    interrupts = result.get("__interrupt__") or []
+    if not interrupts:
+        return _NO_INTERRUPT
+    first = interrupts[0]
+    return getattr(first, "value", first)
 
 
 def _extract_agent_ids(agent_chain) -> list[uuid.UUID]:
@@ -188,6 +197,18 @@ async def run_execution(execution_id: uuid.UUID) -> None:
         async with get_checkpoint_manager() as manager:
             graph = build_graph(checkpointer=manager.saver, dag=dag)
             result = await graph.ainvoke(initial_state, config=config)
+        interrupt_value = _interrupt_value(result)
+        if interrupt_value is not _NO_INTERRUPT:
+            await _update_status(
+                execution_id,
+                ExecutionStatus.WAITING_FOR_APPROVAL,
+                checkpoint_data={"interrupt": interrupt_value},
+            )
+            await publish_execution_event(
+                str(execution_id),
+                {"event": "waiting_for_approval", "checkpoint": interrupt_value},
+            )
+            return
         await _update_status(
             execution_id,
             ExecutionStatus.COMPLETED,
@@ -243,6 +264,18 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
         async with get_checkpoint_manager() as manager:
             graph = build_graph(checkpointer=manager.saver, dag=dag)
             result = await graph.ainvoke(Command(resume=decision), config=config)
+        interrupt_value = _interrupt_value(result)
+        if interrupt_value is not _NO_INTERRUPT:
+            await _update_status(
+                execution_id,
+                ExecutionStatus.WAITING_FOR_APPROVAL,
+                checkpoint_data={"interrupt": interrupt_value},
+            )
+            await publish_execution_event(
+                str(execution_id),
+                {"event": "waiting_for_approval", "checkpoint": interrupt_value},
+            )
+            return
         await _update_status(
             execution_id,
             ExecutionStatus.COMPLETED,
