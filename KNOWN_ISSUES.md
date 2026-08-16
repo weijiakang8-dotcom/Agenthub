@@ -55,6 +55,11 @@
 - HTTP port `80` now published and redirects to HTTPS.
 - Final public ports: 22, 80, 443.
 - Remaining: Tencent Cloud security group, real model fallback, backup restore.
+
+## Phase 5.7 Final Update
+
+- PostgreSQL backup/restore drill: PASS.
+- Remaining: real two-model fallback unverified; public HTTPS from current Mac still reset while server-side HTTPS is 200.
 - Production Kubernetes/TLS/DNS.
 - Real SMTP/Resend provider.
 - PostgreSQL backup/restore.

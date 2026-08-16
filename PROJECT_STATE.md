@@ -36,6 +36,7 @@ Phase 2 P1 fixes completed. Phase 3 added real API multi-tenant, real resume con
 - Phase 5.6: HTTPS `https://synplex.xyz` returns 200 from server
 - Phase 5.7: removed public 8080, published 80, enabled HTTP→HTTPS redirect
 - Phase 5.7: final public listening ports are 22/80/443
+- Phase 5.7 final: PostgreSQL backup created and independent restore drill passed
 
 ## Phase 2 Changes
 
@@ -51,4 +52,4 @@ See `KNOWN_ISSUES.md`.
 
 ## Next Phase
 
-Phase 5.7 hardening done; remaining blockers are Tencent security group, real fallback, backup restore.
+Phase 5.7 final: backup/restore verified; remaining blockers are real model fallback and public HTTPS verification from current client network.

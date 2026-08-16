@@ -54,6 +54,8 @@
 | Phase 5.7 final port scan | `sudo ss -lntp` | PASS |
 | Phase 5.7 HTTP redirect | `curl -I http://synplex.xyz` | PASS |
 | Phase 5.7 HTTPS | `curl -I https://synplex.xyz` | PASS |
+| Phase 5.7 backup | `pg_dump` | PASS |
+| Phase 5.7 restore drill | temp database restore | PASS |
 
 ## Not Covered Yet
 
