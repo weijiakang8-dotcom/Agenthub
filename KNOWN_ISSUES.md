@@ -48,6 +48,13 @@
 - Production server now running latest main `3c045e5`.
 - Internal service ports now bind `127.0.0.1`.
 - Remaining: frontend `8080` still public, HTTP 80/redirect missing, Tencent security group external ports need closure.
+
+## Phase 5.7 Update
+
+- Public `8080` removed.
+- HTTP port `80` now published and redirects to HTTPS.
+- Final public ports: 22, 80, 443.
+- Remaining: Tencent Cloud security group, real model fallback, backup restore.
 - Production Kubernetes/TLS/DNS.
 - Real SMTP/Resend provider.
 - PostgreSQL backup/restore.

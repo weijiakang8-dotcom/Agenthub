@@ -1,6 +1,6 @@
 # AgentHub Project State
 
-Last updated: 2026-08-16 (Phase 5.6)
+Last updated: 2026-08-16 (Phase 5.7)
 
 ## Overall Status
 
@@ -34,6 +34,8 @@ Phase 2 P1 fixes completed. Phase 3 added real API multi-tenant, real resume con
 - Phase 5.6: production server updated from `62e4e6c` to `3c045e5`
 - Phase 5.6: internal ports now bind `127.0.0.1` after redeploy
 - Phase 5.6: HTTPS `https://synplex.xyz` returns 200 from server
+- Phase 5.7: removed public 8080, published 80, enabled HTTP→HTTPS redirect
+- Phase 5.7: final public listening ports are 22/80/443
 
 ## Phase 2 Changes
 
@@ -49,4 +51,4 @@ See `KNOWN_ISSUES.md`.
 
 ## Next Phase
 
-Phase 5.6 deployment done; remaining blockers are 8080 public, HTTP 80/redirect, Tencent security group, real fallback, backup restore.
+Phase 5.7 hardening done; remaining blockers are Tencent security group, real fallback, backup restore.

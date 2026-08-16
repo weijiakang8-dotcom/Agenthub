@@ -51,6 +51,9 @@
 | Phase 5.6 port hardening | `sudo ss -lntp` | PASS |
 | Phase 5.6 HTTPS server-local | `curl -k https://synplex.xyz` | PASS |
 | Phase 5.6 production smoke | document/RAG/execution/approval | PASS |
+| Phase 5.7 final port scan | `sudo ss -lntp` | PASS |
+| Phase 5.7 HTTP redirect | `curl -I http://synplex.xyz` | PASS |
+| Phase 5.7 HTTPS | `curl -I https://synplex.xyz` | PASS |
 
 ## Not Covered Yet
 
