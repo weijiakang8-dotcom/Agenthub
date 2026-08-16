@@ -189,6 +189,8 @@ docker compose -f docker/docker-compose.yml exec backend alembic upgrade head
 - API 文档：`http://localhost:8000/docs`
 - 健康检查：`http://localhost:8000/health`
 
+生产 Kubernetes / TLS 部署说明见 [docs/deployment-kubernetes.md](docs/deployment-kubernetes.md)。
+
 ## 可观测性
 
 完整 Docker Compose 部署包含以下可观测性服务：
