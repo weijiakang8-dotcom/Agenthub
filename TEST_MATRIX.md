@@ -33,6 +33,12 @@
 | Real multi-tenant API attack | live backend script | PASS |
 | Real resume concurrency | live backend script | PASS |
 | Real current_step persistence | live execution | PASS |
+| Phase 4 no-auth/bad-JWT | live API script | PASS |
+| Phase 4 ADMIN_API_KEY scope | live API script | PASS |
+| Phase 4 cross-org list isolation | live API script | PASS |
+| Phase 4 RAG cross-org search | live API script | PASS |
+| Phase 4 upload boundary | live API script | PASS |
+| Phase 4 terminal state transitions | live API script | PASS |
 
 ## Not Covered Yet
 
