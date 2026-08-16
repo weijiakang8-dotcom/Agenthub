@@ -43,6 +43,10 @@
 | Phase 5 HTTPS check | `curl https://synplex.xyz` | FAIL |
 | Phase 5 HTTP root | `curl http://193.112.130.181/` | FAIL |
 | Phase 5 Compose port hardening | `docker compose config --quiet` | PASS |
+| Phase 5.5 production SSH | `ssh ubuntu@193.112.130.181` | FAIL |
+| Phase 5.5 production port scan | Python socket scan | FAIL |
+| Phase 5.5 DNS resolution | DNS-over-HTTPS | PASS |
+| Phase 5.5 HTTPS | `curl https://synplex.xyz` | FAIL |
 
 ## Not Covered Yet
 

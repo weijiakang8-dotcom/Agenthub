@@ -25,7 +25,8 @@ AgentHub 目前是本地/测试环境可运行，公开后端 `/health` 可访�
 
 - `https://synplex.xyz` fails with SSL_ERROR_SYSCALL.
 - Public HTTP root at `http://193.112.130.181/` returns empty reply.
-- DNS for `synplex.xyz` could not be resolved from this environment.
+- Public port scan found internal/admin ports open.
+- DNS-over-HTTPS resolves `synplex.xyz` to `193.112.130.181`.
 - Frontend/Nginx service is not running in local Compose and was not verified behind Nginx.
 
 ## Readiness Scores

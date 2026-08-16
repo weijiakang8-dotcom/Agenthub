@@ -27,6 +27,10 @@ Phase 2 P1 fixes completed. Phase 3 added real API multi-tenant, real resume con
 - Phase 5: public backend `:8000/health` returns healthy JSON
 - Phase 5: HTTPS `synplex.xyz` failed; HTTP root empty
 - Phase 5: admin/data service ports now bind to `127.0.0.1` in Compose
+- Phase 5.5: production SSH is unavailable to this agent
+- Phase 5.5: public port scan shows 22/80/443/8000/5433/6379/9090/3000/16686/4317/4318/1025/8025 open
+- Phase 5.5: DNS A record resolves synplex.xyz to 193.112.130.181
+- Phase 5.5: HTTPS still fails, HTTP root empty
 
 ## Phase 2 Changes
 
@@ -42,4 +46,4 @@ See `KNOWN_ISSUES.md`.
 
 ## Next Phase
 
-Phase 6 — Final acceptance.
+Phase 5.5 blocker closure remains incomplete; do not enter Phase 6 until P0 firewall/HTTPS is fixed.
