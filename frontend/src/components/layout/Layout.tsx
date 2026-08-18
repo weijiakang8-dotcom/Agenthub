@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { OnboardingGuide } from "@/components/guides/OnboardingGuide";
+import { Footer } from "@/components/layout/Footer";
 
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
@@ -58,6 +59,7 @@ export function Layout() {
         >
           <Outlet />
           <OnboardingGuide />
+          <Footer />
         </main>
       </div>
     </div>
