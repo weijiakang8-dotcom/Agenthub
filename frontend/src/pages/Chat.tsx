@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Send } from "lucide-react";
+import { Send, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 
+import { MouseGlow } from "@/components/effects/MouseGlow";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,8 +20,28 @@ export default function Chat() {
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [details, setDetails] = useState<ExecutionDetail | null>(null);
   const [modifiedPlan, setModifiedPlan] = useState("");
+  const [activeModel, setActiveModel] = useState<string | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const keys = await api.listUserApiKeys();
+        const key = keys.find((item) => item.is_active);
+        if (key) {
+          setActiveModel(key.model);
+          return;
+        }
+        const models = await api.listModels();
+        const model = models.find((item) => item.is_active && item.enabled);
+        if (model) setActiveModel(model.model);
+      } catch {
+        // 模型状态获取失败时静默降级为“系统默认”
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const existingId = searchParams.get("id");
@@ -151,6 +173,19 @@ export default function Chat() {
     setSending(false);
   }
 
+  async function optimize() {
+    if (!draft.trim() || optimizing) return;
+    setOptimizing(true);
+    try {
+      const result = await api.optimizePrompt(draft.trim());
+      if (result.optimized) setDraft(result.optimized);
+    } catch (err) {
+      toast.error(String(err));
+    } finally {
+      setOptimizing(false);
+    }
+  }
+
   async function refreshDetails() {
     if (!executionId) return;
     try {
@@ -161,8 +196,9 @@ export default function Chat() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-7rem)] max-w-3xl flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto py-4">
+    <div className="relative mx-auto flex h-[calc(100vh-7rem)] max-w-3xl flex-col">
+      <MouseGlow />
+      <div className="relative z-10 flex-1 space-y-4 overflow-y-auto py-4">
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             开始对话，描述你想让 AgentHub 完成的任务。
@@ -178,7 +214,10 @@ export default function Chat() {
                   m.role === "user" ? "bg-primary text-primary-foreground" : ""
                 }`}
               >
-                {m.content || (sending && i === messages.length - 1 ? "…" : "")}
+                {m.content || (sending && i === messages.length - 1 ? "" : "…")}
+                {sending && i === messages.length - 1 && m.role === "assistant" ? (
+                  <span className="animate-cursor-blink">▍</span>
+                ) : null}
                 {m.role === "assistant" &&
                 i === messages.length - 1 &&
                 details ? (
@@ -255,7 +294,7 @@ export default function Chat() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="shrink-0 space-y-2 pb-2">
+      <div className="relative z-10 shrink-0 space-y-2 pb-2">
         <Textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -269,6 +308,16 @@ export default function Chat() {
           rows={3}
         />
         <div className="flex justify-end gap-2">
+          {localStorage.getItem("agenthub.prompt_optimize") !== "0" && (
+            <Button
+              variant="outline"
+              onClick={optimize}
+              disabled={optimizing || !draft.trim()}
+            >
+              <Sparkles className="h-4 w-4" />
+              {optimizing ? "优化中…" : "优化"}
+            </Button>
+          )}
           {sending && (
             <Button variant="outline" onClick={stopGenerating}>
               停止生成
@@ -279,6 +328,9 @@ export default function Chat() {
             {sending ? "生成中…" : "发送"}
           </Button>
         </div>
+        <p className="text-right text-xs text-muted-foreground">
+          当前模型：{activeModel ?? "系统默认"}
+        </p>
       </div>
     </div>
   );

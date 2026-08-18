@@ -44,6 +44,9 @@ httpx
 # 环境变量
 python-dotenv
 
+# 用户 API Key 加密（Fernet）
+cryptography
+
 # OpenTelemetry 核心
 opentelemetry-api>=1.28.0
 opentelemetry-sdk>=1.28.0

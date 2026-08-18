@@ -6,6 +6,10 @@ import math
 import re
 from typing import Any
 
+import httpx
+
+from app.config import settings
+
 _model: Any = None
 
 
@@ -39,6 +43,26 @@ def _load_model() -> Any:
 
 
 async def embed_text(text: str) -> list[float]:
+    if settings.EMBEDDING_PROVIDER == "ollama":
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                f"{settings.EMBEDDING_BASE_URL}/api/embed",
+                json={"model": settings.EMBEDDING_MODEL, "input": text},
+            )
+            response.raise_for_status()
+            data = response.json()
+        embeddings = data.get("embeddings") or []
+        if not embeddings:
+            raise RuntimeError("Ollama embedding response is empty")
+        vector = [float(value) for value in embeddings[0]]
+        if len(vector) != settings.EMBEDDING_DIMENSION:
+            raise RuntimeError(
+                f"Ollama embedding dimension mismatch: "
+                f"expected {settings.EMBEDDING_DIMENSION}, got {len(vector)}"
+            )
+        norm = math.sqrt(sum(value * value for value in vector)) or 1.0
+        return [value / norm for value in vector]
+
     model = _load_model()
     if model is False:
         return _hash_embed(text)
