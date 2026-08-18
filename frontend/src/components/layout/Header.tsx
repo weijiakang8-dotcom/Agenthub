@@ -1,4 +1,4 @@
-import { Bell, Menu } from "lucide-react";
+import { Bell, Menu, PanelLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,9 +17,13 @@ import {
 export function Header({
   title,
   onMenuClick,
+  collapsed,
+  onToggleCollapse,
 }: {
   title: string;
   onMenuClick: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }) {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -39,8 +43,17 @@ export function Header({
   }, []);
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-white px-4">
+    <header className="glass flex h-14 items-center justify-between border-b border-border/60 px-4">
       <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden lg:inline-flex"
+          onClick={onToggleCollapse}
+          title={collapsed ? "展开侧栏" : "折叠侧栏"}
+        >
+          <PanelLeft className="h-4 w-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"

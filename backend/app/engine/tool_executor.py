@@ -4,6 +4,8 @@ import asyncio
 import uuid
 from typing import Any
 
+from sqlalchemy import select
+
 from app.database import async_session_factory
 from app.engine.event_bus import publish_execution_event
 from app.engine.tool_registry import get_tool
@@ -76,7 +78,11 @@ async def mark_tool_call_rejected(
         return tool_call
 
 
-async def _invoke_with_retry(tool_name: str, params: dict[str, Any]) -> dict[str, Any]:
+async def _invoke_with_retry(
+    tool_name: str,
+    params: dict[str, Any],
+    organization_id: uuid.UUID | str | None = None,
+) -> dict[str, Any]:
     spec = get_tool(tool_name)
     if spec is None:
         return {
@@ -88,7 +94,9 @@ async def _invoke_with_retry(tool_name: str, params: dict[str, Any]) -> dict[str
     last_error: Exception | None = None
     for attempt in range(3):
         try:
-            result = await asyncio.wait_for(spec.handler(params), timeout=spec.timeout)
+            result = await asyncio.wait_for(
+                spec.handler(params, organization_id), timeout=spec.timeout
+            )
             if not isinstance(result, dict):
                 result = {"status": "success", "data": result, "error": None}
             return result
@@ -133,7 +141,7 @@ async def execute_tool(
             "params": params,
         },
     )
-    result = await _invoke_with_retry(tool_name, params)
+    result = await _invoke_with_retry(tool_name, params, tool_call.organization_id)
     await publish_execution_event(
         str(execution_id),
         {
@@ -155,6 +163,24 @@ async def execute_pending_tool_call(tool_call_id: uuid.UUID) -> dict[str, Any]:
         if tool_call is None:
             return {"status": "failed", "data": None, "error": "ToolCall not found"}
 
+        existing = await session.execute(
+            select(ToolCall)
+            .where(
+                ToolCall.execution_id == tool_call.execution_id,
+                ToolCall.tool_name == tool_call.tool_name,
+                ToolCall.input_params == (tool_call.input_params or {}),
+                ToolCall.status == ToolCallStatus.SUCCESS,
+                ToolCall.id != tool_call.id,
+            )
+            .limit(1)
+        )
+        if existing.scalars().first() is not None:
+            return {
+                "status": "duplicate",
+                "data": None,
+                "error": "already executed (idempotent)",
+            }
+
         tool_name = tool_call.tool_name
         params = tool_call.input_params or {}
         tool_call.started_at = utcnow()
@@ -169,7 +195,7 @@ async def execute_pending_tool_call(tool_call_id: uuid.UUID) -> dict[str, Any]:
             "params": params,
         },
     )
-    result = await _invoke_with_retry(tool_name, params)
+    result = await _invoke_with_retry(tool_name, params, tool_call.organization_id)
     await publish_execution_event(
         str(tool_call.execution_id),
         {

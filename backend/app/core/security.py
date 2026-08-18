@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import os
@@ -8,12 +9,37 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import jwt
+from cryptography.fernet import Fernet, InvalidToken
 
 from app.config import settings
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE = timedelta(minutes=30)
 REFRESH_TOKEN_EXPIRE = timedelta(days=7)
+
+
+def _fernet() -> Fernet:
+    """由 JWT_SECRET_KEY 确定性派生 Fernet 密钥，用于用户 API Key 加密。"""
+    digest = hashlib.sha256(settings.JWT_SECRET_KEY.encode("utf-8")).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def encrypt_secret(plaintext: str) -> str:
+    return _fernet().encrypt(plaintext.encode("utf-8")).decode("ascii")
+
+
+def decrypt_secret(ciphertext: str) -> str | None:
+    try:
+        return _fernet().decrypt(ciphertext.encode("ascii")).decode("utf-8")
+    except (InvalidToken, ValueError):
+        return None
+
+
+def mask_secret(plaintext: str) -> str:
+    """脱敏展示：只保留前 6 位，其余替换为 *。"""
+    if len(plaintext) <= 6:
+        return "*" * len(plaintext)
+    return f"{plaintext[:6]}{'*' * max(1, len(plaintext) - 6)}"
 
 
 class TokenExpiredError(ValueError):

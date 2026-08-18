@@ -62,3 +62,5 @@ class ExecutionResume(BaseModel):
 
 class FeedbackCreate(BaseModel):
     feedback: str = Field(..., min_length=1)
+    rating: int | None = Field(None, ge=1, le=5)
+    comment: str | None = None

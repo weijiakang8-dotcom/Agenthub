@@ -66,6 +66,15 @@ def register_builtin_tools() -> None:
     """注册内置工具，幂等。"""
     from app.engine import tools as builtin_tools
 
+    async def _search_web(params, organization_id=None):
+        return await builtin_tools.search_web.ainvoke(params)
+
+    async def _query_db(params, organization_id=None):
+        return await builtin_tools.run_query_db(params.get("sql", ""), organization_id)
+
+    async def _send_email(params, organization_id=None):
+        return await builtin_tools.send_email.ainvoke(params)
+
     register_tool(
         "search_web",
         "Search the web and return result summaries.",
@@ -76,7 +85,7 @@ def register_builtin_tools() -> None:
             },
             "required": ["query"],
         },
-        builtin_tools.search_web.ainvoke,
+        _search_web,
         timeout=15.0,
         requires_approval=False,
     )
@@ -90,7 +99,7 @@ def register_builtin_tools() -> None:
             },
             "required": ["sql"],
         },
-        builtin_tools.query_db.ainvoke,
+        _query_db,
         timeout=30.0,
         requires_approval=False,
     )
@@ -106,7 +115,7 @@ def register_builtin_tools() -> None:
             },
             "required": ["to", "subject", "body"],
         },
-        builtin_tools.send_email.ainvoke,
+        _send_email,
         timeout=30.0,
         requires_approval=True,
     )

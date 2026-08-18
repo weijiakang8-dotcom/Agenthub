@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import uuid
@@ -34,6 +35,7 @@ class AgentState(TypedDict, total=False):
     current_step: int
     execution_id: str | None
     organization_id: str | None
+    user_id: str | None
     checkpoint: dict[str, Any] | None
     user_input: str
     final_output: str | None
@@ -45,6 +47,8 @@ class AgentState(TypedDict, total=False):
     subagent_plan: list[dict[str, Any]] | None
     loop_count: int
     revision_requested: bool
+    complexity: str
+    llm_usage: list[dict[str, Any]]
 
 
 ROLE_NODES = {
@@ -71,11 +75,58 @@ tracer = get_tracer("agenthub.engine")
 logger = logging.getLogger(__name__)
 
 
+def _conversation_context_digest(state: AgentState) -> str | None:
+    """把当前这轮用户输入之前的对话历史，压缩成缓存分区指纹。"""
+    messages = list(state.get("messages") or [])
+    if len(messages) <= 1:
+        return None
+    prior = messages[:-1]
+    payload = json.dumps(
+        [
+            {
+                "type": getattr(message, "type", ""),
+                "content": str(getattr(message, "content", "")),
+            }
+            for message in prior
+        ],
+        ensure_ascii=False,
+        default=str,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _attach_llm_metadata(
+    response: Any,
+    llm: ChatOpenAI,
+    *,
+    attempts: int,
+    fallback: bool,
+) -> dict[str, Any]:
+    """把实际响应的模型、是否 fallback、attempts、token 用量写进消息元数据。"""
+    usage = getattr(response, "usage_metadata", None) or {}
+    model_used = getattr(llm, "model_name", None)
+    if not model_used:
+        model_used = getattr(getattr(llm, "bound", None), "model_name", None)
+    metadata = {
+        "model_used": model_used or "",
+        "fallback": fallback,
+        "attempts": attempts,
+        "input_tokens": int(usage.get("input_tokens") or 0),
+        "output_tokens": int(usage.get("output_tokens") or 0),
+    }
+    if hasattr(response, "additional_kwargs"):
+        kwargs = dict(response.additional_kwargs or {})
+        kwargs["_agenthub_llm"] = metadata
+        response.additional_kwargs = kwargs
+    return metadata
+
+
 async def _call_llm_with_fallback(llms: list[ChatOpenAI], messages: list[BaseMessage]):
     if not llms:
         raise RuntimeError("没有可用的模型")
 
     last_error: Exception | None = None
+    attempts = 0
     for llm_index, llm in enumerate(llms):
         if not llm_breaker.allow():
             continue
@@ -85,9 +136,16 @@ async def _call_llm_with_fallback(llms: list[ChatOpenAI], messages: list[BaseMes
                 last_error,
             )
         for attempt in range(3):
+            attempts += 1
             try:
                 response = await llm.ainvoke(messages)
                 llm_breaker.record_success()
+                _attach_llm_metadata(
+                    response,
+                    llm,
+                    attempts=attempt + 1,
+                    fallback=llm_index > 0,
+                )
                 return response
             except Exception as exc:  # noqa: BLE001
                 llm_breaker.record_failure()
@@ -125,7 +183,14 @@ async def _stream_llm_text(
                         {"event": "token", "node": node_id, "token": text},
                     )
             llm_breaker.record_success()
-            return AIMessage(content="".join(parts))
+            response = AIMessage(content="".join(parts))
+            _attach_llm_metadata(
+                response,
+                llm,
+                attempts=1,
+                fallback=llm_index > 0,
+            )
+            return response
         except Exception as exc:  # noqa: BLE001
             llm_breaker.record_failure()
             last_error = exc
@@ -137,8 +202,13 @@ async def _get_llms(
     organization_id: str | None = None,
     *,
     complexity: str = "simple",
+    user_id: str | None = None,
 ) -> list[ChatOpenAI]:
-    return await get_chat_models(organization_id, complexity=complexity)
+    return await get_chat_models(
+        organization_id,
+        complexity=complexity,
+        user_id=user_id,
+    )
 
 
 async def prepare_node(state: AgentState) -> dict[str, Any]:
@@ -157,9 +227,14 @@ async def classify_task_node(state: AgentState) -> dict[str, Any]:
 
     user_input = state.get("user_input", "")
     loop_count = state.get("loop_count", 0)
+    usage: list[dict[str, Any]] = []
     if loop_count == 0:
         try:
-            llms = await _get_llms(state.get("organization_id"))
+            llms = await _get_llms(
+                state.get("organization_id"),
+                complexity="simple",
+                user_id=state.get("user_id"),
+            )
             prompt = (
                 "你是任务分派器。根据用户输入，只输出一个类别："
                 "research / analysis / execution / general。"
@@ -170,10 +245,17 @@ async def classify_task_node(state: AgentState) -> dict[str, Any]:
                 [SystemMessage(content=prompt), HumanMessage(content=user_input)],
             )
             category = str(getattr(response, "content", "")).strip().lower()
+            metadata = (getattr(response, "additional_kwargs", None) or {}).get(
+                "_agenthub_llm"
+            )
+            if metadata:
+                usage.append(metadata)
         except Exception:  # noqa: BLE001
             category = "general"
     else:
         category = "general"
+
+    complexity = "complex" if category == "execution" else "simple"
 
     if category == "research":
         steps = [
@@ -224,7 +306,13 @@ async def classify_task_node(state: AgentState) -> dict[str, Any]:
             },
         ]
 
-    return {"steps": steps, "current_step": 0, "subagent_plan": steps}
+    return {
+        "steps": steps,
+        "current_step": 0,
+        "subagent_plan": steps,
+        "complexity": complexity,
+        "llm_usage": [*state.get("llm_usage", []), *usage],
+    }
 
 
 async def loop_check_node(state: AgentState) -> dict[str, Any]:
@@ -233,8 +321,13 @@ async def loop_check_node(state: AgentState) -> dict[str, Any]:
     if loop_count >= 2 or not final_output:
         return {"revision_requested": False}
 
+    usage: list[dict[str, Any]] = []
     try:
-        llms = await _get_llms(state.get("organization_id"))
+        llms = await _get_llms(
+            state.get("organization_id"),
+            complexity="simple",
+            user_id=state.get("user_id"),
+        )
         prompt = (
             "你是质量审查员。给下面的 Agent 输出按 1-5 打分，只输出整数分数。"
             f"\n用户输入：{state.get('user_input', '')}"
@@ -245,16 +338,25 @@ async def loop_check_node(state: AgentState) -> dict[str, Any]:
             [HumanMessage(content=prompt)],
         )
         score = int(str(getattr(response, "content", "5")).strip())
+        metadata = (getattr(response, "additional_kwargs", None) or {}).get(
+            "_agenthub_llm"
+        )
+        if metadata:
+            usage.append(metadata)
     except Exception:  # noqa: BLE001
         score = 5
 
     if score >= 4:
-        return {"revision_requested": False}
+        return {
+            "revision_requested": False,
+            "llm_usage": [*state.get("llm_usage", []), *usage],
+        }
     return {
         "revision_requested": True,
         "loop_count": loop_count + 1,
         "current_step": 0,
         "final_output": None,
+        "llm_usage": [*state.get("llm_usage", []), *usage],
     }
 
 
@@ -282,6 +384,13 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
         step = steps[index] if index < len(steps) else {}
         execution_id = state.get("execution_id") or ""
         system_prompt = step.get("system_prompt") or f"You are the {role} agent."
+        llms: list | None = None
+        primary_model: str | None = None
+        context_digest: str | None = None
+        complexity = (
+            "complex" if role == "execute" else state.get("complexity") or "simple"
+        )
+        usage: list[dict[str, Any]] = []
 
         with tracer.start_as_current_span(f"{role}_agent") as span:
             span.set_attribute("agent.role", role)
@@ -297,7 +406,19 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
             )
 
             if role == "research":
-                cached = await get_cached_response(state.get("user_input", ""))
+                llms = await _get_llms(
+                    state.get("organization_id"),
+                    complexity=complexity,
+                    user_id=state.get("user_id"),
+                )
+                primary_model = llms[0].model_name if llms else None
+                context_digest = _conversation_context_digest(state)
+                cached = await get_cached_response(
+                    state.get("user_input", ""),
+                    organization_id=state.get("organization_id"),
+                    model=primary_model,
+                    context_digest=context_digest,
+                )
                 if cached:
                     span.set_attribute("cache.hit", True)
                     return {
@@ -329,24 +450,25 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
             if not any(isinstance(m, HumanMessage) for m in messages):
                 messages.append(HumanMessage(content=state.get("user_input", "")))
 
-            llms = await _get_llms(state.get("organization_id"))
+            if llms is None:
+                llms = await _get_llms(
+                    state.get("organization_id"),
+                    complexity=complexity,
+                    user_id=state.get("user_id"),
+                )
             tools = ROLE_TOOLS.get(role, [])
             if tools:
                 llms = [llm.bind_tools(tools) for llm in llms]
 
-            try:
-                if tools:
-                    response = await _call_llm_with_fallback(llms, messages)
-                else:
-                    response = await _stream_llm_text(
-                        llms, messages, execution_id, role
-                    )
-            except RuntimeError as exc:
-                return {
-                    "messages": state.get("messages", []),
-                    "current_step": index + 1,
-                    "final_output": str(exc),
-                }
+            if tools:
+                response = await _call_llm_with_fallback(llms, messages)
+            else:
+                response = await _stream_llm_text(llms, messages, execution_id, role)
+            response_metadata = (
+                getattr(response, "additional_kwargs", None) or {}
+            ).get("_agenthub_llm")
+            if response_metadata:
+                usage.append(response_metadata)
             new_messages: list[BaseMessage] = [*state.get("messages", []), response]
 
             executed_tool = False
@@ -370,6 +492,7 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
                             "tool_args": tool_args,
                             "tool_call_id": str(record.id),
                         },
+                        "llm_usage": [*state.get("llm_usage", []), *usage],
                     }
 
                 result = await tool_executor.execute_tool(
@@ -387,17 +510,40 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
             if executed_tool:
                 final_messages = [SystemMessage(content=system_prompt), *new_messages]
                 final_response = await _stream_llm_text(
-                    await _get_llms(state.get("organization_id")),
+                    await _get_llms(
+                        state.get("organization_id"),
+                        complexity=complexity,
+                        user_id=state.get("user_id"),
+                    ),
                     final_messages,
                     execution_id,
                     role,
                 )
                 new_messages.append(final_response)
+                final_metadata = (
+                    getattr(final_response, "additional_kwargs", None) or {}
+                ).get("_agenthub_llm")
+                if final_metadata:
+                    usage.append(final_metadata)
+            else:
+                final_metadata = response_metadata
 
             final_output = getattr(final_response, "content", "") or ""
             span.set_attribute("output_length", len(final_output))
+            if final_metadata:
+                span.set_attribute("llm.model", final_metadata.get("model_used", ""))
+                span.set_attribute("llm.fallback", bool(final_metadata.get("fallback")))
+            responder_model = (
+                final_metadata.get("model_used") if final_metadata else None
+            ) or primary_model
             if role == "research":
-                await set_cached_response(state.get("user_input", ""), final_output)
+                await set_cached_response(
+                    state.get("user_input", ""),
+                    final_output,
+                    organization_id=state.get("organization_id"),
+                    model=responder_model,
+                    context_digest=context_digest,
+                )
             await publish_execution_event(
                 execution_id,
                 {
@@ -411,6 +557,7 @@ def make_agent_node(role: str) -> Callable[[AgentState], dict[str, Any]]:
                 "messages": new_messages,
                 "current_step": index + 1,
                 "final_output": final_output,
+                "llm_usage": [*state.get("llm_usage", []), *usage],
             }
 
     return node
@@ -520,27 +667,20 @@ def make_dynamic_agent_node(
             if not any(isinstance(m, HumanMessage) for m in messages):
                 messages.append(HumanMessage(content=state.get("user_input", "")))
 
-            llms = await _get_llms(state.get("organization_id"))
+            complexity = "complex" if role == "execute" else "simple"
+            llms = await _get_llms(
+                state.get("organization_id"),
+                complexity=complexity,
+                user_id=state.get("user_id"),
+            )
             tools = ROLE_TOOLS.get(role, [])
             if tools:
                 llms = [llm.bind_tools(tools) for llm in llms]
 
-            try:
-                if tools:
-                    response = await _call_llm_with_fallback(llms, messages)
-                else:
-                    response = await _stream_llm_text(
-                        llms, messages, execution_id, node_id
-                    )
-            except RuntimeError as exc:
-                return {
-                    "messages": state.get("messages", []),
-                    "final_output": str(exc),
-                    "node_outputs": {
-                        **(state.get("node_outputs") or {}),
-                        node_id: str(exc),
-                    },
-                }
+            if tools:
+                response = await _call_llm_with_fallback(llms, messages)
+            else:
+                response = await _stream_llm_text(llms, messages, execution_id, node_id)
 
             new_messages: list[BaseMessage] = [*state.get("messages", []), response]
             for tool_call in getattr(response, "tool_calls", None) or []:

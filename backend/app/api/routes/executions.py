@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -8,7 +9,14 @@ from app.api.deps import CurrentUserDep, SessionDep, get_current_user
 from app.core.permissions import require_permission
 from app.core.telemetry import get_meter, get_tracer
 from app.engine.tasks import execute_workflow_task, resume_workflow_task
-from app.models import Execution, InterventionLog, ToolCall, Workflow, utcnow
+from app.models import (
+    Execution,
+    ExecutionFeedback,
+    InterventionLog,
+    ToolCall,
+    Workflow,
+    utcnow,
+)
 from app.models.enums import ExecutionStatus
 from app.schemas.execution import (
     ExecutionAccepted,
@@ -23,6 +31,7 @@ from app.schemas.tool_call import ToolCallRead, ToolCallSummary
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 
+logger = logging.getLogger(__name__)
 tracer = get_tracer("agenthub.api")
 execution_counter = get_meter("agenthub.api").create_counter(
     "execution.started.total",
@@ -134,12 +143,25 @@ async def create_execution(
             status=ExecutionStatus.PENDING,
             current_step_index=0,
             organization_id=user.organization_id,
+            user_id=user.id,
         )
         session.add(execution)
         await session.commit()
         await session.refresh(execution)
 
-        execute_workflow_task.delay(str(execution.id))
+        try:
+            execute_workflow_task.delay(str(execution.id))
+        except Exception:
+            logger.warning(
+                "Task broker unavailable; marking execution %s as failed",
+                execution.id,
+                exc_info=True,
+            )
+            execution.status = ExecutionStatus.FAILED
+            execution.error_message = "Task broker unavailable"
+            execution.completed_at = utcnow()
+            await session.commit()
+            raise HTTPException(status_code=503, detail="Task broker unavailable")
         execution_counter.add(1, {"workflow_id": str(payload.workflow_id)})
 
         return ExecutionAccepted(
@@ -294,9 +316,57 @@ async def submit_feedback(
         raise HTTPException(status_code=404, detail="Execution not found")
 
     execution.feedback = payload.feedback
+    if payload.rating is not None:
+        result = await session.execute(
+            select(ExecutionFeedback).where(
+                ExecutionFeedback.execution_id == execution_id,
+                ExecutionFeedback.user_id == user.id,
+            )
+        )
+        feedback_row = result.scalars().first()
+        if feedback_row is None:
+            session.add(
+                ExecutionFeedback(
+                    execution_id=execution_id,
+                    user_id=user.id,
+                    rating=payload.rating,
+                    comment=payload.comment,
+                )
+            )
+        else:
+            feedback_row.rating = payload.rating
+            feedback_row.comment = payload.comment
     await session.commit()
     await session.refresh(execution)
     return execution
+
+
+@router.get("/{execution_id}/feedback")
+async def list_feedback(
+    execution_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
+) -> list[dict]:
+    execution = await session.get(Execution, execution_id)
+    if execution is None or (
+        user.organization_id is not None
+        and execution.organization_id != user.organization_id
+    ):
+        raise HTTPException(status_code=404, detail="Execution not found")
+    result = await session.execute(
+        select(ExecutionFeedback)
+        .where(ExecutionFeedback.execution_id == execution_id)
+        .order_by(ExecutionFeedback.created_at)
+    )
+    return [
+        {
+            "id": str(feedback.id),
+            "execution_id": str(feedback.execution_id),
+            "user_id": str(feedback.user_id),
+            "rating": feedback.rating,
+            "comment": feedback.comment,
+            "created_at": feedback.created_at,
+        }
+        for feedback in result.scalars().all()
+    ]
 
 
 @router.post(

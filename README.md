@@ -162,6 +162,20 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 celery -A app.engine.tasks.celery_app worker --loglevel=info -B
 ```
 
+> **macOS 注意事项（Celery worker）**
+> 在 macOS + Python 3.14 上，Celery 默认的 prefork 池可能因 Objective-C
+> `NSCharacterSet initialize` 的 fork 安全问题随机 `SIGABRT`，导致正在执行的
+> Execution 卡在 `running`。本地开发请使用 solo 池并关闭 fork 安全检查：
+>
+> ```bash
+> export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+> celery -A app.engine.tasks.celery_app worker --pool=solo --loglevel=info -B
+> ```
+>
+> 生产 Linux 容器不受此问题影响，但建议在部署清单中固定 worker pool 配置；
+> 卡死的 `running` Execution 由 beat 的 `mark-stale-executions`（每 120s）自动
+> 回收为 `failed`（超时阈值 15 分钟）。
+
 ### 5. 启动前端
 
 ```bash

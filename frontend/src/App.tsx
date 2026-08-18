@@ -13,6 +13,8 @@ import Alerts from "@/pages/Alerts";
 import AlertRules from "@/pages/AlertRules";
 import Chat from "@/pages/Chat";
 import History from "@/pages/History";
+import Skills from "@/pages/Skills";
+import Landing from "@/pages/Landing";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = getAccessToken();
@@ -21,14 +23,14 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 function Home() {
-  return getAccessToken() ? <Navigate to="/chat" replace /> : <Dashboard />;
+  return getAccessToken() ? <Navigate to="/chat" replace /> : <Landing />;
 }
 
 export default function App() {
   return (
     <Routes>
+      <Route path="/" element={<Home />} />
       <Route element={<Layout />}>
-        <Route index element={<Home />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route
           path="/chat"
@@ -43,6 +45,14 @@ export default function App() {
           element={
             <RequireAuth>
               <History />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/skills"
+          element={
+            <RequireAuth>
+              <Skills />
             </RequireAuth>
           }
         />
