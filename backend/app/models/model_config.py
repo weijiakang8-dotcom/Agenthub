@@ -26,4 +26,10 @@ class ModelConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # P1-2 model routing metadata: lower priority wins for complex tasks,
+    # higher priority (cheaper tier) wins for simple tasks.
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    timeout: Mapped[int] = mapped_column(Integer, nullable=False, default=120)
+    max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)

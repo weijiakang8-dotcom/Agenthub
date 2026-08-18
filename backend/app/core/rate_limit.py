@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import time
 
 import redis.asyncio as aioredis
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 async def rate_limit(key: str, limit: int, window_seconds: int) -> bool:
@@ -16,5 +19,11 @@ async def rate_limit(key: str, limit: int, window_seconds: int) -> bool:
         if count == 1:
             await client.expire(bucket, window_seconds)
         return count <= limit
+    except Exception:
+        logger.warning("Redis rate limit unavailable; degrading open", exc_info=True)
+        return True
     finally:
-        await client.aclose()
+        try:
+            await client.aclose()
+        except Exception:
+            logger.debug("Failed to close Redis rate-limit client", exc_info=True)

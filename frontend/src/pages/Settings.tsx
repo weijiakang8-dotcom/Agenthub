@@ -1,6 +1,16 @@
-import { Cpu, FileText, BellRing, BarChart3, FlaskConical } from "lucide-react";
+import {
+  Cpu,
+  FileText,
+  BellRing,
+  BarChart3,
+  FlaskConical,
+  KeyRound,
+  SlidersHorizontal,
+} from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import ApiKeysPanel from "@/pages/settings/ApiKeysPanel";
+import ExperiencePanel from "@/pages/settings/ExperiencePanel";
 import DocumentsPanel from "@/pages/settings/DocumentsPanel";
 import EvalPanel from "@/pages/settings/EvalPanel";
 import ModelsPanel from "@/pages/settings/ModelsPanel";
@@ -9,6 +19,13 @@ import UsagePanel from "@/pages/settings/UsagePanel";
 
 const tabs = [
   { value: "models", label: "模型", icon: Cpu, panel: ModelsPanel },
+  { value: "api-keys", label: "我的密钥", icon: KeyRound, panel: ApiKeysPanel },
+  {
+    value: "experience",
+    label: "体验",
+    icon: SlidersHorizontal,
+    panel: ExperiencePanel,
+  },
   { value: "documents", label: "文档", icon: FileText, panel: DocumentsPanel },
   {
     value: "notifications",

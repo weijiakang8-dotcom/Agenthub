@@ -29,6 +29,15 @@ export type Execution = {
     comment?: string;
   } | null;
   feedback: string | null;
+  steps: Array<{
+    role?: string;
+    name?: string;
+    agent_id?: string | null;
+    task_id?: string;
+    capability_id?: string;
+  }> | null;
+  token_usage: Record<string, { input_tokens: number; output_tokens: number }> | null;
+  model_used: string[] | null;
 };
 
 export type ToolCall = {
@@ -82,8 +91,43 @@ export type ModelConfig = {
   model: string;
   max_tokens: number;
   cost_per_1k_tokens: number;
+  priority: number;
+  timeout: number;
+  max_retries: number;
+  enabled: boolean;
   is_active: boolean;
   is_default: boolean;
+};
+
+export type UserApiKey = {
+  id: string;
+  provider: string;
+  model: string;
+  base_url: string;
+  api_key_masked: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type Skill = {
+  id: string;
+  name: string;
+  description: string;
+  goal: Record<string, unknown>;
+  plan_template: Record<string, unknown>;
+  icon: string;
+  organization_id: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type ExecutionFeedback = {
+  id: string;
+  execution_id: string;
+  user_id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
 };
 
 export type DocumentItem = {
@@ -306,6 +350,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ feedback }),
     }),
+  submitRating: (id: string, rating: number, comment?: string) =>
+    request<Execution>(`/executions/${id}/feedback`, {
+      method: "POST",
+      body: JSON.stringify({ feedback: `rating-${rating}`, rating, comment }),
+    }),
+  listFeedback: (id: string) =>
+    request<ExecutionFeedback[]>(`/executions/${id}/feedback`),
+  optimizePrompt: (content: string) =>
+    request<{ optimized: string }>("/prompts/optimize", {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    }),
   saveWorkflow: (payload: {
     name: string;
     description: string;
@@ -375,6 +431,43 @@ export const api = {
     request<{ ok: boolean; response?: string; error?: string }>(
       `/models/${id}/test`,
       { method: "POST" },
+    ),
+  listUserApiKeys: () => request<UserApiKey[]>("/user-api-keys"),
+  createUserApiKey: (payload: {
+    provider: string;
+    model: string;
+    base_url: string;
+    api_key: string;
+  }) =>
+    request<UserApiKey>("/user-api-keys", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateUserApiKey: (id: string, is_active: boolean) =>
+    request<UserApiKey>(`/user-api-keys/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ is_active }),
+    }),
+  deleteUserApiKey: (id: string) =>
+    request<void>(`/user-api-keys/${id}`, { method: "DELETE" }),
+  listSkills: () => request<Skill[]>("/skills"),
+  createSkill: (payload: {
+    name: string;
+    description: string;
+    goal: Record<string, unknown>;
+    plan_template: Record<string, unknown>;
+    icon?: string;
+  }) =>
+    request<Skill>("/skills", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  deleteSkill: (id: string) =>
+    request<void>(`/skills/${id}`, { method: "DELETE" }),
+  executeSkill: (id: string, input: string) =>
+    request<{ execution_id: string; status: ExecutionStatus }>(
+      `/skills/${id}/execute`,
+      { method: "POST", body: JSON.stringify({ input }) },
     ),
   listDocuments: () => request<DocumentItem[]>("/documents"),
   createDocument: (payload: {

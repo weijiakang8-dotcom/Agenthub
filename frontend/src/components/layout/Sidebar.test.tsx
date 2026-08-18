@@ -13,9 +13,10 @@ describe("Sidebar", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("对话")).toBeInTheDocument();
-    expect(screen.getByText("历史记录")).toBeInTheDocument();
-    expect(screen.getByText("设置")).toBeInTheDocument();
+    expect(screen.getByText("新建对话")).toBeInTheDocument();
+    expect(screen.getByText("对话历史")).toBeInTheDocument();
+    expect(screen.getByText("Skill 库")).toBeInTheDocument();
+    expect(screen.getByText("模型与设置")).toBeInTheDocument();
     expect(screen.queryByText("工作区")).not.toBeInTheDocument();
     expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
   });

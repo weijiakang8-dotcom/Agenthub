@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
 from app.api import api_router
 from app.api.routes.metrics import router as metrics_router
@@ -39,6 +40,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AgentHub API", version="0.1.0", lifespan=lifespan)
 FastAPIInstrumentor().instrument_app(app)
+
+
+@app.exception_handler(DBAPIError)
+@app.exception_handler(ConnectionRefusedError)
+@app.exception_handler(ConnectionResetError)
+@app.exception_handler(TimeoutError)
+async def database_unavailable_handler(request: Request, exc: Exception):
+    """数据库不可用时返回明确的 503，而不是裸 500。"""
+    logger.warning(
+        "Database unavailable for %s: %s",
+        request.url.path,
+        exc.__class__.__name__,
+    )
+    return JSONResponse(status_code=503, content={"detail": "Database unavailable"})
+
 
 app.add_middleware(
     CORSMiddleware,
