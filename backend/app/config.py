@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 项目根目录（backend/ 的上一级），用于定位根目录下的 .env
@@ -37,6 +38,20 @@ class Settings(BaseSettings):
     RESEND_FROM: str = ""
     ALERT_WEBHOOK_URL: str = ""
     FEISHU_WEBHOOK_URL: str = ""
+    SHADOW_MODE: bool = False
+    REAL_EFFECT_MODE: bool = False
+    RUNTIME_MODE: str = "legacy"
+    EMBEDDING_PROVIDER: str = "ollama"
+    EMBEDDING_MODEL: str = "nomic-embed-text:latest"
+    EMBEDDING_BASE_URL: str = "http://127.0.0.1:11434"
+    EMBEDDING_DIMENSION: int = 768
+
+    @field_validator("RUNTIME_MODE")
+    @classmethod
+    def _validate_runtime_mode(cls, value: str) -> str:
+        if value not in {"legacy", "kernel"}:
+            raise ValueError("RUNTIME_MODE must be 'legacy' or 'kernel'")
+        return value
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -22,6 +22,10 @@ class ModelCreate(BaseModel):
     model: str
     max_tokens: int = 4096
     cost_per_1k_tokens: float = 0.0
+    priority: int = 100
+    timeout: int = 120
+    max_retries: int = 2
+    enabled: bool = True
     is_default: bool = False
 
 
@@ -33,6 +37,10 @@ class ModelUpdate(BaseModel):
     model: str | None = None
     max_tokens: int | None = None
     cost_per_1k_tokens: float | None = None
+    priority: int | None = None
+    timeout: int | None = None
+    max_retries: int | None = None
+    enabled: bool | None = None
     is_active: bool | None = None
     is_default: bool | None = None
 
@@ -46,6 +54,10 @@ def _serialize(m: ModelConfig) -> dict:
         "model": m.model,
         "max_tokens": m.max_tokens,
         "cost_per_1k_tokens": m.cost_per_1k_tokens,
+        "priority": m.priority,
+        "timeout": m.timeout,
+        "max_retries": m.max_retries,
+        "enabled": m.enabled,
         "is_active": m.is_active,
         "is_default": m.is_default,
     }

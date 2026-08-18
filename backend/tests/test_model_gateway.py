@@ -6,10 +6,22 @@ from types import SimpleNamespace
 from app.core import model_gateway
 
 
-def test_get_chat_models_orders_by_cost(monkeypatch):
+def test_get_chat_models_orders_by_priority(monkeypatch):
     models = [
-        SimpleNamespace(name="expensive", cost_per_1k_tokens=0.01),
-        SimpleNamespace(name="cheap", cost_per_1k_tokens=0.001),
+        SimpleNamespace(
+            name="pro",
+            priority=1,
+            cost_per_1k_tokens=0.01,
+            timeout=120,
+            max_retries=2,
+        ),
+        SimpleNamespace(
+            name="flash",
+            priority=2,
+            cost_per_1k_tokens=0.001,
+            timeout=60,
+            max_retries=2,
+        ),
     ]
 
     async def fake_list(_organization_id=None):
@@ -23,8 +35,8 @@ def test_get_chat_models_orders_by_cost(monkeypatch):
         model_gateway.get_chat_models("org", complexity="complex")
     )
 
-    assert simple == ["cheap", "expensive"]
-    assert complex_models == ["expensive", "cheap"]
+    assert simple == ["flash", "pro"]
+    assert complex_models == ["pro", "flash"]
 
 
 def test_get_chat_models_falls_back_to_global_settings(monkeypatch):

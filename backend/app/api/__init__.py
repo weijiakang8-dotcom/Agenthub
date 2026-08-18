@@ -12,9 +12,13 @@ from app.api.routes import (
     models,
     notifications,
     organizations,
+    prompts,
+    shadow_audit,
+    skills,
     tasks,
     tool_calls,
     usage,
+    user_api_keys,
     workflow_templates,
     workflows,
 )
@@ -37,6 +41,10 @@ api_router.include_router(eval_routes.router)
 api_router.include_router(models.router)
 api_router.include_router(notifications.router)
 api_router.include_router(organizations.router)
+api_router.include_router(prompts.router)
+api_router.include_router(shadow_audit.router)
+api_router.include_router(skills.router)
+api_router.include_router(user_api_keys.router)
 api_router.include_router(usage.router)
 api_router.include_router(tasks.router)
 api_router.include_router(workflow_templates.router)

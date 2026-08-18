@@ -14,6 +14,7 @@ from app.api.deps import CurrentUserDep, SessionDep
 from app.config import settings
 from app.database import async_session_factory
 from app.engine.event_bus import CHANNEL_PREFIX
+from app.engine.runner import build_context_messages
 from app.engine.tasks import execute_workflow_task
 from app.models import Conversation, Execution, Workflow
 from app.models.enums import ExecutionStatus
@@ -37,6 +38,19 @@ def _serialize(conversation: Conversation) -> dict:
         "created_at": conversation.created_at.isoformat(),
         "updated_at": conversation.updated_at.isoformat(),
     }
+
+
+async def _persist_assistant_message(
+    session, conversation_id: uuid.UUID, content: str
+) -> None:
+    """在当前 session 内持久化 assistant 最终回复，避免 detached 对象丢失写入。"""
+    current_conversation = await session.get(Conversation, conversation_id)
+    if current_conversation is None:
+        return
+    messages = list(current_conversation.messages or [])
+    messages.append({"role": "assistant", "content": content})
+    current_conversation.messages = messages
+    await session.commit()
 
 
 @router.get("")
@@ -149,8 +163,8 @@ async def stream_conversation(
         ):
             raise HTTPException(status_code=404, detail="Conversation not found")
 
-        messages = list(conversation.messages or [])
-        messages.append({"role": "user", "content": payload.content})
+        prior_messages = list(conversation.messages or [])
+        messages = [*prior_messages, {"role": "user", "content": payload.content}]
         conversation.messages = messages
         if conversation.title == "新对话" and payload.content:
             conversation.title = payload.content[:24]
@@ -161,6 +175,7 @@ async def stream_conversation(
         execution = Execution(
             workflow_id=workflow_id,
             user_input=payload.content,
+            context_messages=build_context_messages(prior_messages),
             status=ExecutionStatus.PENDING,
             current_step_index=0,
             organization_id=user.organization_id,
@@ -198,12 +213,9 @@ async def stream_conversation(
                     ExecutionStatus.ROLLED_BACK,
                 }:
                     if execution.final_output:
-                        messages = list(conversation.messages or [])
-                        messages.append(
-                            {"role": "assistant", "content": execution.final_output}
+                        await _persist_assistant_message(
+                            session, conversation_id, execution.final_output
                         )
-                        conversation.messages = messages
-                        await session.commit()
                     yield f"data: {json.dumps({'event': 'done', 'status': execution.status.value, 'final_output': execution.final_output}, ensure_ascii=False)}\n\n"
                     await pubsub.unsubscribe(f"{CHANNEL_PREFIX}{execution_id}")
                     await pubsub.aclose()

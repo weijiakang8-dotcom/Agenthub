@@ -11,6 +11,8 @@ from celery import Celery
 from celery.signals import worker_process_init
 from sqlalchemy import update
 
+from app.adapters.errors import UnsupportedKernelWorkflowError
+from app.adapters.kernel_runtime_bridge import persist_unsupported_workflow
 from app.config import settings
 from app.core.telemetry import setup_telemetry
 from app.database import async_session_factory
@@ -84,7 +86,14 @@ def execute_workflow_task(self, execution_id: str) -> None:
     from app.engine.runner import run_execution
 
     try:
-        asyncio.run(run_execution(uuid.UUID(execution_id)))
+        if settings.RUNTIME_MODE == "kernel":
+            from app.adapters.kernel_runner import run_kernel_execution
+
+            asyncio.run(run_kernel_execution(uuid.UUID(execution_id)))
+        else:
+            asyncio.run(run_execution(uuid.UUID(execution_id)))
+    except UnsupportedKernelWorkflowError as exc:
+        asyncio.run(persist_unsupported_workflow(uuid.UUID(execution_id), str(exc)))
     except Exception as exc:  # noqa: BLE001
         if self.request.retries < self.max_retries:
             raise self.retry(exc=exc, countdown=2**self.request.retries)

@@ -11,11 +11,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <TooltipProvider>
-        <App />
-        <Toaster />
-      </TooltipProvider>
-    </BrowserRouter>
+    <div className="dark">
+      <BrowserRouter>
+        <TooltipProvider>
+          <App />
+          <Toaster />
+        </TooltipProvider>
+      </BrowserRouter>
+    </div>
   </React.StrictMode>,
 );

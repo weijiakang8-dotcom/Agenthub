@@ -4,6 +4,7 @@ import uuid
 
 from sqlalchemy import select
 
+from app.config import settings
 from app.database import async_session_factory
 from app.models import Document
 from app.rag.embedder import cosine, embed_text
@@ -29,7 +30,13 @@ async def retrieve_documents(
     scored = []
     keywords = query.lower().split()
     for doc in documents:
-        vector_score = cosine(query_vec, doc.embedding or [])
+        embedding = doc.embedding or []
+        if (
+            len(query_vec) == settings.EMBEDDING_DIMENSION
+            and len(embedding) != settings.EMBEDDING_DIMENSION
+        ):
+            continue
+        vector_score = cosine(query_vec, embedding)
         keyword_score = sum(1 for k in keywords if k in doc.content.lower())
         score = vector_score + keyword_score * 0.2
         scored.append((score, doc))

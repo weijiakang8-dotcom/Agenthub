@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   CircleDot,
   RotateCcw,
+  Star,
   ThumbsDown,
   ThumbsUp,
   X,
@@ -27,10 +28,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Textarea } from "@/components/ui/textarea";
 import { useExecutionWebSocket } from "@/hooks/useExecutionWebSocket";
 import {
   api,
   type ExecutionDetail,
+  type ExecutionFeedback,
   type Intervention,
   type ToolCall,
 } from "@/lib/api";
@@ -73,6 +76,9 @@ export default function ExecutionDetail() {
   const [loading, setLoading] = useState(true);
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [modifiedPlan, setModifiedPlan] = useState("");
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [feedbacks, setFeedbacks] = useState<ExecutionFeedback[]>([]);
   const { lastEvent } = useExecutionWebSocket(id);
 
   useEffect(() => {
@@ -99,6 +105,14 @@ export default function ExecutionDetail() {
       .then(setData)
       .catch(() => undefined);
   }, [id, lastEvent]);
+
+  useEffect(() => {
+    if (!id) return;
+    api
+      .listFeedback(id)
+      .then(setFeedbacks)
+      .catch(() => undefined);
+  }, [id]);
 
   const activity = useMemo(() => {
     if (!data) return [];
@@ -250,6 +264,116 @@ export default function ExecutionDetail() {
           </Button>
         )}
       </div>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="type-h3">执行轨迹与用量</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            <span className="text-muted-foreground">
+              实际模型：{data.model_used?.length ? data.model_used.join("、") : "—"}
+            </span>
+            <span className="text-muted-foreground">
+              耗时：
+              {data.completed_at
+                ? `${Math.max(
+                    1,
+                    Math.round(
+                      (new Date(data.completed_at).getTime() -
+                        new Date(data.created_at).getTime()) /
+                        1000,
+                    ),
+                  )}s`
+                : "运行中"}
+            </span>
+          </div>
+
+          {data.token_usage ? (
+            <div className="grid gap-2 sm:grid-cols-3">
+              {Object.entries(data.token_usage).map(([model, usage]) => (
+                <div
+                  key={model}
+                  className="rounded-lg border border-border/60 p-3 text-xs"
+                >
+                  <p className="font-medium">{model}</p>
+                  <p className="text-muted-foreground">
+                    in {usage.input_tokens} · out {usage.output_tokens}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">暂无 token 明细</p>
+          )}
+
+          {data.steps?.length ? (
+            <div className="space-y-1.5">
+              {data.steps.map((step, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-2 text-xs text-muted-foreground"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  {step.name ?? step.task_id ?? step.role ?? `步骤 ${index + 1}`}
+                  {step.capability_id ? ` · ${step.capability_id}` : ""}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="type-h3">评分与反馈</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4, 5].map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setRating(value)}
+                aria-label={`${value} 星`}
+              >
+                <Star
+                  className={`h-5 w-5 ${
+                    value <= rating
+                      ? "fill-yellow-400 text-yellow-400"
+                      : "text-muted-foreground"
+                  }`}
+                />
+              </button>
+            ))}
+          </div>
+          <Textarea
+            placeholder="写点评价…（可选）"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            rows={2}
+          />
+          <Button
+            size="sm"
+            onClick={async () => {
+              await api.submitRating(data.id, rating, comment || undefined);
+              toast.success("感谢你的反馈");
+              setFeedbacks(await api.listFeedback(data.id));
+            }}
+          >
+            提交评分
+          </Button>
+          {feedbacks.length > 0 && (
+            <div className="space-y-1 border-t border-border/60 pt-2">
+              {feedbacks.map((feedback) => (
+                <p key={feedback.id} className="text-xs text-muted-foreground">
+                  {"★".repeat(feedback.rating)} · {feedback.comment ?? "无评论"}
+                </p>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="shadow-sm">
         <CardContent className="space-y-2 py-4">
