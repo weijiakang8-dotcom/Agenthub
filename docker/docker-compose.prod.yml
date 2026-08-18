@@ -93,6 +93,7 @@ services:
       dockerfile: docker/Dockerfile.frontend
       args:
         VITE_ADMIN_API_KEY: ${ADMIN_API_KEY}
+        VITE_ICP_BEIAN_NUMBER: ${VITE_ICP_BEIAN_NUMBER:-鄂ICP备2026044084号-1}
     restart: unless-stopped
     depends_on: [backend]
     ports:
