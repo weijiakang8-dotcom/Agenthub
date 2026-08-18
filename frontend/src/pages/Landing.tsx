@@ -3,6 +3,7 @@ import { ArrowRight, Sparkles, WandSparkles } from "lucide-react";
 
 import { AuthModal } from "@/components/AuthModal";
 import { MouseGlow } from "@/components/effects/MouseGlow";
+import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 
 export default function Landing() {
@@ -67,6 +68,7 @@ export default function Landing() {
           ))}
         </div>
       </main>
+      <Footer />
       <AuthModal open={authOpen} onOpenChange={setAuthOpen} mode={authMode} />
     </div>
   );
