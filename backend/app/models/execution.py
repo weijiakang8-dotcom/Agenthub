@@ -67,6 +67,8 @@ class Execution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     # LangGraph 的 Checkpoint 状态快照，开始运行前可为空
     checkpoint_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    intent: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    plan: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     user_input: Mapped[str] = mapped_column(Text, nullable=False)
     # 聊天场景注入的历史上下文（已按角色与长度截断），与当前 user_input 分离存储。
     context_messages: Mapped[list] = mapped_column(JSON, nullable=False, default=list)

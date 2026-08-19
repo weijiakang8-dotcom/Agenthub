@@ -40,6 +40,9 @@ class ToolCall(UUIDPrimaryKeyMixin, Base):
     requires_approval: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False
     )
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
     approved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

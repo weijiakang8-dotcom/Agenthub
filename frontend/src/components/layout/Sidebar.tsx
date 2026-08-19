@@ -13,12 +13,14 @@ import {
 
 import { cn } from "@/lib/utils";
 import { clearTokens } from "@/lib/api";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 
 const items = [
   { to: "/chat", label: "新建对话", icon: Plus },
   { to: "/history", label: "对话历史", icon: MessageSquare },
   { to: "/skills", label: "Skill 库", icon: Library },
   { to: "/executions", label: "执行记录", icon: ListChecks },
+  { to: "/guide", label: "使用指南", icon: BookOpen },
   { to: "/settings", label: "模型与设置", icon: Settings },
 ];
 
@@ -33,12 +35,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           collapsed ? "justify-center px-2" : "px-4",
         )}
       >
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <Sparkles className="h-4 w-4" />
-        </div>
-        {!collapsed && (
-          <span className="text-sm font-semibold tracking-tight">AgentHub</span>
-        )}
+        <BrandLogo size="md" showWordmark={!collapsed} />
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
@@ -64,7 +61,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
       <div className="space-y-2 border-t p-3">
         <button
           type="button"
-          title="使用指南"
+          title="新手引导"
           onClick={() =>
             window.dispatchEvent(new CustomEvent("agenthub:open-guide"))
           }
@@ -73,8 +70,8 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
             collapsed && "justify-center px-0",
           )}
         >
-          <BookOpen className="h-3.5 w-3.5" />
-          {!collapsed && "使用指南"}
+          <Sparkles className="h-3.5 w-3.5" />
+          {!collapsed && "新手引导"}
         </button>
         <button
           type="button"

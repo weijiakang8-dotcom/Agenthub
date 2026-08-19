@@ -6,9 +6,8 @@ import re
 from typing import Any
 
 from langchain_core.messages import HumanMessage
-from langchain_openai import ChatOpenAI
 
-from app.config import settings
+from app.core.model_gateway import ModelGateway
 from app.database import async_session_factory
 from app.models import Execution
 
@@ -25,15 +24,6 @@ def _extract_json(text: str) -> dict[str, Any]:
         return json.loads(match.group(0))
 
 
-def _llm() -> ChatOpenAI:
-    return ChatOpenAI(
-        model=settings.LLM_MODEL,
-        base_url=settings.LLM_BASE_URL,
-        api_key=settings.OPENAI_API_KEY or "not-configured",
-        temperature=0,
-    )
-
-
 async def evaluate_execution(execution_id: str) -> None:
     """LLM-as-Judge：对已完成执行的 final_output 进行三维打分并落库。"""
     async with async_session_factory() as session:
@@ -42,6 +32,9 @@ async def evaluate_execution(execution_id: str) -> None:
             return
         user_input = execution.user_input
         final_output = execution.final_output
+        organization_id = (
+            str(execution.organization_id) if execution.organization_id else None
+        )
 
     prompt = (
         "你是一名严格的评审专家。请根据用户指令和 Agent 最终输出，"
@@ -51,19 +44,29 @@ async def evaluate_execution(execution_id: str) -> None:
         f"用户指令：{user_input}\nAgent 最终输出：{final_output}"
     )
 
-    llm = _llm()
-    result: dict[str, Any] | None = None
-    for attempt in range(3):
-        try:
-            response = await llm.ainvoke([HumanMessage(content=prompt)])
-            data = _extract_json(str(response.content))
-            if {"accuracy", "completeness", "logic"} <= set(data):
-                result = data
-                break
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("evaluation attempt %s failed: %s", attempt + 1, exc)
+    gateway = ModelGateway()
+    llms = await gateway.select(
+        organization_id=organization_id,
+        complexity="simple",
+    )
+    try:
+        response = await gateway.invoke(
+            llms,
+            [HumanMessage(content=prompt)],
+            task_type="evaluate",
+            organization_id=organization_id,
+            correlation_id=execution_id,
+        )
+        result = _extract_json(str(response.content))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("evaluation failed: %s", exc)
+        result = None
 
-    if result is None:
+    if not isinstance(result, dict) or not {
+        "accuracy",
+        "completeness",
+        "logic",
+    } <= set(result):
         logger.warning("evaluation skipped for execution %s", execution_id)
         return
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { ApiError, auth, setAccessToken, setRefreshToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -185,14 +186,17 @@ export function AuthModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="surface-isolated overflow-hidden border-border/80 bg-white text-[#1f2937] shadow-xl">
         <DialogHeader>
-          <DialogTitle>
-            {mode === "login"
-              ? "登录"
-              : mode === "register"
-                ? "注册"
-                : "找回密码"}
+          <DialogTitle className="flex items-center gap-2 text-[#1f2937]">
+            <BrandLogo size="sm" showWordmark={false} />
+            <span>
+              {mode === "login"
+                ? "登录 AgentHub"
+                : mode === "register"
+                  ? "注册 AgentHub"
+                  : "找回密码"}
+            </span>
           </DialogTitle>
         </DialogHeader>
 

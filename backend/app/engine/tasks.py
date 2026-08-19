@@ -14,6 +14,7 @@ from sqlalchemy import update
 from app.adapters.errors import UnsupportedKernelWorkflowError
 from app.adapters.kernel_runtime_bridge import persist_unsupported_workflow
 from app.config import settings
+from app.core.failure import classify_error, should_retry
 from app.core.telemetry import setup_telemetry
 from app.database import async_session_factory
 from app.models import Execution
@@ -95,7 +96,9 @@ def execute_workflow_task(self, execution_id: str) -> None:
     except UnsupportedKernelWorkflowError as exc:
         asyncio.run(persist_unsupported_workflow(uuid.UUID(execution_id), str(exc)))
     except Exception as exc:  # noqa: BLE001
-        if self.request.retries < self.max_retries:
+        if self.request.retries < self.max_retries and should_retry(
+            classify_error(exc), "celery"
+        ):
             raise self.retry(exc=exc, countdown=2**self.request.retries)
         asyncio.run(_fail_execution_and_push_dlq(execution_id, str(exc)))
 

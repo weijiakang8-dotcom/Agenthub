@@ -4,13 +4,12 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-
 from app.core.permissions import (
     VALID_ROLES,
     require_permission,
     require_role,
 )
+from fastapi import HTTPException
 
 
 def test_require_role_rejects_non_matching_role():

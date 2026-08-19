@@ -9,6 +9,7 @@ from app.api.routes import (
     conversations,
     documents,
     executions,
+    memories,
     models,
     notifications,
     organizations,
@@ -39,6 +40,7 @@ api_router.include_router(conversations.router)
 api_router.include_router(documents.router)
 api_router.include_router(eval_routes.router)
 api_router.include_router(models.router)
+api_router.include_router(memories.router)
 api_router.include_router(notifications.router)
 api_router.include_router(organizations.router)
 api_router.include_router(prompts.router)

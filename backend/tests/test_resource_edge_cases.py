@@ -6,12 +6,11 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-
 from app.api.routes import documents as documents_routes
 from app.api.routes import eval as eval_routes
 from app.core import notification as notification_routes
 from app.models import Document, EvalDataset, ExecutionStatus
+from fastapi import HTTPException
 
 ORG_ID = uuid.uuid4()
 
@@ -183,6 +182,11 @@ def test_upload_document_uses_embedding(monkeypatch):
         return [0.1, 0.2]
 
     monkeypatch.setattr(documents_routes, "embed_text", fake_embed)
+
+    async def fake_rebuild(_document):
+        return 1
+
+    monkeypatch.setattr(documents_routes, "rebuild_document_chunks", fake_rebuild)
 
     result = asyncio.run(
         documents_routes.upload_document(

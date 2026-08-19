@@ -2,7 +2,6 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 import pytest
-
 from app.core import security
 from app.core.security import (
     create_access_token,

@@ -4,10 +4,9 @@ import asyncio
 import uuid
 from types import SimpleNamespace
 
-from langchain_core.messages import AIMessage, HumanMessage
-
 from app.engine import runner
 from app.models.enums import ExecutionStatus
+from langchain_core.messages import AIMessage, HumanMessage
 
 
 def test_build_context_messages_keeps_recent_turns_and_caps_chars():

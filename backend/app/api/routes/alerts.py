@@ -52,7 +52,7 @@ async def alert_stats(session: SessionDep, user: CurrentUserDep) -> dict:
                     [AlertEvent.organization_id == user.organization_id]
                     if user.organization_id is not None
                     else []
-                )
+                ),
             )
         )
     ).scalar() or 0

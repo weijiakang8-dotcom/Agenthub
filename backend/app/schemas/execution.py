@@ -38,6 +38,11 @@ class ExecutionRead(BaseModel):
     eval_score: float | None = None
     eval_details: dict | None = None
     feedback: str | None = None
+    intent: dict | None = None
+    plan: dict | None = None
+    steps: list | None = None
+    model_used: list | None = None
+    token_usage: dict | None = None
 
 
 class ExecutionDetail(ExecutionRead):

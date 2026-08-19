@@ -5,8 +5,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentUserDep
-from app.core.model_gateway import get_chat_models
-from app.engine.graph import _call_llm_with_fallback
+from app.core.model_gateway import ModelGateway
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
 
@@ -26,17 +25,20 @@ async def optimize_prompt(
     user: CurrentUserDep,
 ) -> dict:
     try:
-        llms = await get_chat_models(
-            user.organization_id,
+        gateway = ModelGateway()
+        llms = await gateway.select(
+            organization_id=user.organization_id,
             complexity="simple",
             user_id=user.id,
         )
-        response = await _call_llm_with_fallback(
+        response = await gateway.invoke(
             llms,
             [
                 SystemMessage(content=OPTIMIZE_SYSTEM),
                 HumanMessage(content=payload.content),
             ],
+            task_type="prompt_optimize",
+            organization_id=user.organization_id,
         )
         optimized = str(getattr(response, "content", "")).strip()
         if not optimized:

@@ -7,7 +7,6 @@ import re
 from typing import Any
 
 import httpx
-
 from app.config import settings
 
 _model: Any = None
@@ -63,10 +62,20 @@ async def embed_text(text: str) -> list[float]:
         norm = math.sqrt(sum(value * value for value in vector)) or 1.0
         return [value / norm for value in vector]
 
-    model = _load_model()
+    if settings.EMBEDDING_PROVIDER == "hash":
+        return _hash_embed(text, dims=settings.EMBEDDING_DIMENSION)
+
+    # SentenceTransformer 模型加载是网络/CPU 密集操作，必须移出事件循环；
+    # 加载失败时降级为确定性的哈希向量，保证 RAG 永不阻塞主链路。
+    try:
+        model = await asyncio.wait_for(asyncio.to_thread(_load_model), timeout=15)
+    except Exception:  # noqa: BLE001
+        model = False
     if model is False:
-        return _hash_embed(text)
-    vectors = await asyncio.to_thread(model.encode, [text])
+        return _hash_embed(text, dims=settings.EMBEDDING_DIMENSION)
+    vectors = await asyncio.wait_for(
+        asyncio.to_thread(model.encode, [text]), timeout=15
+    )
     vector = vectors[0].tolist() if hasattr(vectors[0], "tolist") else list(vectors[0])
     norm = math.sqrt(sum(x * x for x in vector)) or 1.0
     return [x / norm for x in vector]

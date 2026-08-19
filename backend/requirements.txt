@@ -8,6 +8,7 @@ langgraph
 langgraph-checkpoint-postgres
 langchain
 langchain-openai
+pgvector
 
 # PostgreSQL 异步 ORM
 asyncpg
@@ -21,7 +22,6 @@ duckduckgo-search
 pypdf
 
 # Semantic embeddings
-sentence-transformers
 
 # 数据库迁移
 alembic

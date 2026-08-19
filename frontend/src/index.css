@@ -191,6 +191,90 @@
 }
 
 @layer components {
+  /*
+    Floating-layer isolation surface.
+    Applied to dialogs, sheets, select/dropdown/tooltip popovers and toasts so
+    they always get an independent light background + dark text, regardless of
+    the surrounding page theme. This prevents text/background blending between
+    the overlay layer and the page underneath.
+  */
+  .surface-isolated {
+    --background: #ffffff;
+    --foreground: #1f2937;
+    --card: #ffffff;
+    --card-foreground: #1f2937;
+    --popover: #ffffff;
+    --popover-foreground: #1f2937;
+    --primary: #4f46e5;
+    --primary-foreground: #ffffff;
+    --secondary: #f3f4f6;
+    --secondary-foreground: #1f2937;
+    --muted: #f3f4f6;
+    --muted-foreground: #6b7280;
+    --accent: #eef2ff;
+    --accent-foreground: #1f2937;
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
+    --border: #e5e7eb;
+    --input: #d1d5db;
+    --ring: #4f46e5;
+
+    --success: #16a34a;
+    --success-foreground: #ffffff;
+    --warning: #d97706;
+    --warning-foreground: #ffffff;
+    --danger: #dc2626;
+    --danger-foreground: #ffffff;
+    --info: #2563eb;
+    --info-foreground: #ffffff;
+
+    background-color: #ffffff;
+    color: #1f2937;
+  }
+
+  .galaxy-root {
+    background-color: #05050a;
+  }
+
+  .galaxy-nebula {
+    background:
+      radial-gradient(
+        ellipse 70% 50% at 50% 32%,
+        rgba(190, 210, 255, 0.1),
+        transparent 62%
+      ),
+      radial-gradient(
+        ellipse 50% 38% at 72% 26%,
+        rgba(225, 235, 255, 0.08),
+        transparent 66%
+      ),
+      radial-gradient(
+        ellipse 55% 42% at 30% 62%,
+        rgba(170, 195, 240, 0.05),
+        transparent 65%
+      ),
+      #04060c;
+  }
+
+  .galaxy-vignette {
+    background: radial-gradient(
+      ellipse 90% 80% at 50% 45%,
+      transparent 62%,
+      rgba(0, 0, 0, 0.18) 100%
+    );
+  }
+
+  .brand-mark-bright {
+    filter: brightness(1.45) saturate(1.15)
+      drop-shadow(0 0 18px rgba(255, 255, 255, 0.55))
+      drop-shadow(0 0 34px rgba(190, 220, 255, 0.55));
+  }
+
+  .brand-wordmark-bright {
+    filter: brightness(1.4) drop-shadow(0 0 12px rgba(255, 255, 255, 0.38))
+      drop-shadow(0 0 22px rgba(190, 220, 255, 0.45));
+  }
+
   .type-display {
     font-size: 2.25rem;
     line-height: 1.15;

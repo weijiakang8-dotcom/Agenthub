@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 import app.kernel
+import pytest
 from app.adapters.capability_mapping import classify_legacy_tool
 from app.adapters.errors import InvalidLegacyToolError
 from app.adapters.execution_adapter import LegacyExecutionAdapter

@@ -49,4 +49,4 @@ See `KNOWN_ISSUES.md`.
 
 ## Next Phase
 
-Remaining production items: real two-model fallback verification, production SMTP credentials, and optional refresh-token migration to HttpOnly cookies.
+Remaining production items: real two-model fallback verification and optional refresh-token migration to HttpOnly cookies. Production email now uses Resend (`no-reply@synplex.xyz`, verified) with SMTP disabled.

@@ -5,9 +5,8 @@ import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 import app.kernel
+import pytest
 from app.adapters.runtime_bridge import (
     LegacyRuntimeBridge,
     ShadowExecutionResult,
