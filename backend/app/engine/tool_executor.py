@@ -180,7 +180,7 @@ async def _finish_tool_call(
         tool_call.output_result = result
         tool_call.status = (
             ToolCallStatus.SUCCESS
-            if result.get("status") == "success"
+            if result.get("status") in ("success", "duplicate")
             else ToolCallStatus.FAILED
         )
         tool_call.completed_at = utcnow()

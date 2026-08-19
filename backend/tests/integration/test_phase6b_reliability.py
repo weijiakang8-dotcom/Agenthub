@@ -421,6 +421,13 @@ def test_production_alerts_thresholds_and_cooldown(monkeypatch):
             second = await production_alerts.run_production_alerts()
             assert len(first) >= 2
             assert len(second) == 0  # cooldown 抑制噪声
+            # cooldown 过期后允许再次触发
+            await conn.execute(
+                "UPDATE alert_events SET triggered_at = now() - interval '30 minutes' "
+                "WHERE rule_id IN ('dlq_growth','database_unhealthy')"
+            )
+            third = await production_alerts.run_production_alerts()
+            assert len(third) >= 2
         finally:
             await conn.execute(
                 "DELETE FROM alert_events WHERE rule_id IN "
