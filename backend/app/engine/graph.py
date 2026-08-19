@@ -77,6 +77,7 @@ class AgentState(TypedDict, total=False):
     budget_exceeded: bool
     hard_stop: bool
     approval_rejected: bool
+    side_effect_failure: bool
     approved_plan_hash: str | None
 
 
@@ -346,7 +347,11 @@ def _step_capability(plan: list[dict[str, Any]], index: int) -> Capability:
 
 
 async def _route_step(state: AgentState) -> str:
-    if state.get("approval_rejected") or state.get("budget_exceeded"):
+    if (
+        state.get("approval_rejected")
+        or state.get("budget_exceeded")
+        or state.get("side_effect_failure")
+    ):
         return END
     if state.get("pending_approval"):
         return "waiting_for_approval"
@@ -477,6 +482,11 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
             for tool_call in getattr(response, "tool_calls", None) or []:
                 tool_name = tool_call.get("name", "")
                 tool_args = tool_call.get("args") or {}
+                step = (
+                    (state.get("plan") or [])[index]
+                    if index < len(state.get("plan") or [])
+                    else {}
+                )
                 if not tool_call.get("id"):
                     tool_call["id"] = f"call_{uuid.uuid4().hex}"
                 if tool_name in APPROVAL_REQUIRED_TOOLS and not (
@@ -509,6 +519,34 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
                 result = await tool_executor.execute_tool(
                     tool_name, tool_args, execution_id
                 )
+                if step.get("side_effect") and result.get("status") != "success":
+                    # Contract 03：副作用步骤失败 → 立即终止 + audit，不重试/重排
+                    error_text = str(result.get("error") or "side effect failed")
+                    await audit_execution_event(
+                        execution_id=execution_id,
+                        action="side_effect_failure",
+                        organization_id=state.get("organization_id"),
+                        user_id=state.get("user_id"),
+                        details={
+                            "step_id": step.get("step_id"),
+                            "capability": name,
+                            "tool": tool_name,
+                            "error": error_text,
+                        },
+                    )
+                    await publish_execution_event(
+                        execution_id,
+                        {
+                            "event": "error",
+                            "error_type": "side_effect_failure",
+                            "message": error_text,
+                        },
+                    )
+                    return {
+                        "side_effect_failure": True,
+                        "final_output": f"side_effect_failure: {error_text}",
+                        "current_step": len(state.get("plan") or []),
+                    }
                 new_messages.append(
                     ToolMessage(
                         content=json.dumps(result, ensure_ascii=False, default=str),
