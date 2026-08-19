@@ -82,7 +82,7 @@ class Execution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     feedback: Mapped[str | None] = mapped_column(String(20), nullable=True)
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    cost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    cost: Mapped[float | None] = mapped_column(Float, nullable=True, default=None)
     organization_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
         ForeignKey("organizations.id", ondelete="SET NULL"),

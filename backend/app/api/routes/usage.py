@@ -18,10 +18,11 @@ async def usage(session: SessionDep, user: CurrentUserDep) -> dict:
         func.coalesce(func.sum(Execution.input_tokens), 0),
         func.coalesce(func.sum(Execution.output_tokens), 0),
         func.coalesce(func.sum(Execution.cost), 0),
+        func.count(Execution.id).filter(Execution.cost.is_(None)),
     )
     if user.organization_id is not None:
         stmt = stmt.where(Execution.organization_id == user.organization_id)
-    total_executions, total_input, total_output, total_cost = (
+    total_executions, total_input, total_output, total_cost, cost_unknown = (
         await session.execute(stmt)
     ).one()
 
@@ -41,6 +42,7 @@ async def usage(session: SessionDep, user: CurrentUserDep) -> dict:
         "total_output_tokens": int(total_output),
         "total_tokens": int(total_input) + int(total_output),
         "total_cost": float(total_cost or 0),
+        "cost_unknown_executions": int(cost_unknown or 0),
         "today_tokens": int(today_tokens or 0),
         "today_cost": float(today_cost or 0),
     }

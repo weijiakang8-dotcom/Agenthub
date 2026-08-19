@@ -29,7 +29,9 @@ async def record_execution_usage(execution_id: uuid.UUID | str) -> None:
                 ModelConfig.organization_id == execution.organization_id
             )
         default_model = (await session.execute(default_stmt)).scalars().first()
-        default_rate = float(default_model.cost_per_1k_tokens if default_model else 0.0)
+        default_rate = (
+            float(default_model.cost_per_1k_tokens) if default_model else None
+        )
 
         usage = (execution.checkpoint_data or {}).get("llm_usage") or []
         if usage:
@@ -70,24 +72,33 @@ async def record_execution_usage(execution_id: uuid.UUID | str) -> None:
                 rates = {}
             input_tokens = sum(int(entry.get("input_tokens") or 0) for entry in usage)
             output_tokens = sum(int(entry.get("output_tokens") or 0) for entry in usage)
-            cost = round(
-                sum(
-                    (
-                        int(entry.get("input_tokens") or 0)
-                        + int(entry.get("output_tokens") or 0)
-                    )
-                    / 1000
-                    * rates.get(entry.get("model_used"), default_rate)
-                    for entry in usage
-                ),
-                8,
-            )
+            costs: list[float] = []
+            unknown_cost = False
+            for entry in usage:
+                entry_cost = entry.get("cost")
+                if entry_cost is not None:
+                    costs.append(float(entry_cost))
+                    continue
+                tokens = int(entry.get("input_tokens") or 0) + int(
+                    entry.get("output_tokens") or 0
+                )
+                model = entry.get("model_used")
+                rate = rates.get(model, default_rate) if model else None
+                if rate is None or tokens <= 0:
+                    unknown_cost = True
+                    continue
+                costs.append(tokens / 1000 * float(rate))
+            cost = round(sum(costs), 8) if costs and not unknown_cost else None
         else:
             input_tokens = estimate_tokens(execution.user_input or "")
             output_tokens = estimate_tokens(
                 execution.final_output or execution.error_message or ""
             )
-            cost = round((input_tokens + output_tokens) / 1000 * default_rate, 8)
+            cost = (
+                round((input_tokens + output_tokens) / 1000 * default_rate, 8)
+                if default_rate is not None
+                else None
+            )
 
         execution.input_tokens = input_tokens
         execution.output_tokens = output_tokens

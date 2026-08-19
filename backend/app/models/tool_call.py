@@ -7,14 +7,14 @@ from typing import TYPE_CHECKING
 from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, UUIDPrimaryKeyMixin
+from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import ToolCallStatus
 
 if TYPE_CHECKING:
     from app.models.execution import Execution
 
 
-class ToolCall(UUIDPrimaryKeyMixin, Base):
+class ToolCall(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """ToolCall（工具调用审计日志）。"""
 
     __tablename__ = "tool_calls"

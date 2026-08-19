@@ -215,7 +215,7 @@ def test_delete_document_rejects_other_org():
 def test_usage_returns_token_and_cost_summary():
     session = FakeSession(
         execute_results=[
-            FakeResult(one=(12, 1000, 500, 0.25)),
+            FakeResult(one=(12, 1000, 500, 0.25, 1)),
             FakeResult(one=(300, 0.03)),
         ]
     )
@@ -228,6 +228,7 @@ def test_usage_returns_token_and_cost_summary():
         "total_output_tokens": 500,
         "total_tokens": 1500,
         "total_cost": 0.25,
+        "cost_unknown_executions": 1,
         "today_tokens": 300,
         "today_cost": 0.03,
     }

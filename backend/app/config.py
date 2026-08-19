@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     SHADOW_MODE: bool = False
     REAL_EFFECT_MODE: bool = False
     RUNTIME_MODE: str = "legacy"
+    RECONCILE_PENDING_EXECUTION_MINUTES: int = 30
+    RECONCILE_TOOLCALL_MINUTES: int = 30
+    CHECKPOINT_RETENTION_DAYS: int = 7
+    ALERT_DLQ_MIN: int = 5
+    ALERT_PENDING_MIN: int = 5
+    ALERT_LATENCY_P95_MS: int = 5000
+    ALERT_FALLBACK_RATE: float = 0.5
+    ALERT_COOLDOWN_MINUTES: int = 15
     EMBEDDING_PROVIDER: str = "ollama"
     EMBEDDING_MODEL: str = "nomic-embed-text:latest"
     EMBEDDING_BASE_URL: str = "http://127.0.0.1:11434"

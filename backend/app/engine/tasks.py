@@ -40,9 +40,21 @@ celery_app.conf.beat_schedule = {
         "task": "agenthub.evaluate_all_rules",
         "schedule": 60.0,
     },
+    "evaluate-production-alerts": {
+        "task": "agenthub.evaluate_production_alerts",
+        "schedule": 60.0,
+    },
     "mark-stale-executions": {
         "task": "agenthub.mark_stale_executions",
         "schedule": 120.0,
+    },
+    "reconcile-state": {
+        "task": "agenthub.reconcile_state",
+        "schedule": 300.0,
+    },
+    "cleanup-checkpoints": {
+        "task": "agenthub.cleanup_checkpoints",
+        "schedule": 3600.0,
     },
 }
 
@@ -145,3 +157,42 @@ def mark_stale_executions_task() -> int:
             return result.rowcount or 0
 
     return asyncio.run(_mark())
+
+
+@celery_app.task(name="agenthub.reconcile_state")
+def reconcile_state_task() -> dict:
+    from app.engine.reconciliation import (
+        reconcile_stale_pending_executions,
+        reconcile_tool_calls,
+    )
+
+    async def _run() -> dict:
+        executions = await reconcile_stale_pending_executions()
+        tool_calls = await reconcile_tool_calls()
+        return {"executions": executions, "tool_calls": tool_calls}
+
+    return asyncio.run(_run())
+
+
+@celery_app.task(name="agenthub.cleanup_checkpoints")
+def cleanup_checkpoints_task() -> dict:
+    from app.engine.reconciliation import cleanup_old_checkpoints
+
+    return asyncio.run(cleanup_old_checkpoints())
+
+
+@celery_app.task(name="agenthub.evaluate_production_alerts")
+def evaluate_production_alerts_task() -> int:
+    from app.core.production_alerts import run_production_alerts
+    from app.core.production_metrics import update_production_gauges
+
+    async def _run() -> tuple[int, dict]:
+        from app.core.production_alerts import collect_production_metrics
+
+        metrics = await collect_production_metrics()
+        update_production_gauges(metrics)
+        created = await run_production_alerts()
+        return len(created), metrics
+
+    created, _metrics = asyncio.run(_run())
+    return created
