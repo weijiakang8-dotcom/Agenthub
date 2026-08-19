@@ -360,6 +360,46 @@ def test_crash_after_claim_never_reinvokes_provider(monkeypatch):
     asyncio.run(main())
 
 
+def test_tool_level_duplicate_is_recorded_as_success(monkeypatch):
+    async def main() -> None:
+        conn = await asyncpg.connect(_sync_url())
+        org_id, user_id, workflow_id, execution_id = await _setup(conn)
+
+        async def duplicate_invoke(tool_name, params, organization_id=None):
+            return {
+                "status": "duplicate",
+                "data": {"to": params.get("to"), "subject": params.get("subject")},
+                "error": None,
+            }
+
+        monkeypatch.setattr(tool_executor, "_invoke_with_retry", duplicate_invoke)
+        try:
+            params = _email_params()
+            first = await tool_executor.execute_tool("send_email", params, execution_id)
+            assert first["status"] == "duplicate"
+            row = await conn.fetchrow(
+                "SELECT status, output_result FROM tool_calls WHERE execution_id=$1",
+                execution_id,
+            )
+            assert row["status"] == "success"
+            assert json.loads(row["output_result"])["status"] == "duplicate"
+            second = await tool_executor.execute_tool(
+                "send_email", params, execution_id
+            )
+            assert second["status"] == "duplicate"
+        finally:
+            await _cleanup(
+                conn,
+                execution_id=execution_id,
+                workflow_id=workflow_id,
+                user_id=user_id,
+                org_id=org_id,
+            )
+            await conn.close()
+
+    asyncio.run(main())
+
+
 def test_frozen_proposal_mismatch_aborts_with_audit():
     async def main() -> None:
         conn = await asyncpg.connect(_sync_url())
