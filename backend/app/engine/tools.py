@@ -252,21 +252,37 @@ def _send_email_sync(to: str, subject: str, body: str) -> dict:
 
 @tool
 async def send_email(to: str, subject: str, body: str) -> dict:
-    """Send an email via SMTP. Requires human approval before execution."""
+    """Send an email via the configured provider (SMTP preferred, Resend fallback).
+
+    Requires human approval before execution. 复用系统已有的邮件 Provider 配置，
+    不引入新邮件架构。
+    """
     try:
-        result = await asyncio.to_thread(_send_email_sync, to, subject, body)
+        if settings.SMTP_HOST:
+            result = await asyncio.to_thread(_send_email_sync, to, subject, body)
+        else:
+            from app.core.email import send_email as _send_via_email_service
+
+            result = await _send_via_email_service(to, subject, body)
         if result.get("status") == "duplicate":
             return {
                 "status": "duplicate",
                 "data": {"to": to, "subject": subject},
                 "error": None,
             }
+        if result.get("ok") is False:
+            return {
+                "status": "failed",
+                "data": None,
+                "error": str(result.get("error")),
+            }
+        message_id = result.get("message_id") or (result.get("data") or {}).get("id")
         return {
             "status": "success",
             "data": {
                 "to": to,
                 "subject": subject,
-                "message_id": result.get("message_id"),
+                "message_id": message_id,
             },
             "error": None,
         }
