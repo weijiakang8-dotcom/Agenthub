@@ -656,6 +656,56 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
                 {"event": "waiting_for_approval", "checkpoint": interrupt_value},
             )
             return
+        if result.get("approval_rejected"):
+            await _update_status(
+                execution_id,
+                ExecutionStatus.FAILED,
+                error_message=result.get("final_output") or "approval rejected",
+            )
+            await publish_execution_event(
+                str(execution_id),
+                {
+                    "event": "execution_failed",
+                    "error": result.get("final_output") or "approval rejected",
+                    "error_type": "approval_rejected",
+                },
+            )
+            return
+        if result.get("budget_exceeded"):
+            error_message = f"budget_exceeded: {result.get('final_output') or ''}"
+            await _update_status(
+                execution_id,
+                ExecutionStatus.FAILED,
+                final_output=result.get("final_output"),
+                error_message=error_message,
+            )
+            await publish_execution_event(
+                str(execution_id),
+                {
+                    "event": "execution_failed",
+                    "error": error_message,
+                    "error_type": "budget_exceeded",
+                    "hard": bool(result.get("hard_stop")),
+                },
+            )
+            return
+        if result.get("side_effect_failure"):
+            error_message = result.get("final_output") or "side_effect_failure"
+            await _update_status(
+                execution_id,
+                ExecutionStatus.FAILED,
+                final_output=result.get("final_output"),
+                error_message=error_message,
+            )
+            await publish_execution_event(
+                str(execution_id),
+                {
+                    "event": "execution_failed",
+                    "error": error_message,
+                    "error_type": "side_effect_failure",
+                },
+            )
+            return
         terminal_committed = await _update_status(
             execution_id,
             ExecutionStatus.COMPLETED,
