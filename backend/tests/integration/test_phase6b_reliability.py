@@ -584,3 +584,54 @@ def test_metrics_endpoint_exposes_production_gauges(monkeypatch):
         assert "agenthub_pending_executions 2.0" in body
 
     asyncio.run(main())
+
+
+def test_baseline_report_is_read_only_and_derivable():
+    async def main() -> None:
+        from app.core import baseline_report
+
+        conn = await asyncpg.connect(_sync_url())
+        org_id, user_id, workflow_id = await _setup(conn)
+        ok = await _insert_execution(
+            conn, workflow_id, org_id, user_id, status="completed"
+        )
+        bad = await _insert_execution(
+            conn, workflow_id, org_id, user_id, status="failed"
+        )
+        try:
+            db = await asyncpg.connect(_sync_url())
+            await db.execute(
+                "UPDATE executions SET intent=$2::json WHERE id=$1",
+                ok,
+                json.dumps({"category": "CHAT"}),
+            )
+            await db.execute(
+                "UPDATE executions SET intent=$2::json, error_message='x' "
+                "WHERE id=$1",
+                bad,
+                json.dumps({"category": "KNOWLEDGE"}),
+            )
+            await db.close()
+            start = datetime.now(timezone.utc) - timedelta(minutes=5)
+            report = await baseline_report.build_baseline_report(
+                start_time=start, end_time=datetime.now(timezone.utc)
+            )
+            assert report["requests"]["total"] >= 2
+            assert report["requests"]["chat"] >= 1
+            assert report["requests"]["knowledge"] >= 1
+            assert report["error"]["execution_failed"] >= 1
+            assert isinstance(report["tokens"], dict)
+            assert "POST_DEPLOY_BASELINE" in baseline_report.render_baseline_report(
+                report
+            )
+        finally:
+            await _cleanup(
+                conn,
+                executions=[ok, bad],
+                workflow_id=workflow_id,
+                user_id=user_id,
+                org_id=org_id,
+            )
+            await conn.close()
+
+    asyncio.run(main())
