@@ -555,3 +555,32 @@ def test_gateway_cross_provider_fallback_control_flow():
         assert metadata.get("cost") is not None
 
     asyncio.run(main())
+
+
+def test_metrics_endpoint_exposes_production_gauges(monkeypatch):
+    async def main() -> None:
+        from app.main import app
+        from fastapi.testclient import TestClient
+
+        metrics = {
+            "dlq_count": 7,
+            "pending_executions": 2,
+            "in_flight_tool_calls": 0,
+            "approval_mismatch_24h": 0,
+            "side_effect_unknown_24h": 0,
+            "llm_calls_24h": 10,
+            "llm_fallback_rate": 0.0,
+            "llm_latency_p95_ms": None,
+            "database_ok": True,
+            "redis_ok": True,
+        }
+        monkeypatch.setattr(
+            "app.api.routes.metrics.collect_production_metrics",
+            lambda: _fake_collect(metrics),
+        )
+        client = TestClient(app)
+        body = client.get("/metrics").text
+        assert "agenthub_dlq_count 7.0" in body
+        assert "agenthub_pending_executions 2.0" in body
+
+    asyncio.run(main())
