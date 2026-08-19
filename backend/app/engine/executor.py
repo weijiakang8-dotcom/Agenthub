@@ -139,9 +139,13 @@ def replan_read_only(
     ):
         # 任何 side_effect_proposals 字段变化 → 新 plan + 新 approval
         return None
-    if original_proposals and not candidate_proposals:
-        # 只读 replan 继承同一份冻结提案（不允许改变）
-        candidate = {**candidate, "side_effect_proposals": list(original_proposals)}
+    # 只读 replan：goal/risk 与冻结提案保持不变（plan_hash 稳定，避免误触发新审批）
+    candidate = {
+        **candidate,
+        "goal": original.get("goal"),
+        "risk": original.get("risk"),
+        "side_effect_proposals": list(original_proposals),
+    }
     valid, _errors = validate_plan(candidate)
     if not valid:
         return None

@@ -221,6 +221,9 @@ def test_replan_read_only_keeps_frozen_proposals():
     assert same_side_effect_proposals(
         accepted["side_effect_proposals"], original["side_effect_proposals"]
     )
+    assert accepted["goal"] == original["goal"]
+    assert accepted["risk"] == original["risk"]
+    assert planner.compute_plan_hash(accepted) == planner.compute_plan_hash(original)
 
 
 def test_resume_with_modified_plan_is_rejected():
