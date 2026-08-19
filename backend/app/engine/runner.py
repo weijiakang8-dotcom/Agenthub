@@ -487,6 +487,7 @@ async def run_execution(execution_id: uuid.UUID) -> None:
         "approval_rejected": False,
         "side_effect_failure": False,
         "approved_plan_hash": None,
+        "approved_approval_id": None,
     }
     config = {"configurable": {"thread_id": str(execution_id)}, "recursion_limit": 100}
 

@@ -2,19 +2,54 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 
 from app.core.failure import TOOL_RETRY_POLICY, classify_error, should_retry
 from app.database import async_session_factory
+from app.engine.canonical import params_canonical
 from app.engine.event_bus import publish_execution_event
 from app.engine.observability import record_span
 from app.engine.tool_registry import get_tool
 from app.models import Execution, ToolCall, utcnow
 from app.models.enums import ToolCallStatus
+
+
+def make_idempotency_key(
+    execution_id: str | uuid.UUID,
+    tool_name: str,
+    params: dict[str, Any],
+) -> str:
+    """Frozen Contract：sha256(execution_id + tool_name + params_canonical)。"""
+    payload = params_canonical(params or {}, tool_name=tool_name)
+    return hashlib.sha256(
+        f"{execution_id}\0{tool_name}\0{payload}".encode()
+    ).hexdigest()
+
+
+def idempotency_decision(status: str | None, *, has_key: bool) -> str:
+    """确定性状态机：根据 tool_calls 行状态决定动作。"""
+    if status is None:
+        return "execute_new"
+    if status == ToolCallStatus.PENDING.value:
+        return "claim" if has_key else "unknown"
+    if status == ToolCallStatus.IN_FLIGHT.value:
+        return "unknown"
+    if status == ToolCallStatus.SUCCESS.value:
+        return "duplicate"
+    if status == ToolCallStatus.FAILED.value:
+        return "failed"
+    if status == ToolCallStatus.REJECTED.value:
+        return "rejected"
+    # APPROVED 等历史状态：无法证明 provider 是否被调用 → fail-closed
+    return "unknown"
+
+
+def claim_allowed(status: str | None, *, has_key: bool) -> bool:
+    return status == ToolCallStatus.PENDING.value and has_key
 
 
 async def create_tool_call(
@@ -26,6 +61,8 @@ async def create_tool_call(
     idempotency_key: str | None = None,
 ) -> ToolCall:
     """创建 pending 状态的 ToolCall 审计记录。"""
+    if not idempotency_key:
+        idempotency_key = make_idempotency_key(execution_id, tool_name, params)
     async with async_session_factory() as session:
         execution = await session.get(Execution, uuid.UUID(str(execution_id)))
         tool_call = ToolCall(
@@ -41,6 +78,95 @@ async def create_tool_call(
         await session.commit()
         await session.refresh(tool_call)
         return tool_call
+
+
+async def _find_by_key(
+    execution_id: uuid.UUID,
+    idempotency_key: str,
+) -> ToolCall | None:
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(ToolCall).where(
+                ToolCall.execution_id == execution_id,
+                ToolCall.idempotency_key == idempotency_key,
+            )
+        )
+        return result.scalars().first()
+
+
+async def _find_legacy_ambiguous(
+    execution_id: uuid.UUID,
+    tool_name: str,
+    params: dict[str, Any],
+) -> ToolCall | None:
+    """历史无 key 行（PENDING/APPROVED/IN_FLIGHT）：无法证明未调用 provider。"""
+    async with async_session_factory() as session:
+        result = await session.execute(
+            select(ToolCall).where(
+                ToolCall.execution_id == execution_id,
+                ToolCall.tool_name == tool_name,
+                ToolCall.idempotency_key.is_(None),
+                ToolCall.status.in_(
+                    [
+                        ToolCallStatus.PENDING,
+                        ToolCallStatus.APPROVED,
+                        ToolCallStatus.IN_FLIGHT,
+                    ]
+                ),
+            )
+        )
+        for row in result.scalars().all():
+            if params_canonical(
+                row.input_params or {}, tool_name=tool_name
+            ) == params_canonical(params, tool_name=tool_name):
+                return row
+    return None
+
+
+async def _claim_tool_call(tool_call_id: uuid.UUID) -> bool:
+    """原子 claim：PENDING → IN_FLIGHT，事务提交后才允许调用 provider。"""
+    async with async_session_factory() as session:
+        result = await session.execute(
+            update(ToolCall)
+            .where(
+                ToolCall.id == tool_call_id,
+                ToolCall.status == ToolCallStatus.PENDING,
+            )
+            .values(status=ToolCallStatus.IN_FLIGHT, started_at=utcnow())
+            .returning(ToolCall.id)
+        )
+        await session.commit()
+        return result.scalar_one_or_none() is not None
+
+
+def _decision_result(decision: str, row: ToolCall | None) -> dict[str, Any]:
+    if decision == "duplicate" and row is not None:
+        return {
+            "status": "duplicate",
+            "data": row.output_result,
+            "error": None,
+            "idempotent": True,
+        }
+    if decision == "failed" and row is not None:
+        return {
+            "status": "failed",
+            "data": None,
+            "error": str((row.output_result or {}).get("error") or "already failed"),
+            "idempotent": True,
+        }
+    if decision == "rejected":
+        return {
+            "status": "rejected",
+            "data": None,
+            "error": "Rejected by human",
+            "idempotent": True,
+        }
+    return {
+        "status": "unknown",
+        "data": None,
+        "error": "side effect state unknown; fail-closed (no provider call)",
+        "idempotent": True,
+    }
 
 
 async def _finish_tool_call(
@@ -129,59 +255,66 @@ async def execute_tool(
 ) -> dict[str, Any]:
     """执行工具并写入完整审计记录。"""
     spec = get_tool(tool_name)
-    idempotency_key = hashlib.sha256(
-        json.dumps(
-            {
-                "execution_id": str(execution_id),
-                "tool": tool_name,
-                "params": params,
-            },
-            sort_keys=True,
-            default=str,
-        ).encode()
-    ).hexdigest()
-    async with async_session_factory() as session:
-        existing = await session.execute(
-            select(ToolCall)
-            .where(
-                ToolCall.execution_id == uuid.UUID(str(execution_id)),
-                ToolCall.idempotency_key == idempotency_key,
-                ToolCall.status == ToolCallStatus.SUCCESS,
-            )
-            .limit(1)
-        )
-        duplicate = existing.scalars().first()
-    if duplicate is not None:
-        return {
-            "status": "duplicate",
-            "data": duplicate.output_result,
-            "error": None,
-        }
+    execution_uuid = uuid.UUID(str(execution_id))
+    idempotency_key = make_idempotency_key(execution_id, tool_name, params)
 
-    tool_call = await create_tool_call(
-        tool_name,
-        params,
-        execution_id,
-        requires_approval=bool(spec and spec.requires_approval),
-        idempotency_key=idempotency_key,
+    row = await _find_by_key(execution_uuid, idempotency_key)
+    decision = idempotency_decision(
+        row.status.value if row else None,
+        has_key=bool(row and row.idempotency_key),
     )
+    if row is not None and decision in ("duplicate", "failed", "rejected", "unknown"):
+        return _decision_result(decision, row)
 
-    async with async_session_factory() as session:
-        record = await session.get(ToolCall, tool_call.id)
-        if record is not None:
-            record.started_at = utcnow()
-            await session.commit()
+    # 历史无 key 的歧义行：禁止自动重放
+    legacy = await _find_legacy_ambiguous(execution_uuid, tool_name, params)
+    if legacy is not None:
+        return _decision_result("unknown", legacy)
+
+    if row is None:
+        try:
+            row = await create_tool_call(
+                tool_name,
+                params,
+                execution_id,
+                requires_approval=bool(spec and spec.requires_approval),
+                idempotency_key=idempotency_key,
+            )
+        except IntegrityError:
+            # 并发创建：唯一索引保证同键单行；按已有行状态机处理
+            row = await _find_by_key(execution_uuid, idempotency_key)
+            decision = idempotency_decision(
+                row.status.value if row else None,
+                has_key=bool(row and row.idempotency_key),
+            )
+            if row is not None and decision in (
+                "duplicate",
+                "failed",
+                "rejected",
+                "unknown",
+            ):
+                return _decision_result(decision, row)
+            if row is None:
+                return _decision_result("unknown", None)
+
+    if not await _claim_tool_call(row.id):
+        row = await _find_by_key(execution_uuid, idempotency_key)
+        decision = idempotency_decision(
+            row.status.value if row else None,
+            has_key=bool(row and row.idempotency_key),
+        )
+        return _decision_result(decision, row)
 
     await publish_execution_event(
         str(execution_id),
         {
             "event": "tool_call",
-            "tool_call_id": str(tool_call.id),
+            "tool_call_id": str(row.id),
             "tool": tool_name,
             "params": params,
         },
     )
-    result = await _invoke_with_retry(tool_name, params, tool_call.organization_id)
+    result = await _invoke_with_retry(tool_name, params, row.organization_id)
     await record_span(
         trace_id=str(execution_id),
         name="tool",
@@ -197,13 +330,13 @@ async def execute_tool(
         str(execution_id),
         {
             "event": "tool_result",
-            "tool_call_id": str(tool_call.id),
+            "tool_call_id": str(row.id),
             "tool": tool_name,
             "status": result.get("status"),
             "result": result,
         },
     )
-    await _finish_tool_call(tool_call.id, result)
+    await _finish_tool_call(row.id, result)
     return result
 
 
@@ -214,42 +347,23 @@ async def execute_pending_tool_call(tool_call_id: uuid.UUID) -> dict[str, Any]:
         if tool_call is None:
             return {"status": "failed", "data": None, "error": "ToolCall not found"}
 
-        idempotency_key = (
-            tool_call.idempotency_key
-            or hashlib.sha256(
-                json.dumps(
-                    {
-                        "execution_id": str(tool_call.execution_id),
-                        "tool": tool_call.tool_name,
-                        "params": tool_call.input_params or {},
-                    },
-                    sort_keys=True,
-                    default=str,
-                ).encode()
-            ).hexdigest()
+    decision = idempotency_decision(
+        tool_call.status.value,
+        has_key=bool(tool_call.idempotency_key),
+    )
+    if decision in ("duplicate", "failed", "rejected", "unknown"):
+        return _decision_result(decision, tool_call)
+    if not await _claim_tool_call(tool_call.id):
+        async with async_session_factory() as session:
+            tool_call = await session.get(ToolCall, tool_call_id)
+        decision = idempotency_decision(
+            tool_call.status.value if tool_call else None,
+            has_key=bool(tool_call and tool_call.idempotency_key),
         )
-        existing = await session.execute(
-            select(ToolCall)
-            .where(
-                ToolCall.execution_id == tool_call.execution_id,
-                ToolCall.tool_name == tool_call.tool_name,
-                ToolCall.idempotency_key == idempotency_key,
-                ToolCall.status == ToolCallStatus.SUCCESS,
-                ToolCall.id != tool_call.id,
-            )
-            .limit(1)
-        )
-        if existing.scalars().first() is not None:
-            return {
-                "status": "duplicate",
-                "data": None,
-                "error": "already executed (idempotent)",
-            }
+        return _decision_result(decision, tool_call)
 
-        tool_name = tool_call.tool_name
-        params = tool_call.input_params or {}
-        tool_call.started_at = utcnow()
-        await session.commit()
+    tool_name = tool_call.tool_name
+    params = tool_call.input_params or {}
 
     await publish_execution_event(
         str(tool_call.execution_id),

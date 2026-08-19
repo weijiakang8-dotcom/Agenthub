@@ -23,6 +23,7 @@ class ExecutionStatus(str, enum.Enum):
 
 class ToolCallStatus(str, enum.Enum):
     PENDING = "pending"
+    IN_FLIGHT = "in_flight"
     SUCCESS = "success"
     FAILED = "failed"
     APPROVED = "approved"

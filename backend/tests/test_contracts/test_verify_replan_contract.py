@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
+from app.engine.canonical import params_canonical
 from app.engine.executor import (
     Approval,
     execute_with_gates,
@@ -26,8 +27,11 @@ def _step(step_id, capability, *, side_effect=None, depends_on=None, output_name
     return spec
 
 
-def _plan(risk, steps):
-    return {"goal": "任务", "risk": risk, "steps": steps}
+def _plan(risk, steps, proposals=None):
+    plan = {"goal": "任务", "risk": risk, "steps": steps}
+    if proposals is not None:
+        plan["side_effect_proposals"] = proposals
+    return plan
 
 
 def _low_plan():
@@ -85,6 +89,7 @@ def _high_plan():
 
 
 def _side_effect_plan():
+    email_params = {"to": "test@example.com", "subject": "x", "body": "y"}
     return _plan(
         "SIDE_EFFECT",
         [
@@ -99,6 +104,17 @@ def _side_effect_plan():
                 "requires_approval": True,
             },
         ],
+        proposals=[
+            {
+                "step_id": "commit",
+                "capability": "send_email",
+                "tool": "send_email",
+                "params": email_params,
+                "params_canonical": params_canonical(
+                    email_params, tool_name="send_email"
+                ),
+            }
+        ],
     )
 
 
@@ -107,6 +123,7 @@ def _approval_for(plan):
         plan_hash=compute_plan_hash(plan),
         approval_id="approval-1",
         approved_side_effect_set=side_effect_step_ids(plan),
+        approved_proposals=tuple(plan.get("side_effect_proposals") or []),
     )
 
 

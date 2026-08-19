@@ -29,6 +29,13 @@ from langgraph.types import interrupt
 from app.core.circuit_breaker import llm_breaker
 from app.core.model_gateway import ModelGateway, get_chat_models
 from app.engine import tool_executor
+from app.engine.approval import (
+    ProposalInvalidError,
+    build_proposal,
+    proposal_mismatch_reason,
+    proposals_from_plan,
+    resume_approval_decision,
+)
 from app.engine.capabilities import (
     APPROVAL_REQUIRED_TOOLS,
     CAPABILITIES,
@@ -79,6 +86,7 @@ class AgentState(TypedDict, total=False):
     approval_rejected: bool
     side_effect_failure: bool
     approved_plan_hash: str | None
+    approved_approval_id: str | None
 
 
 _gateway = ModelGateway()
@@ -198,6 +206,152 @@ async def _prepare_node(state: AgentState) -> dict[str, Any]:
     return {"messages": messages}
 
 
+async def _propose_side_effect_calls(
+    plan_result: dict[str, Any],
+    state: AgentState,
+) -> list[dict[str, Any]]:
+    """审批前生成并冻结副作用提案：每个 side_effect step 恰好一次 tool call。"""
+    proposals: list[dict[str, Any]] = []
+    for step in plan_result.get("steps") or []:
+        if not bool(step.get("side_effect")):
+            continue
+        capability = CAPABILITIES.get(str(step.get("capability") or ""))
+        if capability is None:
+            raise ProposalInvalidError(f"unknown capability {step.get('capability')}")
+        tools = list(capability.tools)
+        if not tools:
+            raise ProposalInvalidError(
+                f"capability {capability.name} declares no tools"
+            )
+        llms = await _get_llms(
+            state.get("organization_id"),
+            complexity=state.get("complexity") or "simple",
+            user_id=state.get("user_id"),
+        )
+        bound_llms = [llm.bind_tools(tools) for llm in llms]
+        messages: list[BaseMessage] = [SystemMessage(content=capability.system_prompt)]
+        messages.extend(state.get("messages") or [])
+        if not any(isinstance(message, HumanMessage) for message in messages):
+            messages.append(HumanMessage(content=state.get("user_input", "")))
+        response = await _gateway.invoke(
+            bound_llms,
+            messages,
+            task_type=f"propose:{capability.name}",
+            organization_id=state.get("organization_id"),
+            correlation_id=state.get("execution_id"),
+        )
+        calls = getattr(response, "tool_calls", None) or []
+        if len(calls) != 1:
+            raise ProposalInvalidError(
+                f"side-effect step {step.get('step_id')} must propose exactly one "
+                f"tool call (got {len(calls)})"
+            )
+        call = calls[0]
+        tool_name = str(call.get("name") or "")
+        tool_args = dict(call.get("args") or {})
+        tool_names = {getattr(tool, "name", "") for tool in tools}
+        if tool_name not in tool_names:
+            raise ProposalInvalidError(
+                f"proposed tool {tool_name} not in capability {capability.name}"
+            )
+        proposals.append(
+            build_proposal(
+                step_id=str(step.get("step_id") or ""),
+                capability=capability.name,
+                tool=tool_name,
+                params=tool_args,
+            ).to_dict()
+        )
+    return proposals
+
+
+async def _execute_frozen_side_effect(
+    state: AgentState,
+    step: dict[str, Any],
+    execution_id: str,
+) -> tuple[dict[str, Any], bool]:
+    """按冻结提案执行副作用；任何不一致 → approval_mismatch → FAILED。"""
+    plan_result = (state.get("plan_meta") or {}).get("plan") or {}
+    proposals = proposals_from_plan(plan_result)
+    proposal = next(
+        (item for item in proposals if item.step_id == step.get("step_id")), None
+    )
+    if proposal is None:
+        reason = f"missing side-effect proposal for step {step.get('step_id')}"
+        await audit_execution_event(
+            execution_id=execution_id,
+            action="approval_mismatch",
+            organization_id=state.get("organization_id"),
+            user_id=state.get("user_id"),
+            details={"step_id": step.get("step_id"), "reason": reason},
+        )
+        return {
+            "side_effect_failure": True,
+            "final_output": f"approval_mismatch: {reason}",
+            "current_step": len(state.get("plan") or []),
+        }, False
+    mismatch = proposal_mismatch_reason(
+        proposal.to_dict(), proposal.tool, proposal.params
+    )
+    if mismatch is not None:
+        await audit_execution_event(
+            execution_id=execution_id,
+            action="approval_mismatch",
+            organization_id=state.get("organization_id"),
+            user_id=state.get("user_id"),
+            details={"step_id": step.get("step_id"), "reason": mismatch},
+        )
+        return {
+            "side_effect_failure": True,
+            "final_output": f"approval_mismatch: {mismatch}",
+            "current_step": len(state.get("plan") or []),
+        }, False
+
+    result = await tool_executor.execute_tool(
+        proposal.tool, proposal.params, execution_id
+    )
+    status = str(result.get("status") or "failed")
+    if status == "unknown":
+        error_text = str(result.get("error") or "side effect state unknown")
+        await audit_execution_event(
+            execution_id=execution_id,
+            action="side_effect_unknown",
+            organization_id=state.get("organization_id"),
+            user_id=state.get("user_id"),
+            details={
+                "step_id": step.get("step_id"),
+                "capability": step.get("capability"),
+                "tool": proposal.tool,
+                "error": error_text,
+            },
+        )
+        return {
+            "side_effect_failure": True,
+            "final_output": f"side_effect_unknown: {error_text}",
+            "current_step": len(state.get("plan") or []),
+        }, False
+    if status not in ("success", "duplicate"):
+        error_text = str(result.get("error") or "side effect failed")
+        await audit_execution_event(
+            execution_id=execution_id,
+            action="side_effect_failure",
+            organization_id=state.get("organization_id"),
+            user_id=state.get("user_id"),
+            details={
+                "step_id": step.get("step_id"),
+                "capability": step.get("capability"),
+                "tool": proposal.tool,
+                "error": error_text,
+            },
+        )
+        return {
+            "side_effect_failure": True,
+            "final_output": f"side_effect_failure: {error_text}",
+            "current_step": len(state.get("plan") or []),
+        }, False
+    return result, True
+
+
 async def _plan_node(state: AgentState) -> dict[str, Any]:
     execution_id = state.get("execution_id") or ""
     intent_category = str((state.get("intent") or {}).get("category") or "TASK")
@@ -272,6 +426,30 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
         )
         raise PlanInvalidError(reason)
 
+    has_side_effects = any(
+        bool(step.get("side_effect")) for step in plan_result.get("steps") or []
+    )
+    if has_side_effects and not plan_result.get("side_effect_proposals"):
+        # 提案必须在 Approval 前生成并冻结；Approval 后不得重新生成
+        try:
+            plan_result["side_effect_proposals"] = await _propose_side_effect_calls(
+                plan_result, state
+            )
+        except ProposalInvalidError as exc:
+            reason = str(exc)
+            await audit_execution_event(
+                execution_id=execution_id,
+                action="proposal_invalid",
+                organization_id=state.get("organization_id"),
+                user_id=state.get("user_id"),
+                details={"reason": reason},
+            )
+            await publish_execution_event(
+                execution_id,
+                {"event": "error", "error_type": "proposal_invalid", "message": reason},
+            )
+            raise PlanInvalidError(reason) from exc
+
     valid, errors = validate_before_approval(
         plan_result, intent_category=intent_category
     )
@@ -293,30 +471,53 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
     plan = plan_result["steps"]
     plan_hash = compute_plan_hash(plan_result)
     side_effects = list(side_effect_step_ids(plan_result))
-    approved = state.get("approved_plan_hash") == plan_hash
+    approved = state.get("approved_plan_hash") == plan_hash and bool(
+        state.get("approved_approval_id")
+    )
+    if side_effects and approved:
+        plan_meta_approval_id = (state.get("plan_meta") or {}).get("approval_id")
+        if (
+            plan_meta_approval_id
+            and state.get("approved_approval_id") != plan_meta_approval_id
+        ):
+            reason = "approval_id mismatch"
+            await audit_execution_event(
+                execution_id=execution_id,
+                action="approval_mismatch",
+                organization_id=state.get("organization_id"),
+                user_id=state.get("user_id"),
+                details={"reason": reason},
+            )
+            raise PlanInvalidError(reason)
     plan_meta = {
         "plan": plan_result,
         "plan_hash": plan_hash,
         "side_effect_set": side_effects,
         "risk": plan_result.get("risk"),
         "approved": approved,
+        "approval_id": (state.get("plan_meta") or {}).get("approval_id"),
     }
 
     if side_effects and not approved:
-        # 计划级审批：执行前冻结副作用步骤集合
+        approval_id = uuid.uuid4().hex
+        plan_meta = {**plan_meta, "approval_id": approval_id}
+        # 计划级审批：执行前冻结副作用步骤集合与参数提案
         pending = {
             "type": "plan_approval",
             "plan_hash": plan_hash,
+            "approval_id": approval_id,
             "side_effect_set": side_effects,
+            "side_effect_proposals": plan_result.get("side_effect_proposals") or [],
             "goal": plan_result.get("goal"),
         }
         await publish_execution_event(
             execution_id,
             {
                 "event": "approval_required",
-                "approval_id": plan_hash,
+                "approval_id": approval_id,
                 "plan_hash": plan_hash,
                 "side_effect_set": side_effects,
+                "side_effect_proposals": plan_result.get("side_effect_proposals") or [],
                 "plan": plan,
             },
         )
@@ -469,6 +670,57 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
         bound_llms = [llm.bind_tools(tools) for llm in llms] if tools else llms
 
         if tools:
+            current_step = (
+                (state.get("plan") or [])[index]
+                if index < len(state.get("plan") or [])
+                else {}
+            )
+            if current_step.get("side_effect"):
+                # Phase 6A：副作用步骤执行冻结提案，恰好一次 tool call
+                effect_result, effect_ok = await _execute_frozen_side_effect(
+                    state, current_step, execution_id
+                )
+                if not effect_ok:
+                    return effect_result
+                final_output = str(
+                    effect_result.get("data") or effect_result.get("error") or "done"
+                )
+                await publish_execution_event(
+                    execution_id,
+                    {
+                        "event": "step",
+                        "node": name,
+                        "step_index": index,
+                        "status": "completed",
+                        "output": final_output,
+                    },
+                )
+                await record_span(
+                    trace_id=execution_id or None,
+                    name="step",
+                    start=step_start,
+                    end=time.perf_counter(),
+                    status="ok",
+                    details={
+                        "step_id": index,
+                        "capability": name,
+                        "side_effect": True,
+                    },
+                )
+                return {
+                    "messages": state.get("messages") or [],
+                    "current_step": index + 1,
+                    "final_output": final_output,
+                    "node_outputs": {
+                        **(state.get("node_outputs") or {}),
+                        str(current_step.get("step_id") or index): effect_result,
+                    },
+                    "llm_usage": state.get("llm_usage") or [],
+                    "budget_used": {
+                        **budget,
+                        "steps": int(budget.get("steps", 0)) + 1,
+                    },
+                }
             response = await _gateway.invoke(
                 bound_llms,
                 messages,
@@ -700,42 +952,34 @@ async def _waiting_for_approval_node(state: AgentState) -> dict[str, Any]:
     tool_result: dict[str, Any] | None = None
 
     if pending.get("type") == "plan_approval":
-        if rejected:
-            return {
-                "pending_approval": None,
-                "approval_rejected": True,
-                "current_step": len(state.get("plan") or []),
-                "final_output": "Rejected by human: plan approval",
-            }
-        modified_plan = (
-            decision.get("comment")
-            if isinstance(decision, dict) and decision.get("comment")
-            else None
+        ok, reason = resume_approval_decision(
+            decision if isinstance(decision, dict) else {}
         )
-        if modified_plan:
+        if not ok:
             await audit_execution_event(
                 execution_id=state.get("execution_id") or "",
-                action="approval_mismatch",
+                action=(
+                    "approval_mismatch" if "mismatch" in reason else "approval_rejected"
+                ),
                 organization_id=state.get("organization_id"),
                 user_id=state.get("user_id"),
-                details={
-                    "reason": "approval payload contains a modified plan; "
-                    "requires new plan + new approval",
-                },
+                details={"reason": reason},
             )
             return {
                 "pending_approval": None,
                 "approval_rejected": True,
                 "current_step": len(state.get("plan") or []),
-                "final_output": "Approval mismatch: requires new plan and new approval",
+                "final_output": f"approval_rejected: {reason}",
             }
         plan_hash = pending.get("plan_hash")
         return {
             "pending_approval": None,
             "approved_plan_hash": plan_hash,
+            "approved_approval_id": pending.get("approval_id"),
             "plan_meta": {
                 **(state.get("plan_meta") or {}),
                 "approved": True,
+                "approval_id": pending.get("approval_id"),
             },
             "current_step": state.get("current_step", 0),
         }

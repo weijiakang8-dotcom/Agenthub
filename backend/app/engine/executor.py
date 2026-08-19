@@ -17,6 +17,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.database import async_session_factory
+from app.engine.approval import (
+    same_side_effect_proposals,
+    validate_proposals,
+)
 from app.engine.observability import record_span
 from app.engine.planner import (
     compute_plan_hash,
@@ -84,6 +88,7 @@ class Approval:
     plan_hash: str
     approval_id: str
     approved_side_effect_set: tuple[str, ...]
+    approved_proposals: tuple[dict[str, Any], ...] = ()
     approved: bool = True
 
 
@@ -127,6 +132,16 @@ def replan_read_only(
         return None
     if side_effect_step_ids(original) != side_effect_step_ids(candidate):
         return None
+    original_proposals = original.get("side_effect_proposals") or []
+    candidate_proposals = candidate.get("side_effect_proposals") or []
+    if candidate_proposals and not same_side_effect_proposals(
+        original_proposals, candidate_proposals
+    ):
+        # 任何 side_effect_proposals 字段变化 → 新 plan + 新 approval
+        return None
+    if original_proposals and not candidate_proposals:
+        # 只读 replan 继承同一份冻结提案（不允许改变）
+        candidate = {**candidate, "side_effect_proposals": list(original_proposals)}
     valid, _errors = validate_plan(candidate)
     if not valid:
         return None
@@ -142,6 +157,9 @@ def validate_before_approval(
         return False, errors
     if intent_category == "ACTION" and not has_side_effects(plan):
         return False, ["ACTION plan must contain side-effect steps"]
+    proposal_errors = validate_proposals(plan)
+    if proposal_errors:
+        return False, proposal_errors
     return True, []
 
 
@@ -216,6 +234,7 @@ async def execute_with_gates(
 
     plan_hash = compute_plan_hash(plan)
     side_effects = side_effect_step_ids(plan)
+    proposals = plan.get("side_effect_proposals") or []
     requires_approval = intent_category == "ACTION" or bool(side_effects)
 
     # 2) Approval（验证已通过后才允许）
@@ -231,6 +250,10 @@ async def execute_with_gates(
         if (
             approval.plan_hash != plan_hash
             or tuple(approval.approved_side_effect_set) != side_effects
+            or not approval.approval_id
+            or not same_side_effect_proposals(
+                tuple(approval.approved_proposals), proposals
+            )
         ):
             await _audit(
                 "approval_mismatch",
@@ -302,8 +325,13 @@ async def execute_with_gates(
                 },
             )
             if step.get("side_effect") and status != "success":
+                audit_action = (
+                    "side_effect_unknown"
+                    if status == "unknown"
+                    else "side_effect_failure"
+                )
                 await _audit(
-                    "side_effect_failure",
+                    audit_action,
                     step_id=step["step_id"],
                     capability=step["capability"],
                     error=result.get("error"),
@@ -311,7 +339,10 @@ async def execute_with_gates(
                 return ExecutionResult(
                     status="failed",
                     hard_stop=True,
-                    invalid_reason=f"side-effect step {step['step_id']} failed",
+                    invalid_reason=(
+                        f"side-effect step {step['step_id']} "
+                        f"{'unknown' if status == 'unknown' else 'failed'}"
+                    ),
                     plan_hash=plan_hash,
                     partial_result=node_outputs,
                     node_outputs=node_outputs,
