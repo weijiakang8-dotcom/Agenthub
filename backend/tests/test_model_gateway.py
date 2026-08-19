@@ -1,9 +1,56 @@
 from __future__ import annotations
 
 import asyncio
-from types import SimpleNamespace
+import uuid
 
 from app.core import model_gateway
+
+
+def test_select_returns_distinct_provider_configs(monkeypatch):
+    from app.models import ModelConfig
+
+    async def fake_models(organization_id):
+        def config(name, provider, base_url, model):
+            return ModelConfig(
+                id=uuid.uuid4(),
+                organization_id=None,
+                name=name,
+                provider=provider,
+                base_url=base_url,
+                api_key="sk-test",
+                model=model,
+                max_tokens=4096,
+                cost_per_1k_tokens=0.002,
+                priority=100,
+                timeout=120,
+                max_retries=2,
+                enabled=True,
+                is_active=True,
+                is_default=False,
+            )
+
+        return [
+            config("provider-a", "provider-a", "https://a.example/v1", "m-a"),
+            config("provider-b", "provider-b", "https://b.example/v1", "m-b"),
+        ]
+
+    monkeypatch.setattr(model_gateway, "list_active_models", fake_models)
+
+    async def fake_keys(user_id):
+        return []
+
+    monkeypatch.setattr(model_gateway, "list_user_api_keys", fake_keys)
+
+    llms = asyncio.run(
+        model_gateway.ModelGateway().select(organization_id=None, complexity="simple")
+    )
+    bases = {getattr(llm, "openai_api_base", None) for llm in llms}
+    models = {getattr(llm, "model_name", None) for llm in llms}
+    assert bases == {"https://a.example/v1", "https://b.example/v1"}
+    assert models == {"m-a", "m-b"}
+
+
+from types import SimpleNamespace
 
 
 def test_get_chat_models_orders_by_priority(monkeypatch):
