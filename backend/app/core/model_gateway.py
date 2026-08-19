@@ -184,6 +184,7 @@ class ModelGateway:
         status: str,
         input_tokens: int = 0,
         output_tokens: int = 0,
+        cost: float | None = None,
         error: str | None = None,
     ) -> None:
         logger.info(
@@ -201,6 +202,7 @@ class ModelGateway:
                     "status": status,
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
+                    "cost": cost,
                     "error": error,
                 },
                 ensure_ascii=False,
@@ -215,6 +217,41 @@ class ModelGateway:
     def _usage(self, response: Any) -> tuple[int, int]:
         usage = getattr(response, "usage_metadata", None) or {}
         return int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0)
+
+    async def _rate_for_model(
+        self, model_name: str | None, organization_id: str | None
+    ) -> float | None:
+        if not model_name:
+            return None
+        stmt = select(ModelConfig).where(
+            ModelConfig.is_active.is_(True),
+            ModelConfig.enabled.is_(True),
+            ModelConfig.model == model_name,
+        )
+        async with async_session_factory() as session:
+            candidates = list((await session.execute(stmt)).scalars().all())
+        for candidate in candidates:
+            if candidate.organization_id is not None and (
+                organization_id is None
+                or str(candidate.organization_id) == str(organization_id)
+            ):
+                return float(candidate.cost_per_1k_tokens)
+        for candidate in candidates:
+            if candidate.organization_id is None:
+                return float(candidate.cost_per_1k_tokens)
+        return None
+
+    async def _cost_for(
+        self,
+        model_name: str | None,
+        organization_id: str | None,
+        input_tokens: int,
+        output_tokens: int,
+    ) -> float | None:
+        rate = await self._rate_for_model(model_name, organization_id)
+        if rate is None or (input_tokens + output_tokens) <= 0:
+            return None
+        return round((input_tokens + output_tokens) / 1000 * rate, 8)
 
     async def invoke(
         self,
@@ -235,6 +272,12 @@ class ModelGateway:
                     response = await llm.ainvoke(messages)
                     latency = time.perf_counter() - start
                     input_tokens, output_tokens = self._usage(response)
+                    cost = await self._cost_for(
+                        self._model_name(llm),
+                        organization_id,
+                        input_tokens,
+                        output_tokens,
+                    )
                     llm_breaker.record_success()
                     self._attach_metadata(
                         response,
@@ -243,6 +286,7 @@ class ModelGateway:
                         attempts=attempt + 1,
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
+                        cost=cost,
                     )
                     self._record(
                         task_type=task_type,
@@ -256,12 +300,14 @@ class ModelGateway:
                         status="success",
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
+                        cost=cost,
                     )
                     await record_span(
                         trace_id=correlation_id,
                         name="llm",
                         status="ok",
                         tokens=input_tokens + output_tokens,
+                        cost=cost,
                         model=self._model_name(llm),
                         attempt=attempt + 1,
                         details={
@@ -332,6 +378,10 @@ class ModelGateway:
                         parts.append(text)
                         yield text
                 llm_breaker.record_success()
+                stream_tokens = len("".join(parts))
+                cost = await self._cost_for(
+                    self._model_name(llm), organization_id, 0, stream_tokens
+                )
                 self._record(
                     task_type=task_type,
                     model=self._model_name(llm),
@@ -342,13 +392,15 @@ class ModelGateway:
                     organization_id=organization_id,
                     correlation_id=correlation_id,
                     status="success",
-                    output_tokens=len("".join(parts)),
+                    output_tokens=stream_tokens,
+                    cost=cost,
                 )
                 await record_span(
                     trace_id=correlation_id,
                     name="llm",
                     status="ok",
-                    tokens=len("".join(parts)),
+                    tokens=stream_tokens,
+                    cost=cost,
                     model=self._model_name(llm),
                     attempt=1,
                     details={
@@ -404,6 +456,7 @@ class ModelGateway:
         attempts: int,
         input_tokens: int,
         output_tokens: int,
+        cost: float | None,
     ) -> None:
         kwargs = dict(getattr(response, "additional_kwargs", None) or {})
         kwargs["_agenthub_llm"] = {
@@ -412,6 +465,7 @@ class ModelGateway:
             "attempts": attempts,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
+            "cost": cost,
         }
         response.additional_kwargs = kwargs
 

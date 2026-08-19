@@ -160,7 +160,7 @@ def test_notifications_endpoint_returns_json(client_factory):
 def test_usage_endpoint_returns_summary(client_factory):
     client = client_factory(
         [
-            FakeResult(one=(12, 1000, 500, 0.25)),
+            FakeResult(one=(12, 1000, 500, 0.25, 1)),
             FakeResult(one=(300, 0.03)),
         ]
     )
@@ -170,3 +170,4 @@ def test_usage_endpoint_returns_summary(client_factory):
     assert response.status_code == 200
     assert response.json()["total_executions"] == 12
     assert response.json()["total_tokens"] == 1500
+    assert response.json()["cost_unknown_executions"] == 1
