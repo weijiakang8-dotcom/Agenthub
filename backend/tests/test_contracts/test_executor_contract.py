@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
+from app.engine.canonical import params_canonical
 from app.engine.executor import Approval, BudgetLimits, execute_with_gates
 from app.engine.planner import compute_plan_hash, side_effect_step_ids
 
@@ -41,6 +42,7 @@ def _read_only_plan():
 
 
 def _side_effect_plan():
+    email_params = {"to": "test@example.com", "subject": "x", "body": "y"}
     return {
         "goal": "查询并发邮件",
         "risk": "SIDE_EFFECT",
@@ -56,6 +58,17 @@ def _side_effect_plan():
                 "requires_approval": True,
             },
         ],
+        "side_effect_proposals": [
+            {
+                "step_id": "commit",
+                "capability": "send_email",
+                "tool": "send_email",
+                "params": email_params,
+                "params_canonical": params_canonical(
+                    email_params, tool_name="send_email"
+                ),
+            }
+        ],
     }
 
 
@@ -64,6 +77,7 @@ def _approval_for(plan, *, approved=True):
         plan_hash=compute_plan_hash(plan),
         approval_id="approval-1",
         approved_side_effect_set=side_effect_step_ids(plan),
+        approved_proposals=tuple(plan.get("side_effect_proposals") or []),
         approved=approved,
     )
 
@@ -220,6 +234,8 @@ def test_side_effect_budget_exceeded_hard_stop():
 
 
 def test_side_effect_steps_never_parallel():
+    email_1_params = {"to": "one@example.com", "subject": "s1", "body": "b1"}
+    email_2_params = {"to": "two@example.com", "subject": "s2", "body": "b2"}
     plan = {
         "goal": "发两封邮件",
         "risk": "SIDE_EFFECT",
@@ -233,6 +249,26 @@ def test_side_effect_steps_never_parallel():
                 **_step("email_2", "send_email", depends_on=["email_1"]),
                 "side_effect": True,
                 "requires_approval": True,
+            },
+        ],
+        "side_effect_proposals": [
+            {
+                "step_id": "email_1",
+                "capability": "send_email",
+                "tool": "send_email",
+                "params": email_1_params,
+                "params_canonical": params_canonical(
+                    email_1_params, tool_name="send_email"
+                ),
+            },
+            {
+                "step_id": "email_2",
+                "capability": "send_email",
+                "tool": "send_email",
+                "params": email_2_params,
+                "params_canonical": params_canonical(
+                    email_2_params, tool_name="send_email"
+                ),
             },
         ],
     }

@@ -176,6 +176,10 @@ def validate_plan(plan: dict[str, Any]) -> tuple[bool, list[str]]:
         "SIDE_EFFECT",
     }:
         return False, ["plan must contain valid risk"]
+    if "side_effect_proposals" in plan and not isinstance(
+        plan.get("side_effect_proposals"), list
+    ):
+        return False, ["side_effect_proposals must be a list"]
     return True, []
 
 
@@ -197,6 +201,7 @@ def parse_plan(text: str) -> dict[str, Any]:
         "risk": str(data.get("risk") or "") or compute_plan_risk(steps),
         "steps": steps,
         "reason": str(data.get("reason") or ""),
+        "side_effect_proposals": list(data.get("side_effect_proposals") or []),
     }
 
 
@@ -225,6 +230,11 @@ def normalize_plan(plan: dict[str, Any] | list[Any]) -> dict[str, Any]:
         "risk": risk or compute_plan_risk(steps),
         "steps": steps,
         "reason": reason,
+        "side_effect_proposals": (
+            list(plan.get("side_effect_proposals") or [])
+            if isinstance(plan, dict)
+            else []
+        ),
     }
 
 
@@ -237,7 +247,7 @@ def side_effect_step_ids(plan: dict[str, Any]) -> tuple[str, ...]:
 
 
 def compute_plan_hash(plan: dict[str, Any]) -> str:
-    """plan_hash：对副作用步骤集合的不可变摘要。"""
+    """plan_hash：对副作用步骤集合 + 冻结提案的不可变摘要。"""
     side_effects = [
         {
             "step_id": step["step_id"],
@@ -247,8 +257,20 @@ def compute_plan_hash(plan: dict[str, Any]) -> str:
         for step in plan.get("steps") or []
         if bool(step.get("side_effect"))
     ]
+    proposals = [
+        {
+            "step_id": item.get("step_id"),
+            "tool": item.get("tool"),
+            "params_canonical": item.get("params_canonical"),
+        }
+        for item in plan.get("side_effect_proposals") or []
+    ]
     payload = json.dumps(
-        {"goal": plan.get("goal"), "side_effects": side_effects},
+        {
+            "goal": plan.get("goal"),
+            "side_effects": side_effects,
+            "side_effect_proposals": proposals,
+        },
         sort_keys=True,
         ensure_ascii=False,
         default=str,
