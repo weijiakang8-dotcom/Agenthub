@@ -24,10 +24,10 @@ export function MouseGlow() {
       target.y = event.clientY;
     };
     const draw = () => {
-      pos.x += (target.x - pos.x) * 0.08;
-      pos.y += (target.y - pos.y) * 0.08;
+      pos.x += (target.x - pos.x) * 0.06;
+      pos.y += (target.y - pos.y) * 0.06;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const radius = Math.min(320, canvas.width / 4);
+      const radius = Math.min(360, canvas.width / 3.5);
       const gradient = ctx.createRadialGradient(
         pos.x,
         pos.y,
@@ -36,8 +36,8 @@ export function MouseGlow() {
         pos.y,
         radius,
       );
-      gradient.addColorStop(0, "rgba(129, 140, 248, 0.16)");
-      gradient.addColorStop(0.45, "rgba(168, 85, 247, 0.09)");
+      gradient.addColorStop(0, "rgba(129, 140, 248, 0.14)");
+      gradient.addColorStop(0.45, "rgba(168, 85, 247, 0.08)");
       gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);

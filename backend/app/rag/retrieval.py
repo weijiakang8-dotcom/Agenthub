@@ -1,45 +1,62 @@
+"""统一 RAG 检索入口：query → embedding → chunk vector search → context。"""
+
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
-from sqlalchemy import select
+from app.engine.observability import trace_span
+from app.rag.embedder import embed_text
+from app.rag.vector_store import search_chunks
 
-from app.config import settings
-from app.database import async_session_factory
-from app.models import Document
-from app.rag.embedder import cosine, embed_text
+
+async def retrieve_chunks(
+    query: str,
+    organization_id: uuid.UUID | None,
+    *,
+    top_k: int = 5,
+    correlation_id: str | None = None,
+) -> list[dict[str, Any]]:
+    async with trace_span(
+        correlation_id,
+        "rag",
+        organization_id=str(organization_id) if organization_id else None,
+        query=query,
+        top_k=top_k,
+    ):
+        if not query:
+            return []
+        query_vec = await embed_text(query)
+        return await search_chunks(
+            query_vec, organization_id=organization_id, top_k=top_k
+        )
 
 
 async def retrieve_documents(
     query: str,
     organization_id: str | uuid.UUID | None,
     top_k: int = 3,
-) -> list[dict]:
-    if not query:
-        return []
-
-    query_vec = await embed_text(query)
-    async with async_session_factory() as session:
-        stmt = select(Document)
-        if organization_id is not None:
-            stmt = stmt.where(
-                Document.organization_id == uuid.UUID(str(organization_id))
-            )
-        documents = (await session.execute(stmt)).scalars().all()
-
-    scored = []
-    keywords = query.lower().split()
-    for doc in documents:
-        embedding = doc.embedding or []
-        if (
-            len(query_vec) == settings.EMBEDDING_DIMENSION
-            and len(embedding) != settings.EMBEDDING_DIMENSION
-        ):
+    correlation_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """兼容旧调用：按 chunk 检索并去重到文档粒度。"""
+    org = uuid.UUID(str(organization_id)) if organization_id is not None else None
+    chunks = await retrieve_chunks(
+        query,
+        org,
+        top_k=max(top_k, 3) * 2,
+        correlation_id=correlation_id,
+    )
+    seen: set[str] = set()
+    docs: list[dict[str, Any]] = []
+    for chunk in chunks:
+        doc_id = chunk.get("document_id") or chunk.get("name")
+        if doc_id in seen:
             continue
-        vector_score = cosine(query_vec, embedding)
-        keyword_score = sum(1 for k in keywords if k in doc.content.lower())
-        score = vector_score + keyword_score * 0.2
-        scored.append((score, doc))
+        seen.add(doc_id)
+        docs.append({"name": chunk["name"], "content": chunk["content"][:1000]})
+        if len(docs) >= top_k:
+            break
+    return docs
 
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [{"name": doc.name, "content": doc.content} for _, doc in scored[:top_k]]
+
+__all__ = ["retrieve_chunks", "retrieve_documents"]

@@ -45,7 +45,7 @@ async def run_kernel_execution(
 
         if not is_kernel_workflow(workflow):
             raise UnsupportedKernelWorkflowError(
-                "workflow has no kernel_plan; " "NOT_SUPPORTED_IN_KERNEL_MODE"
+                "workflow has no kernel_plan; NOT_SUPPORTED_IN_KERNEL_MODE"
             )
 
         execution.status = ExecutionStatus.RUNNING

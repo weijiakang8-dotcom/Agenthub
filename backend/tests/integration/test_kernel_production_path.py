@@ -4,7 +4,6 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
-
 from app.adapters.composition import build_effect_port
 from app.adapters.errors import UnsupportedKernelWorkflowError
 from app.adapters.kernel_execution_adapter import (

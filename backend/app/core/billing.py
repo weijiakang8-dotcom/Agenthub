@@ -11,13 +11,7 @@ from app.models import Execution, ModelConfig
 def estimate_tokens(text: str) -> int:
     if not text:
         return 0
-    try:
-        import tiktoken
-
-        enc = tiktoken.get_encoding("cl100k_base")
-        return len(enc.encode(text))
-    except Exception:  # noqa: BLE001
-        return max(1, len(text) // 4)
+    return max(1, len(text) // 4)
 
 
 async def record_execution_usage(execution_id: uuid.UUID | str) -> None:

@@ -6,13 +6,12 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-
 from app.api.routes.organizations import (
     MemberRoleUpdate,
     list_members,
     update_member_role,
 )
+from fastapi import HTTPException
 
 ORG_ID = uuid.uuid4()
 

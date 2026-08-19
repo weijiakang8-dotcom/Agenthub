@@ -15,6 +15,7 @@ import Chat from "@/pages/Chat";
 import History from "@/pages/History";
 import Skills from "@/pages/Skills";
 import Landing from "@/pages/Landing";
+import UserGuide from "@/pages/UserGuide";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = getAccessToken();
@@ -120,6 +121,7 @@ export default function App() {
             </RequireAuth>
           }
         />
+        <Route path="/guide" element={<UserGuide />} />
       </Route>
     </Routes>
   );

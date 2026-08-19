@@ -1,16 +1,36 @@
+"""统一 Model Gateway（Frozen Core）。
+
+业务代码不直接决定具体模型，只表达任务类型/复杂度与租户上下文。
+所有调用通过 Gateway 落结构化观测：model/provider/attempt/tokens/latency/fallback/error。
+"""
+
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
+import time
 import uuid
+from collections.abc import AsyncIterator
 from typing import Any
 
+from langchain_core.messages import AIMessage, BaseMessage
 from langchain_openai import ChatOpenAI
 from sqlalchemy import select
 
 from app.config import settings
+from app.core.circuit_breaker import llm_breaker
+from app.core.failure import (
+    LLM_RETRY_POLICY,
+    classify_error,
+    should_retry,
+)
 from app.core.security import decrypt_secret
 from app.database import async_session_factory
+from app.engine.observability import record_span
 from app.models import ModelConfig, UserApiKey
+
+logger = logging.getLogger("agenthub.model")
 
 
 async def list_active_models(organization_id: str | None = None) -> list[ModelConfig]:
@@ -27,7 +47,6 @@ async def list_active_models(organization_id: str | None = None) -> list[ModelCo
             rows = list(result.scalars().all())
             if rows:
                 return rows
-        # 租户没有专属模型时回退到全局（org NULL）默认模型，绝不跨租户。
         stmt = select(ModelConfig).where(
             ModelConfig.is_active.is_(True),
             ModelConfig.enabled.is_(True),
@@ -52,6 +71,43 @@ async def list_user_api_keys(user_id: str | uuid.UUID | None) -> list[UserApiKey
         return list(result.scalars().all())
 
 
+def get_chat_model(model: ModelConfig) -> ChatOpenAI:
+    return ChatOpenAI(
+        model=model.model,
+        base_url=model.base_url,
+        api_key=model.api_key or "not-configured",
+        max_tokens=model.max_tokens,
+        temperature=0,
+        request_timeout=max(1, model.timeout),
+        max_retries=max(0, model.max_retries),
+    )
+
+
+def _fallback_client() -> ChatOpenAI:
+    return ChatOpenAI(
+        model=settings.LLM_MODEL,
+        base_url=settings.LLM_BASE_URL,
+        api_key=settings.OPENAI_API_KEY or "not-configured",
+        temperature=0,
+        request_timeout=120,
+        max_retries=2,
+    )
+
+
+async def get_chat_models(
+    organization_id: str | None = None,
+    *,
+    complexity: str = "simple",
+    user_id: str | uuid.UUID | None = None,
+) -> list[ChatOpenAI]:
+    """兼容旧调用点的模型选择逻辑（现在统一委托给 ModelGateway）。"""
+    return await ModelGateway().select(
+        organization_id=organization_id,
+        complexity=complexity,
+        user_id=user_id,
+    )
+
+
 async def resolve_model(
     organization_id: str | None = None,
     *,
@@ -65,64 +121,6 @@ async def resolve_model(
     return min(models, key=lambda m: m.cost_per_1k_tokens)
 
 
-async def get_chat_models(
-    organization_id: str | None = None,
-    *,
-    complexity: str = "simple",
-    user_id: str | uuid.UUID | None = None,
-) -> list[ChatOpenAI]:
-    """返回按显式优先级排序的可用模型列表，用于执行引擎的自动 fallback。
-
-    - complex: 按 priority 升序（更小 = 能力优先，Pro 在前），成本作次级排序。
-    - simple:  按 priority 降序（更大 = 低成本优先，Flash 在前），成本作次级排序。
-    无可用模型时回退到全局 settings 单模型。
-    """
-    user_llms: list[ChatOpenAI] = []
-    for key in await list_user_api_keys(user_id):
-        secret = decrypt_secret(key.api_key_encrypted)
-        if secret:
-            user_llms.append(
-                ChatOpenAI(
-                    model=key.model,
-                    base_url=key.base_url,
-                    api_key=secret,
-                    temperature=0,
-                )
-            )
-
-    models = await list_active_models(organization_id)
-    if not models:
-        if user_llms:
-            return user_llms
-        return [
-            ChatOpenAI(
-                model=settings.LLM_MODEL,
-                base_url=settings.LLM_BASE_URL,
-                api_key=settings.OPENAI_API_KEY or "not-configured",
-                temperature=0,
-            )
-        ]
-
-    if complexity == "complex":
-        models = sorted(models, key=lambda m: (m.priority, m.cost_per_1k_tokens))
-    else:
-        models = sorted(models, key=lambda m: (-m.priority, m.cost_per_1k_tokens))
-
-    return [*user_llms, *[get_chat_model(model) for model in models]]
-
-
-def get_chat_model(model: ModelConfig) -> ChatOpenAI:
-    return ChatOpenAI(
-        model=model.model,
-        base_url=model.base_url,
-        api_key=model.api_key or "not-configured",
-        max_tokens=model.max_tokens,
-        temperature=0,
-        request_timeout=max(1, model.timeout),
-        max_retries=max(0, model.max_retries),
-    )
-
-
 async def test_model(model: ModelConfig) -> dict[str, Any]:
     llm = get_chat_model(model)
     try:
@@ -133,3 +131,297 @@ async def test_model(model: ModelConfig) -> dict[str, Any]:
         return {"ok": True, "response": str(getattr(response, "content", ""))[:120]}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": str(exc)}
+
+
+class ModelGateway:
+    """模型选择 + 统一重试/回退 + 结构化观测。"""
+
+    async def select(
+        self,
+        *,
+        organization_id: str | None = None,
+        complexity: str = "simple",
+        user_id: str | uuid.UUID | None = None,
+    ) -> list[ChatOpenAI]:
+        user_llms: list[ChatOpenAI] = []
+        for key in await list_user_api_keys(user_id):
+            secret = decrypt_secret(key.api_key_encrypted)
+            if secret:
+                user_llms.append(
+                    ChatOpenAI(
+                        model=key.model,
+                        base_url=key.base_url,
+                        api_key=secret,
+                        temperature=0,
+                        request_timeout=120,
+                        max_retries=2,
+                    )
+                )
+
+        models = await list_active_models(organization_id)
+        if not models:
+            if user_llms:
+                return user_llms
+            return [_fallback_client()]
+
+        if complexity == "complex":
+            models = sorted(models, key=lambda m: (m.priority, m.cost_per_1k_tokens))
+        else:
+            models = sorted(models, key=lambda m: (-m.priority, m.cost_per_1k_tokens))
+        return [*user_llms, *[get_chat_model(model) for model in models]]
+
+    def _record(
+        self,
+        *,
+        task_type: str,
+        model: str | None,
+        attempt: int,
+        fallback: bool,
+        streaming: bool,
+        latency: float,
+        organization_id: str | None,
+        correlation_id: str | None,
+        status: str,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+        error: str | None = None,
+    ) -> None:
+        logger.info(
+            json.dumps(
+                {
+                    "event": "model_call",
+                    "task_type": task_type,
+                    "model": model,
+                    "attempt": attempt,
+                    "fallback": fallback,
+                    "streaming": streaming,
+                    "latency_ms": round(latency * 1000, 2),
+                    "organization_id": organization_id,
+                    "correlation_id": correlation_id,
+                    "status": status,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "error": error,
+                },
+                ensure_ascii=False,
+            )
+        )
+
+    def _model_name(self, llm: ChatOpenAI) -> str | None:
+        return getattr(llm, "model_name", None) or getattr(
+            getattr(llm, "bound", None), "model_name", None
+        )
+
+    def _usage(self, response: Any) -> tuple[int, int]:
+        usage = getattr(response, "usage_metadata", None) or {}
+        return int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0)
+
+    async def invoke(
+        self,
+        llms: list[ChatOpenAI],
+        messages: list[BaseMessage],
+        *,
+        task_type: str,
+        organization_id: str | None = None,
+        correlation_id: str | None = None,
+    ) -> AIMessage:
+        last_error: Exception | None = None
+        for model_index, llm in enumerate(llms):
+            if not llm_breaker.allow():
+                continue
+            for attempt in range(LLM_RETRY_POLICY.max_attempts):
+                start = time.perf_counter()
+                try:
+                    response = await llm.ainvoke(messages)
+                    latency = time.perf_counter() - start
+                    input_tokens, output_tokens = self._usage(response)
+                    llm_breaker.record_success()
+                    self._attach_metadata(
+                        response,
+                        model=self._model_name(llm),
+                        fallback=model_index > 0,
+                        attempts=attempt + 1,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                    )
+                    self._record(
+                        task_type=task_type,
+                        model=self._model_name(llm),
+                        attempt=attempt + 1,
+                        fallback=model_index > 0,
+                        streaming=False,
+                        latency=latency,
+                        organization_id=organization_id,
+                        correlation_id=correlation_id,
+                        status="success",
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                    )
+                    await record_span(
+                        trace_id=correlation_id,
+                        name="llm",
+                        status="ok",
+                        tokens=input_tokens + output_tokens,
+                        model=self._model_name(llm),
+                        attempt=attempt + 1,
+                        details={
+                            "task_type": task_type,
+                            "input_tokens": input_tokens,
+                            "output_tokens": output_tokens,
+                            "fallback": model_index > 0,
+                            "streaming": False,
+                        },
+                    )
+                    return response
+                except Exception as exc:  # noqa: BLE001
+                    llm_breaker.record_failure()
+                    last_error = exc
+                    category = classify_error(exc)
+                    self._record(
+                        task_type=task_type,
+                        model=self._model_name(llm),
+                        attempt=attempt + 1,
+                        fallback=model_index > 0,
+                        streaming=False,
+                        latency=time.perf_counter() - start,
+                        organization_id=organization_id,
+                        correlation_id=correlation_id,
+                        status="error",
+                        error=f"{category.value}: {str(exc)[:200]}",
+                    )
+                    await record_span(
+                        trace_id=correlation_id,
+                        name="llm",
+                        status="error",
+                        model=self._model_name(llm),
+                        attempt=attempt + 1,
+                        error=f"{category.value}: {str(exc)[:200]}",
+                        details={
+                            "task_type": task_type,
+                            "fallback": model_index > 0,
+                            "streaming": False,
+                        },
+                    )
+                    if not should_retry(category, "llm"):
+                        break
+                    if attempt + 1 < LLM_RETRY_POLICY.max_attempts:
+                        await asyncio.sleep(LLM_RETRY_POLICY.delay(attempt))
+        raise last_error or RuntimeError("AI 服务暂时不可用，请稍后再试")
+
+    async def stream(
+        self,
+        llms: list[ChatOpenAI],
+        messages: list[BaseMessage],
+        *,
+        task_type: str,
+        organization_id: str | None = None,
+        correlation_id: str | None = None,
+    ) -> AsyncIterator[str]:
+        last_error: Exception | None = None
+        emitted = False
+        for model_index, llm in enumerate(llms):
+            if not llm_breaker.allow():
+                continue
+            parts: list[str] = []
+            start = time.perf_counter()
+            try:
+                async for chunk in llm.astream(messages):
+                    text = getattr(chunk, "content", None)
+                    if isinstance(text, str) and text:
+                        emitted = True
+                        parts.append(text)
+                        yield text
+                llm_breaker.record_success()
+                self._record(
+                    task_type=task_type,
+                    model=self._model_name(llm),
+                    attempt=1,
+                    fallback=model_index > 0,
+                    streaming=True,
+                    latency=time.perf_counter() - start,
+                    organization_id=organization_id,
+                    correlation_id=correlation_id,
+                    status="success",
+                    output_tokens=len("".join(parts)),
+                )
+                await record_span(
+                    trace_id=correlation_id,
+                    name="llm",
+                    status="ok",
+                    tokens=len("".join(parts)),
+                    model=self._model_name(llm),
+                    attempt=1,
+                    details={
+                        "task_type": task_type,
+                        "fallback": model_index > 0,
+                        "streaming": True,
+                    },
+                )
+                return
+            except Exception as exc:  # noqa: BLE001
+                llm_breaker.record_failure()
+                last_error = exc
+                category = classify_error(exc)
+                self._record(
+                    task_type=task_type,
+                    model=self._model_name(llm),
+                    attempt=1,
+                    fallback=model_index > 0,
+                    streaming=True,
+                    latency=time.perf_counter() - start,
+                    organization_id=organization_id,
+                    correlation_id=correlation_id,
+                    status="error",
+                    error=f"{category.value}: {str(exc)[:200]}",
+                )
+                await record_span(
+                    trace_id=correlation_id,
+                    name="llm",
+                    status="error",
+                    model=self._model_name(llm),
+                    attempt=1,
+                    error=f"{category.value}: {str(exc)[:200]}",
+                    details={
+                        "task_type": task_type,
+                        "fallback": model_index > 0,
+                        "streaming": True,
+                    },
+                )
+                if emitted or not should_retry(category, "llm"):
+                    if emitted:
+                        return
+                    continue
+        if emitted:
+            return
+        raise last_error or RuntimeError("AI 服务暂时不可用，请稍后再试")
+
+    def _attach_metadata(
+        self,
+        response: AIMessage,
+        *,
+        model: str | None,
+        fallback: bool,
+        attempts: int,
+        input_tokens: int,
+        output_tokens: int,
+    ) -> None:
+        kwargs = dict(getattr(response, "additional_kwargs", None) or {})
+        kwargs["_agenthub_llm"] = {
+            "model_used": model or "",
+            "fallback": fallback,
+            "attempts": attempts,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
+        response.additional_kwargs = kwargs
+
+
+__all__ = [
+    "ModelGateway",
+    "get_chat_model",
+    "get_chat_models",
+    "list_active_models",
+    "list_user_api_keys",
+    "resolve_model",
+    "test_model",
+]

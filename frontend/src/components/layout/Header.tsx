@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { AuthModal } from "@/components/AuthModal";
+import { BrandLogo } from "@/components/brand/BrandLogo";
 import { getAccessToken, logout } from "@/lib/api";
 import {
   DropdownMenu,
@@ -62,9 +63,9 @@ export function Header({
         >
           <Menu className="h-4 w-4" />
         </Button>
-        <span className="hidden text-sm font-semibold tracking-tight text-primary sm:inline">
-          AgentHub
-        </span>
+        <div className="hidden sm:block">
+          <BrandLogo size="sm" />
+        </div>
         <span className="hidden text-slate-300 sm:inline">/</span>
         <h1 className="truncate text-lg font-semibold tracking-tight">
           {title}

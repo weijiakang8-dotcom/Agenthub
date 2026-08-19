@@ -28,7 +28,7 @@
 - Real two-model fallback is unverified.
 - PostgreSQL backup/restore is unverified.
 - Redis/DB/LLM fault injection is not complete.
-- Email/Resend domain verification is unverified.
+- Email/Resend domain verification is verified (`synplex.xyz` sending enabled; production now uses Resend instead of MailHog).
 
 ## Phase 5.5 New Evidence
 
@@ -62,6 +62,7 @@
 - Remaining: real two-model fallback unverified; public HTTPS from current Mac still reset while server-side HTTPS is 200.
 - Production Kubernetes/TLS/DNS.
 - Real SMTP/Resend provider credentials.
+  - Resolved: production `RESEND_API_KEY` works, `RESEND_FROM=no-reply@synplex.xyz`, SMTP disabled so send-code emails go through Resend.
 - PostgreSQL backup/restore.
 
 ## Phase 6 Resolved
@@ -80,7 +81,7 @@
 
 ## Remaining
 
-- Production SMTP/Resend account credentials still need to be configured.
+- ~~Production SMTP/Resend account credentials still need to be configured.~~ Resolved: production email uses Resend.
 - refresh token still stored in localStorage (XSS exposure tradeoff).
 - RAG chunking / vector database not implemented.
 - Real two-model fallback still unverified.

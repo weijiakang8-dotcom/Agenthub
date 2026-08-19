@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 .venv/
+.venv311/
 venv/
 .pytest_cache/
 .mypy_cache/
@@ -39,3 +40,6 @@ Thumbs.db
 # ===== 部署本地状态 =====
 docker/*.env
 k8s/*.env
+
+backups/
+docker/nginx/ssl/

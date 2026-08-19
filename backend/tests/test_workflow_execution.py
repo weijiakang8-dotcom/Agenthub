@@ -1,57 +1,55 @@
 from __future__ import annotations
 
-import asyncio
+import uuid
+from types import SimpleNamespace
 
-from langchain_core.messages import AIMessage
-
-from app.engine import graph
-
-
-def test_classify_task_respects_explicit_workflow_steps(monkeypatch):
-    called = []
-
-    async def fake_get_llms(*_args, **_kwargs):
-        called.append("get_llms")
-        return []
-
-    monkeypatch.setattr(graph, "_get_llms", fake_get_llms)
-
-    steps = [
-        {"role": "research", "agent_id": "a", "name": "R", "system_prompt": "sp"},
-        {"role": "execute", "agent_id": "b", "name": "E", "system_prompt": "sp"},
-    ]
-    state = {
-        "user_input": "hello",
-        "steps": steps,
-        "respect_workflow_steps": True,
-        "loop_count": 0,
-    }
-
-    result = asyncio.run(graph.classify_task_node(state))
-
-    assert result["steps"] == steps
-    assert called == []
+from app.engine import planner, runner
 
 
-def test_classify_task_uses_automatic_category_when_no_explicit_steps(monkeypatch):
-    async def fake_get_llms(*_args, **_kwargs):
-        return []
-
-    async def fake_call_llm(*_args, **_kwargs):
-        return AIMessage(content="execution")
-
-    monkeypatch.setattr(graph, "_get_llms", fake_get_llms)
-    monkeypatch.setattr(graph, "_call_llm_with_fallback", fake_call_llm)
-
-    result = asyncio.run(
-        graph.classify_task_node(
-            {
-                "user_input": "send an email",
-                "steps": [],
-                "respect_workflow_steps": False,
-                "loop_count": 0,
-            }
-        )
+def make_workflow(dag_definition=None, agent_chain=None):
+    return SimpleNamespace(
+        dag_definition=dag_definition,
+        agent_chain=agent_chain if agent_chain is not None else [],
     )
 
-    assert result["steps"][0]["role"] == "execute"
+
+def test_build_plan_from_dag_nodes_maps_to_capabilities():
+    workflow = make_workflow(
+        dag_definition={
+            "nodes": [
+                {"type": "research", "label": "research"},
+                {"type": "condition", "label": "check"},
+                {"type": "human_approval", "label": "approve"},
+            ]
+        }
+    )
+    plan = runner.build_plan_from_workflow(workflow)
+    assert [step["capability"] for step in plan] == [
+        "research",
+        "analysis",
+        "send_email",
+    ]
+
+
+def test_build_plan_from_agent_chain_maps_roles():
+    workflow = make_workflow(agent_chain=[str(uuid.uuid4()), str(uuid.uuid4())])
+    plan = runner.build_plan_from_workflow(workflow)
+    assert [step["capability"] for step in plan] == ["research", "analysis"]
+
+
+def test_build_plan_without_explicit_definition_is_none():
+    assert runner.build_plan_from_workflow(make_workflow()) is None
+
+
+def test_planner_parse_plan_rejects_unknown_capabilities():
+    parsed = planner.parse_plan(
+        '{"steps":[{"capability":"answer","description":"x"},'
+        '{"capability":"not_real","description":"y"}]}'
+    )
+    assert parsed is not None
+    assert [step["capability"] for step in parsed["steps"]] == ["answer"]
+
+
+def test_planner_fallback_plan_is_single_answer_step():
+    plan = planner.fallback_plan("hello")
+    assert plan["steps"] == [{"capability": "answer", "description": "hello"}]

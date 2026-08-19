@@ -10,6 +10,7 @@ from app.api.deps import CurrentUserDep, SessionDep
 from app.core.permissions import require_permission
 from app.models import Document
 from app.rag.embedder import cosine, embed_text
+from app.rag.vector_store import delete_document_chunks, rebuild_document_chunks
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -88,6 +89,7 @@ async def upload_document(
     session.add(document)
     await session.commit()
     await session.refresh(document)
+    await rebuild_document_chunks(document)
     return _serialize(document)
 
 
@@ -111,6 +113,7 @@ async def create_document(
     session.add(document)
     await session.commit()
     await session.refresh(document)
+    await rebuild_document_chunks(document)
     return _serialize(document)
 
 
@@ -128,6 +131,7 @@ async def delete_document(
         and document.organization_id != user.organization_id
     ):
         raise HTTPException(status_code=404, detail="Document not found")
+    await delete_document_chunks(document.id)
     await session.delete(document)
     await session.commit()
 

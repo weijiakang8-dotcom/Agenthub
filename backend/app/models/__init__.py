@@ -6,6 +6,7 @@ from app.models.audit_log import AuditLog
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin, utcnow
 from app.models.conversation import Conversation
 from app.models.document import Document
+from app.models.document_chunk import DocumentChunk
 from app.models.enums import (
     AgentStatus,
     ExecutionStatus,
@@ -24,6 +25,7 @@ from app.models.skill import Skill
 from app.models.tool_call import ToolCall
 from app.models.user import User
 from app.models.user_api_key import UserApiKey
+from app.models.user_memory import UserMemory
 from app.models.workflow import Workflow
 from app.models.workflow_version import WorkflowVersion
 
@@ -37,6 +39,7 @@ __all__ = [
     "Base",
     "Conversation",
     "Document",
+    "DocumentChunk",
     "EvalDataset",
     "EvalRun",
     "Execution",
@@ -54,6 +57,7 @@ __all__ = [
     "UUIDPrimaryKeyMixin",
     "User",
     "UserApiKey",
+    "UserMemory",
     "Workflow",
     "WorkflowStatus",
     "WorkflowVersion",

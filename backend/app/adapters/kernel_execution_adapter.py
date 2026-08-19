@@ -59,7 +59,7 @@ def build_runtime_input(
     plan = kernel_plan(workflow)
     if plan is None:
         raise UnsupportedKernelWorkflowError(
-            "workflow has no explicit kernel_plan; " "NOT_SUPPORTED_IN_KERNEL_MODE"
+            "workflow has no explicit kernel_plan; NOT_SUPPORTED_IN_KERNEL_MODE"
         )
 
     goal_data = plan.get("goal")

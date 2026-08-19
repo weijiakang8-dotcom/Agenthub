@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 
 import pytest
-
 from app.kernel.artifact.model import Artifact
 from app.kernel.artifact.store import ArtifactStore
 from app.kernel.evidence.model import EvidenceLevel

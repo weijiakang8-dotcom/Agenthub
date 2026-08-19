@@ -7,9 +7,8 @@ from types import SimpleNamespace
 
 import jwt
 import pytest
-from fastapi import HTTPException
-
 from app.api.routes import auth as auth_routes
+from fastapi import HTTPException
 
 
 class FakeRedis:

@@ -5,7 +5,6 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
-
 from app.engine import runner
 from app.models.enums import ExecutionStatus
 
@@ -65,6 +64,10 @@ def make_execution(status=ExecutionStatus.PENDING, **overrides):
     }
     values.update(overrides)
     return SimpleNamespace(**values)
+
+
+async def _noop_publish(_execution_id, _event):
+    return None
 
 
 def test_build_steps_from_dag_nodes():
@@ -192,7 +195,7 @@ def test_run_execution_retryable_error_marks_pending_and_raises(monkeypatch):
 
     class FailingCheckpointManager:
         def __aenter__(self):
-            raise TimeoutError("llm request timed out")
+            raise RuntimeError("database unavailable")
 
         def __aexit__(self, *_args):
             return False
@@ -210,6 +213,34 @@ def test_run_execution_retryable_error_marks_pending_and_raises(monkeypatch):
         asyncio.run(runner.run_execution(execution.id))
 
     assert execution.status == ExecutionStatus.PENDING
+    assert "database unavailable" in execution.error_message
+
+
+def test_run_execution_provider_timeout_is_not_celery_retryable(monkeypatch):
+    execution = make_execution(ExecutionStatus.PENDING)
+    workflow = make_workflow(dag_definition={"nodes": [{"type": "research"}]})
+    session = FakeSession(execution=execution, workflow=workflow, rowcount=1)
+    monkeypatch.setattr(
+        runner,
+        "async_session_factory",
+        FakeSessionFactory(
+            [session, FakeSession(execution=execution, workflow=workflow)]
+        ),
+    )
+
+    class FailingCheckpointManager:
+        def __aenter__(self):
+            raise TimeoutError("llm request timed out")
+
+        def __aexit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(runner, "get_checkpoint_manager", FailingCheckpointManager)
+    monkeypatch.setattr(runner, "publish_execution_event", _noop_publish)
+
+    asyncio.run(runner.run_execution(execution.id))
+
+    assert execution.status == ExecutionStatus.FAILED
     assert "timed out" in execution.error_message
 
 

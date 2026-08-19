@@ -5,11 +5,10 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from langchain_core.messages import HumanMessage
-
 from app.config import settings
 from app.core import model_gateway
 from app.engine.graph import _call_llm_with_fallback
+from langchain_core.messages import HumanMessage
 
 
 def _deepseek_up() -> bool:

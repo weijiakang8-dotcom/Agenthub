@@ -1,11 +1,10 @@
 import uuid
 
 import pytest
-from pydantic import ValidationError
-
 from app.schemas.agent import AgentCreate
 from app.schemas.execution import ExecutionCreate, ExecutionResume, FeedbackCreate
 from app.schemas.workflow import WorkflowCreate
+from pydantic import ValidationError
 
 
 def test_agent_name_required():

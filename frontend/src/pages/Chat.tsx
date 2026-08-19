@@ -126,9 +126,32 @@ export default function Chat() {
               assistant += data.token;
               updateAssistant(assistant);
             }
+            if (
+              data.event === "error" &&
+              typeof data.message === "string" &&
+              data.message
+            ) {
+              assistant = `请求失败：${data.message}`;
+              updateAssistant(assistant);
+            }
+            if (
+              data.event === "execution_failed" &&
+              typeof data.error === "string" &&
+              data.error
+            ) {
+              assistant = `执行失败：${data.error}`;
+              updateAssistant(assistant);
+            }
             if (data.final_output) updateAssistant(data.final_output);
             if (data.event === "done") {
-              updateAssistant(data.final_output ?? assistant);
+              if (data.status === "failed") {
+                if (typeof data.error_message === "string" && data.error_message) {
+                  assistant = `执行失败：${data.error_message}`;
+                  updateAssistant(assistant);
+                }
+              } else {
+                updateAssistant(data.final_output ?? assistant);
+              }
               if (data.execution_id) {
                 try {
                   setDetails(await api.getExecution(data.execution_id));
@@ -214,8 +237,10 @@ export default function Chat() {
                   m.role === "user" ? "bg-primary text-primary-foreground" : ""
                 }`}
               >
-                {m.content || (sending && i === messages.length - 1 ? "" : "…")}
-                {sending && i === messages.length - 1 && m.role === "assistant" ? (
+                {m.content || (sending && i === messages.length - 1 ? "" : "（空回复）")}
+                {sending &&
+                i === messages.length - 1 &&
+                m.role === "assistant" ? (
                   <span className="animate-cursor-blink">▍</span>
                 ) : null}
                 {m.role === "assistant" &&
@@ -306,6 +331,7 @@ export default function Chat() {
           }}
           placeholder="输入消息，Enter 发送"
           rows={3}
+          className="glass resize-none border-border/70 bg-card/60 backdrop-blur"
         />
         <div className="flex justify-end gap-2">
           {localStorage.getItem("agenthub.prompt_optimize") !== "0" && (

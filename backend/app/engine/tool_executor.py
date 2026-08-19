@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import uuid
 from typing import Any
 
 from sqlalchemy import select
 
+from app.core.failure import TOOL_RETRY_POLICY, classify_error, should_retry
 from app.database import async_session_factory
 from app.engine.event_bus import publish_execution_event
+from app.engine.observability import record_span
 from app.engine.tool_registry import get_tool
 from app.models import Execution, ToolCall, utcnow
 from app.models.enums import ToolCallStatus
@@ -19,6 +23,7 @@ async def create_tool_call(
     execution_id: str | uuid.UUID,
     *,
     requires_approval: bool = False,
+    idempotency_key: str | None = None,
 ) -> ToolCall:
     """创建 pending 状态的 ToolCall 审计记录。"""
     async with async_session_factory() as session:
@@ -29,6 +34,7 @@ async def create_tool_call(
             input_params=params or {},
             status=ToolCallStatus.PENDING,
             requires_approval=requires_approval,
+            idempotency_key=idempotency_key,
             organization_id=execution.organization_id if execution else None,
         )
         session.add(tool_call)
@@ -92,7 +98,7 @@ async def _invoke_with_retry(
         }
 
     last_error: Exception | None = None
-    for attempt in range(3):
+    for attempt in range(TOOL_RETRY_POLICY.max_attempts):
         try:
             result = await asyncio.wait_for(
                 spec.handler(params, organization_id), timeout=spec.timeout
@@ -102,8 +108,12 @@ async def _invoke_with_retry(
             return result
         except Exception as exc:  # noqa: BLE001
             last_error = exc
-            if attempt < 2:
-                await asyncio.sleep(2**attempt)
+            if should_retry(classify_error(exc), "tool") and attempt < (
+                TOOL_RETRY_POLICY.max_attempts - 1
+            ):
+                await asyncio.sleep(TOOL_RETRY_POLICY.delay(attempt))
+                continue
+            break
 
     return {
         "status": "failed",
@@ -119,11 +129,41 @@ async def execute_tool(
 ) -> dict[str, Any]:
     """执行工具并写入完整审计记录。"""
     spec = get_tool(tool_name)
+    idempotency_key = hashlib.sha256(
+        json.dumps(
+            {
+                "execution_id": str(execution_id),
+                "tool": tool_name,
+                "params": params,
+            },
+            sort_keys=True,
+            default=str,
+        ).encode()
+    ).hexdigest()
+    async with async_session_factory() as session:
+        existing = await session.execute(
+            select(ToolCall)
+            .where(
+                ToolCall.execution_id == uuid.UUID(str(execution_id)),
+                ToolCall.idempotency_key == idempotency_key,
+                ToolCall.status == ToolCallStatus.SUCCESS,
+            )
+            .limit(1)
+        )
+        duplicate = existing.scalars().first()
+    if duplicate is not None:
+        return {
+            "status": "duplicate",
+            "data": duplicate.output_result,
+            "error": None,
+        }
+
     tool_call = await create_tool_call(
         tool_name,
         params,
         execution_id,
         requires_approval=bool(spec and spec.requires_approval),
+        idempotency_key=idempotency_key,
     )
 
     async with async_session_factory() as session:
@@ -135,17 +175,28 @@ async def execute_tool(
     await publish_execution_event(
         str(execution_id),
         {
-            "event": "tool_call_started",
+            "event": "tool_call",
             "tool_call_id": str(tool_call.id),
             "tool": tool_name,
             "params": params,
         },
     )
     result = await _invoke_with_retry(tool_name, params, tool_call.organization_id)
+    await record_span(
+        trace_id=str(execution_id),
+        name="tool",
+        status="ok" if result.get("status") == "success" else "error",
+        error=result.get("error"),
+        details={
+            "tool": tool_name,
+            "params": params,
+            "duplicate": result.get("status") == "duplicate",
+        },
+    )
     await publish_execution_event(
         str(execution_id),
         {
-            "event": "tool_call_completed",
+            "event": "tool_result",
             "tool_call_id": str(tool_call.id),
             "tool": tool_name,
             "status": result.get("status"),
@@ -163,12 +214,26 @@ async def execute_pending_tool_call(tool_call_id: uuid.UUID) -> dict[str, Any]:
         if tool_call is None:
             return {"status": "failed", "data": None, "error": "ToolCall not found"}
 
+        idempotency_key = (
+            tool_call.idempotency_key
+            or hashlib.sha256(
+                json.dumps(
+                    {
+                        "execution_id": str(tool_call.execution_id),
+                        "tool": tool_call.tool_name,
+                        "params": tool_call.input_params or {},
+                    },
+                    sort_keys=True,
+                    default=str,
+                ).encode()
+            ).hexdigest()
+        )
         existing = await session.execute(
             select(ToolCall)
             .where(
                 ToolCall.execution_id == tool_call.execution_id,
                 ToolCall.tool_name == tool_call.tool_name,
-                ToolCall.input_params == (tool_call.input_params or {}),
+                ToolCall.idempotency_key == idempotency_key,
                 ToolCall.status == ToolCallStatus.SUCCESS,
                 ToolCall.id != tool_call.id,
             )
@@ -189,7 +254,7 @@ async def execute_pending_tool_call(tool_call_id: uuid.UUID) -> dict[str, Any]:
     await publish_execution_event(
         str(tool_call.execution_id),
         {
-            "event": "tool_call_started",
+            "event": "tool_call",
             "tool_call_id": str(tool_call_id),
             "tool": tool_name,
             "params": params,
@@ -199,7 +264,7 @@ async def execute_pending_tool_call(tool_call_id: uuid.UUID) -> dict[str, Any]:
     await publish_execution_event(
         str(tool_call.execution_id),
         {
-            "event": "tool_call_completed",
+            "event": "tool_result",
             "tool_call_id": str(tool_call_id),
             "tool": tool_name,
             "status": result.get("status"),

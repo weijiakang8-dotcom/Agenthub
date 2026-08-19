@@ -5,11 +5,10 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
-
 from app.api.routes import executions, skills, user_api_keys
 from app.core import model_gateway, security
 from app.models import UserApiKey
+from fastapi import HTTPException
 
 
 def _user(organization_id=None):
@@ -295,17 +294,17 @@ def test_real_effect_executor_keeps_url_query_string(monkeypatch):
 def test_prompt_optimize_returns_optimized_text(monkeypatch):
     from app.api.routes import prompts
 
-    async def fake_models(*_args, **_kwargs):
-        return [object()]
-
     class FakeResponse:
         content = "优化后的提示词"
 
-    async def fake_call(_llms, _messages):
-        return FakeResponse()
+    class FakeGateway:
+        async def select(self, **kwargs):
+            return [object()]
 
-    monkeypatch.setattr(prompts, "get_chat_models", fake_models)
-    monkeypatch.setattr(prompts, "_call_llm_with_fallback", fake_call)
+        async def invoke(self, _llms, _messages, **kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr(prompts, "ModelGateway", FakeGateway)
 
     result = asyncio.run(
         prompts.optimize_prompt(

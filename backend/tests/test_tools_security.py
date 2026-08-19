@@ -5,7 +5,6 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
-
 from app.engine import tools
 
 ORG_A = uuid.uuid4()
