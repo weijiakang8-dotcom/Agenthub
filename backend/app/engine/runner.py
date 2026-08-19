@@ -485,6 +485,7 @@ async def run_execution(execution_id: uuid.UUID) -> None:
         "budget_exceeded": False,
         "hard_stop": False,
         "approval_rejected": False,
+        "side_effect_failure": False,
         "approved_plan_hash": None,
     }
     config = {"configurable": {"thread_id": str(execution_id)}, "recursion_limit": 100}
@@ -539,6 +540,23 @@ async def run_execution(execution_id: uuid.UUID) -> None:
                 },
             )
             return
+        if result.get("side_effect_failure"):
+            error_message = result.get("final_output") or "side_effect_failure"
+            await _update_status(
+                execution_id,
+                ExecutionStatus.FAILED,
+                final_output=result.get("final_output"),
+                error_message=error_message,
+            )
+            await publish_execution_event(
+                str(execution_id),
+                {
+                    "event": "execution_failed",
+                    "error": error_message,
+                    "error_type": "side_effect_failure",
+                },
+            )
+            return
         await run_shadow_hook(execution, workflow, result.get("final_output"))
         terminal_committed = await _update_status(
             execution_id,
@@ -547,7 +565,7 @@ async def run_execution(execution_id: uuid.UUID) -> None:
             checkpoint_data={"llm_usage": result.get("llm_usage", [])},
             current_step_index=result.get("current_step"),
             intent=result.get("intent"),
-            plan=result.get("plan"),
+            plan=(result.get("plan_meta") or {}).get("plan") or result.get("plan"),
             steps=[
                 {
                     "role": step.get("role"),
@@ -645,7 +663,7 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
             checkpoint_data={"llm_usage": result.get("llm_usage", [])},
             current_step_index=result.get("current_step"),
             intent=result.get("intent"),
-            plan=result.get("plan"),
+            plan=(result.get("plan_meta") or {}).get("plan") or result.get("plan"),
         )
         await record_execution_usage(execution_id)
         if terminal_committed:

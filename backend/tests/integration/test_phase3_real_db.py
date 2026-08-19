@@ -422,8 +422,9 @@ def test_real_task_execution_runs_through_gates(monkeypatch):
             assert row["final_output"]
             assert row["error_message"] is None
             stored_plan = json.loads(row["plan"])
-            assert stored_plan and len(stored_plan) == 2
-            assert stored_plan[0]["side_effect"] is False
+            assert stored_plan and isinstance(stored_plan, dict)
+            assert len(stored_plan["steps"]) == 2
+            assert stored_plan["steps"][0]["side_effect"] is False
 
             tool_rows = await conn.fetch(
                 "SELECT tool_name, status FROM tool_calls WHERE execution_id = $1",
