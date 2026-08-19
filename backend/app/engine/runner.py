@@ -157,6 +157,40 @@ def _interrupt_value(result: dict[str, Any]) -> Any:
     return getattr(first, "value", first)
 
 
+async def _publish_approval_event(
+    execution_id: uuid.UUID,
+    interrupt_value: Any,
+    result: dict[str, Any],
+) -> None:
+    """在状态已提交后发射 approval_required（不领先持久化状态）。"""
+    payload = interrupt_value
+    if isinstance(payload, dict):
+        pending = (
+            payload.get("tool_call")
+            if isinstance(payload.get("tool_call"), dict)
+            else {}
+        )
+    else:
+        pending = {}
+    if pending.get("type") == "plan_approval":
+        event = {
+            "event": "approval_required",
+            "approval_id": pending.get("approval_id"),
+            "plan_hash": pending.get("plan_hash"),
+            "side_effect_set": pending.get("side_effect_set"),
+            "side_effect_proposals": pending.get("side_effect_proposals") or [],
+            "plan": result.get("plan"),
+        }
+    else:
+        event = {
+            "event": "approval_required",
+            "tool_call_id": pending.get("tool_call_id"),
+            "tool": pending.get("tool_name"),
+            "params": pending.get("tool_args"),
+        }
+    await publish_execution_event(str(execution_id), event)
+
+
 def _extract_agent_ids(agent_chain) -> list[uuid.UUID]:
     ids: list[uuid.UUID] = []
 
@@ -503,6 +537,7 @@ async def run_execution(execution_id: uuid.UUID) -> None:
                 checkpoint_data={"interrupt": interrupt_value},
                 current_step_index=result.get("current_step"),
             )
+            await _publish_approval_event(execution_id, interrupt_value, result)
             await publish_execution_event(
                 str(execution_id),
                 {"event": "waiting_for_approval", "checkpoint": interrupt_value},
@@ -591,6 +626,11 @@ async def run_execution(execution_id: uuid.UUID) -> None:
             execution_id,
             ExecutionStatus.WAITING_FOR_APPROVAL,
             checkpoint_data={"interrupt": exc.args[0] if exc.args else None},
+        )
+        await _publish_approval_event(
+            execution_id,
+            exc.args[0] if exc.args else None,
+            {"plan": []},
         )
         await publish_execution_event(
             str(execution_id),
@@ -730,6 +770,11 @@ async def resume_execution(execution_id: uuid.UUID, decision: dict[str, Any]) ->
             execution_id,
             ExecutionStatus.WAITING_FOR_APPROVAL,
             checkpoint_data={"interrupt": exc.args[0] if exc.args else None},
+        )
+        await _publish_approval_event(
+            execution_id,
+            exc.args[0] if exc.args else None,
+            {"plan": []},
         )
         await publish_execution_event(
             str(execution_id),
