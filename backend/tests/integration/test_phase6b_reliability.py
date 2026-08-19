@@ -11,8 +11,11 @@ import asyncpg
 import pytest
 from app.config import settings
 from app.core import dlq, production_alerts
-from app.engine import reconciliation
+from app.engine import graph as graph_module
+from app.engine import planner, reconciliation, runner
+from app.engine.executor import PlanInvalidError
 from app.engine.tool_executor import make_idempotency_key
+from langchain_core.messages import AIMessage
 
 
 def _sync_url() -> str:
@@ -82,6 +85,7 @@ async def _insert_execution(
     status: str,
     updated_at: datetime | None = None,
     completed_at: datetime | None = None,
+    intent: dict | None = None,
 ) -> uuid.UUID:
     execution_id = uuid.uuid4()
     updated = updated_at or datetime.now(timezone.utc)
@@ -89,11 +93,12 @@ async def _insert_execution(
         "INSERT INTO executions (id,workflow_id,status,correlation_id,user_input,"
         "context_messages,intent,plan,organization_id,user_id,current_step_index,"
         "event_sequence,created_at,updated_at,completed_at) "
-        "VALUES ($1,$2,$3,$4,'p6b','[]'::json,'{}'::json,NULL,$5,$6,0,0,now(),$7,$8)",
+        "VALUES ($1,$2,$3,$4,'p6b','[]'::json,$5::json,NULL,$6,$7,0,0,now(),$8,$9)",
         execution_id,
         workflow_id,
         status,
         uuid.uuid4(),
+        json.dumps(intent) if intent is not None else None,
         org_id,
         user_id,
         updated,
@@ -635,6 +640,215 @@ def test_baseline_report_is_read_only_and_derivable():
             await _cleanup(
                 conn,
                 executions=[ok, bad],
+                workflow_id=workflow_id,
+                user_id=user_id,
+                org_id=org_id,
+            )
+            await conn.close()
+
+    asyncio.run(main())
+
+
+def test_approval_event_emitted_after_state_commit(monkeypatch):
+    async def main() -> None:
+        conn = await asyncpg.connect(_sync_url())
+        org_id, user_id, workflow_id = await _setup(conn)
+        await conn.execute(
+            "UPDATE workflows SET dag_definition = $1::json WHERE id = $2",
+            json.dumps({"nodes": [{"type": "send_email", "label": "send"}]}),
+            workflow_id,
+        )
+        execution_id = await _insert_execution(
+            conn,
+            workflow_id,
+            org_id,
+            user_id,
+            status="pending",
+            intent={"category": "ACTION", "risk": "SIDE_EFFECT"},
+        )
+        observed: list[tuple[str | None, str]] = []
+        real_publish = runner.publish_execution_event
+
+        async def wrapped_publish(execution_id, event):
+            if event.get("event") == "approval_required":
+                status = await conn.fetchval(
+                    "SELECT status FROM executions WHERE id=$1", str(execution_id)
+                )
+                observed.append((event.get("approval_id"), status))
+            await real_publish(str(execution_id), event)
+
+        class ProposalGateway:
+            async def select(self, **kwargs):
+                return [object()]
+
+            async def invoke(self, llms, messages, **kwargs):
+                return AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "send_email",
+                            "args": {"to": "a@b.com", "subject": "s", "body": "b"},
+                            "id": "call_proposal",
+                            "type": "tool_call",
+                        }
+                    ],
+                )
+
+            async def stream(self, llms, messages, **kwargs):
+                yield "x"
+
+        monkeypatch.setattr(runner, "publish_execution_event", wrapped_publish)
+        monkeypatch.setattr(graph_module._gateway, "invoke", ProposalGateway().invoke)
+        monkeypatch.setattr(graph_module._gateway, "stream", ProposalGateway().stream)
+        try:
+            await runner.run_execution(execution_id)
+            assert observed, "approval_required event was not emitted"
+            for approval_id, status in observed:
+                assert approval_id
+                assert status == "waiting_for_approval"
+        finally:
+            await _cleanup(
+                conn,
+                executions=[execution_id],
+                workflow_id=workflow_id,
+                user_id=user_id,
+                org_id=org_id,
+            )
+            await conn.close()
+
+    asyncio.run(main())
+
+
+def test_concurrent_resume_only_one_wins(monkeypatch):
+    async def main() -> None:
+        from types import SimpleNamespace
+
+        from app.api.routes import executions as exec_routes
+        from app.database import async_session_factory
+        from app.schemas.execution import ExecutionResume
+
+        conn = await asyncpg.connect(_sync_url())
+        org_id, user_id, workflow_id = await _setup(conn)
+        execution_id = await _insert_execution(
+            conn, workflow_id, org_id, user_id, status="waiting_for_approval"
+        )
+        delayed: list[str] = []
+        monkeypatch.setattr(
+            exec_routes.resume_workflow_task,
+            "delay",
+            lambda execution_id, decision: delayed.append(execution_id),
+        )
+        user = SimpleNamespace(id=user_id, organization_id=org_id)
+        codes: list[int] = []
+
+        async def resume_once():
+            async with async_session_factory() as session:
+                try:
+                    await exec_routes.resume_execution(
+                        execution_id,
+                        ExecutionResume(approved=True),
+                        session,
+                        user,
+                    )
+                    codes.append(202)
+                except Exception as exc:  # noqa: BLE001
+                    codes.append(getattr(exc, "status_code", 500))
+
+        try:
+            await asyncio.gather(resume_once(), resume_once())
+            assert sorted(codes) == [202, 409]
+            assert len(delayed) == 1
+        finally:
+            await _cleanup(
+                conn,
+                executions=[execution_id],
+                workflow_id=workflow_id,
+                user_id=user_id,
+                org_id=org_id,
+            )
+            await conn.close()
+
+    asyncio.run(main())
+
+
+def test_approval_id_mismatch_aborts_with_audit():
+    async def main() -> None:
+        from app.engine.canonical import params_canonical
+
+        conn = await asyncpg.connect(_sync_url())
+        org_id, user_id, workflow_id = await _setup(conn)
+        execution_id = await _insert_execution(
+            conn, workflow_id, org_id, user_id, status="pending"
+        )
+        email_params = {"to": "a@b.com", "subject": "s", "body": "b"}
+        plan = {
+            "goal": "发邮件",
+            "risk": "SIDE_EFFECT",
+            "steps": [
+                {
+                    "step_id": "commit",
+                    "capability": "send_email",
+                    "description": "send",
+                    "input_refs": [],
+                    "output_name": None,
+                    "depends_on": [],
+                    "condition": None,
+                    "side_effect": True,
+                    "requires_approval": True,
+                }
+            ],
+            "side_effect_proposals": [
+                {
+                    "step_id": "commit",
+                    "capability": "send_email",
+                    "tool": "send_email",
+                    "params": email_params,
+                    "params_canonical": params_canonical(
+                        email_params, tool_name="send_email"
+                    ),
+                }
+            ],
+        }
+        initial_state = {
+            "messages": [],
+            "current_step": 0,
+            "execution_id": str(execution_id),
+            "organization_id": str(org_id),
+            "user_id": str(user_id),
+            "user_input": "发邮件",
+            "final_output": None,
+            "plan": plan["steps"],
+            "intent": {"category": "ACTION", "risk": "SIDE_EFFECT"},
+            "steps": [],
+            "pending_approval": None,
+            "node_outputs": {},
+            "revision_count": 0,
+            "revision_requested": False,
+            "complexity": "simple",
+            "llm_usage": [],
+            "plan_meta": {"plan": plan, "approval_id": "expected"},
+            "budget_used": {},
+            "budget_exceeded": False,
+            "hard_stop": False,
+            "approval_rejected": False,
+            "side_effect_failure": False,
+            "approved_plan_hash": planner.compute_plan_hash(plan),
+            "approved_approval_id": "different",
+        }
+        try:
+            graph = graph_module.build_graph()
+            with pytest.raises(PlanInvalidError):
+                await graph.ainvoke(initial_state)
+            audit = await conn.fetchrow(
+                "SELECT action FROM audit_logs WHERE resource_id=$1 "
+                "AND action='approval_mismatch'",
+                str(execution_id),
+            )
+            assert audit is not None
+        finally:
+            await _cleanup(
+                conn,
+                executions=[execution_id],
                 workflow_id=workflow_id,
                 user_id=user_id,
                 org_id=org_id,

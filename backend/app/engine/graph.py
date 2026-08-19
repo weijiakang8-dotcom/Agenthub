@@ -510,17 +510,7 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
             "side_effect_proposals": plan_result.get("side_effect_proposals") or [],
             "goal": plan_result.get("goal"),
         }
-        await publish_execution_event(
-            execution_id,
-            {
-                "event": "approval_required",
-                "approval_id": approval_id,
-                "plan_hash": plan_hash,
-                "side_effect_set": side_effects,
-                "side_effect_proposals": plan_result.get("side_effect_proposals") or [],
-                "plan": plan,
-            },
-        )
+        # approval_required 事件由 runner 在 DB 状态提交后统一发射，保证事件不领先持久化状态
         return {
             "plan": plan,
             "plan_meta": plan_meta,

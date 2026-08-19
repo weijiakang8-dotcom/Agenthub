@@ -93,3 +93,28 @@ def test_resume_execution_rejects_concurrent_update(monkeypatch):
 
     assert exc.value.status_code == 409
     assert delayed == []
+
+
+def test_resume_rejects_early_approval_when_not_waiting(monkeypatch):
+    org_id = uuid.uuid4()
+    execution = make_execution(ExecutionStatus.RUNNING, org_id)
+    session = FakeSession(get_result=execution)
+    delayed = []
+    monkeypatch.setattr(
+        executions.resume_workflow_task,
+        "delay",
+        lambda *args, **kwargs: delayed.append(args),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            executions.resume_execution(
+                execution.id,
+                ExecutionResume(approved=True),
+                session,
+                make_user(org_id),
+            )
+        )
+
+    assert exc.value.status_code == 409
+    assert delayed == []
