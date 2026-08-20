@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { Layout } from "@/components/layout/Layout";
 import { getAccessToken } from "@/lib/api";
@@ -28,7 +29,8 @@ function Home() {
 
 export default function App() {
   return (
-    <Routes>
+    <TooltipProvider delayDuration={250}>
+      <Routes>
       <Route path="/" element={<Home />} />
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<Dashboard />} />
@@ -121,6 +123,7 @@ export default function App() {
           }
         />
       </Route>
-    </Routes>
+      </Routes>
+    </TooltipProvider>
   );
 }

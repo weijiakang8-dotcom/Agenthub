@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { AuthModal } from "@/components/AuthModal";
 import { getAccessToken, logout } from "@/lib/api";
 import {
@@ -45,23 +46,27 @@ export function Header({
   return (
     <header className="glass flex h-14 items-center justify-between border-b border-border/60 px-4">
       <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden lg:inline-flex"
-          onClick={onToggleCollapse}
-          title={collapsed ? "展开侧栏" : "折叠侧栏"}
-        >
-          <PanelLeft className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="lg:hidden"
-          onClick={onMenuClick}
-        >
-          <Menu className="h-4 w-4" />
-        </Button>
+        <Hint label={collapsed ? "展开侧栏" : "折叠侧栏"}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden lg:inline-flex"
+            onClick={onToggleCollapse}
+            title={collapsed ? "展开侧栏" : "折叠侧栏"}
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
+        </Hint>
+        <Hint label="打开菜单">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            onClick={onMenuClick}
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+        </Hint>
         <span className="hidden text-sm font-semibold tracking-tight text-primary sm:inline">
           AgentHub
         </span>
@@ -74,30 +79,36 @@ export function Header({
       <div className="flex items-center gap-2">
         {!loggedIn && (
           <>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setAuthMode("login");
-                setAuthOpen(true);
-              }}
-            >
-              登录
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                setAuthMode("register");
-                setAuthOpen(true);
-              }}
-            >
-              注册
-            </Button>
+            <Hint label="使用邮箱和密码登录（无需验证码）">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setAuthMode("login");
+                  setAuthOpen(true);
+                }}
+              >
+                登录
+              </Button>
+            </Hint>
+            <Hint label="注册新账号（需邮箱验证码）">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setAuthMode("register");
+                  setAuthOpen(true);
+                }}
+              >
+                注册
+              </Button>
+            </Hint>
           </>
         )}
-        <Button variant="ghost" size="icon">
-          <Bell className="h-4 w-4" />
-        </Button>
+        <Hint label="通知">
+          <Button variant="ghost" size="icon">
+            <Bell className="h-4 w-4" />
+          </Button>
+        </Hint>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 rounded-full p-0">

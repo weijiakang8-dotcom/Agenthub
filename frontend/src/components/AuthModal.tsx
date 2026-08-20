@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
 
 import { ApiError, auth, setAccessToken, setRefreshToken } from "@/lib/api";
+import {
+  passwordMismatchError,
+  passwordTooShortError,
+} from "@/lib/authValidation";
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +63,8 @@ export function AuthModal({
   const [countdown, setCountdown] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -72,6 +80,8 @@ export function AuthModal({
     setCountdown(0);
     setForgotStep("email");
     setConfirmPassword("");
+    setShowPassword(false);
+    setShowConfirmPassword(false);
   }, [mode]);
 
   useEffect(() => {
@@ -159,12 +169,24 @@ export function AuthModal({
       toast.error("请输入正确的邮箱");
       return;
     }
+    if (mode === "register") {
+      const shortError = passwordTooShortError(password);
+      if (shortError) {
+        toast.error(shortError);
+        return;
+      }
+      const mismatch = passwordMismatchError(password, confirmPassword);
+      if (mismatch) {
+        toast.error(mismatch);
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const normalizedEmail = email.trim();
       const res =
         mode === "login"
-          ? await auth.login({ email: normalizedEmail, password, code })
+          ? await auth.login({ email: normalizedEmail, password })
           : await auth.register({
               email: normalizedEmail,
               password,
@@ -317,31 +339,92 @@ export function AuthModal({
             </div>
             <div className="space-y-2">
               <Label>密码</Label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>验证码</Label>
-              <div className="flex gap-2">
-                <Input value={code} onChange={(e) => setCode(e.target.value)} />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={sendCode}
-                  disabled={countdown > 0 || sendingCode}
-                >
-                  {countdown > 0
-                    ? `${countdown}s`
-                    : sendingCode
-                      ? "发送中…"
-                      : "获取验证码"}
-                </Button>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pr-9"
+                />
+                <Hint label={showPassword ? "隐藏密码" : "显示密码"}>
+                  <button
+                    type="button"
+                    aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </Hint>
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={submitting}>
+            {mode === "register" && (
+              <>
+                <div className="space-y-2">
+                  <Label>确认密码</Label>
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pr-9"
+                    />
+                    <Hint label={showConfirmPassword ? "隐藏密码" : "显示密码"}>
+                      <button
+                        type="button"
+                        aria-label={showConfirmPassword ? "隐藏密码" : "显示密码"}
+                        onClick={() => setShowConfirmPassword((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </Hint>
+                  </div>
+                  {passwordMismatchError(password, confirmPassword) && (
+                    <p className="text-xs text-red-600">两次输入的密码不一致</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>邮箱验证码</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      placeholder="6 位数字验证码"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={sendCode}
+                      disabled={countdown > 0 || sendingCode}
+                    >
+                      {countdown > 0
+                        ? `${countdown}s`
+                        : sendingCode
+                          ? "发送中…"
+                          : "获取验证码"}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={
+                submitting ||
+                (mode === "register" &&
+                  Boolean(passwordMismatchError(password, confirmPassword)))
+              }
+            >
               {submitting ? "提交中…" : mode === "login" ? "登录" : "注册"}
             </Button>
 

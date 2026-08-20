@@ -555,7 +555,7 @@ export const auth = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  login: (payload: { email: string; password: string; code: string }) =>
+  login: (payload: { email: string; password: string }) =>
     request<AuthResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify(payload),
