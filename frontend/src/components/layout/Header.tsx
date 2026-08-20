@@ -73,10 +73,6 @@ export function Header({
             <Menu className="h-4 w-4" />
           </Button>
         </Hint>
-        <span className="hidden text-sm text-muted-foreground sm:inline">
-          synplex
-        </span>
-        <span className="hidden text-muted-foreground/60 sm:inline">/</span>
         <span className="hidden text-sm font-semibold tracking-tight text-primary sm:inline">
           AgentHub
         </span>

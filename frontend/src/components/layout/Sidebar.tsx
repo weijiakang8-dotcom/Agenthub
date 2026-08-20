@@ -36,7 +36,11 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           collapsed ? "justify-center px-2" : "px-4",
         )}
       >
-        <BrandLogo size="md" showWordmark={!collapsed} />
+        <BrandLogo
+          size="md"
+          showWordmark={!collapsed}
+          wordmark="synplex"
+        />
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
@@ -60,12 +64,12 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
                 cn(
                   "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground",
                   isActive && "bg-primary/15 text-primary",
-                  collapsed && "justify-center px-0",
+                  collapsed ? "justify-center px-0" : "justify-between",
                 )
               }
             >
-              <Icon className="h-4 w-4" />
               {!collapsed && label}
+              <Icon className="h-4 w-4 shrink-0" />
             </NavLink>
           </Hint>
         ))}
