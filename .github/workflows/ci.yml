@@ -83,3 +83,45 @@ jobs:
         run: docker build -f docker/Dockerfile.backend -t agenthub-backend:ci .
       - name: Build frontend image
         run: docker build -f docker/Dockerfile.frontend -t agenthub-frontend:ci .
+
+  benchmark-gate:
+    runs-on: ubuntu-latest
+    env:
+      OTEL_SDK_DISABLED: "true"
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/agenthub_ci
+      REDIS_URL: redis://localhost:6379/0
+      CI_P95_LATENCY_MS_LIMIT: "1500"
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: agenthub_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d agenthub_ci"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt pytest
+      - name: Migrate to head
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Full backend suite (functional gate)
+        working-directory: backend
+        run: pytest -q
+      - name: Core latency gate
+        working-directory: backend
+        run: python ../scripts/ci_latency_gate.py

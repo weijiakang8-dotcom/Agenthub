@@ -48,6 +48,13 @@ Context Builder → LLM。检索与 LLM 解耦，故障 fail-open。
 `app/core/model_gateway.py::ModelGateway`：select/invoke/stream + 统一重试回退 + 结构化观测。
 优先级：用户 Key > 租户模型 > 全局模型 > 系统默认。
 
+### 双供应商跨厂商回退
+
+- 主供应商：DeepSeek（OpenAI 兼容端点）。
+- 备用供应商：OpenAI，通过 `OPENAI_FALLBACK_ENABLED` 开关控制；
+  未启用或未配置密钥时自动跳过，绝不阻塞主流程。
+- 主供应商故障/超时后，Gateway 按候选列表顺序自动切换到备用客户端。
+
 ## 失败与重试
 
 `app/core/failure.py`：错误分类（transient/timeout/provider/infrastructure/permanent/business/approval）
@@ -63,3 +70,12 @@ execution_completed/execution_failed/waiting_for_approval/done。前端只消费
 
 execution.correlation_id 为统一 trace id；ModelGateway 输出结构化 `model_call` 日志；
 audit_logs 记录 HTTP 事实；事件携带 correlation_id/sequence。
+
+## 运维与部署
+
+- 生产：`deploy/production-deploy.sh` 记录稳定点 → 构建 → 健康门禁 → 失败自动回滚。
+- 预发布：`staging` 分支 + `docker/docker-compose.staging.yml`
+  （独立项目，内部端口 8001/8081/5434/6380）。
+- 回滚：`deploy/rollback.sh`（默认回退 `deploy/.last-good-commit`）。
+- CI 门禁：全量测试 + 核心接口 p95 延迟与功能通过率（`scripts/ci_latency_gate.py`）。
+- 安全头：Nginx 前端静态层（`docker/nginx.conf`）与 FastAPI API 层双层统一。

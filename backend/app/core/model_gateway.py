@@ -94,6 +94,26 @@ def _fallback_client() -> ChatOpenAI:
     )
 
 
+def _secondary_fallback_client() -> ChatOpenAI | None:
+    """第二供应商（OpenAI）备用客户端；未启用或未配置密钥时返回 None（自动跳过）。"""
+    if not settings.OPENAI_FALLBACK_ENABLED:
+        return None
+    if not settings.OPENAI_FALLBACK_API_KEY:
+        logger.warning(
+            "OpenAI fallback enabled but OPENAI_FALLBACK_API_KEY is empty; "
+            "secondary provider skipped"
+        )
+        return None
+    return ChatOpenAI(
+        model=settings.OPENAI_FALLBACK_MODEL,
+        base_url=settings.OPENAI_FALLBACK_BASE_URL,
+        api_key=settings.OPENAI_FALLBACK_API_KEY,
+        temperature=0,
+        request_timeout=120,
+        max_retries=0,
+    )
+
+
 async def get_chat_models(
     organization_id: str | None = None,
     *,
@@ -159,16 +179,21 @@ class ModelGateway:
                 )
 
         models = await list_active_models(organization_id)
+        secondary = _secondary_fallback_client()
         if not models:
-            if user_llms:
-                return user_llms
-            return [_fallback_client()]
+            clients = [*user_llms, _fallback_client()]
+            if secondary is not None:
+                clients.append(secondary)
+            return clients
 
         if complexity == "complex":
             models = sorted(models, key=lambda m: (m.priority, m.cost_per_1k_tokens))
         else:
             models = sorted(models, key=lambda m: (-m.priority, m.cost_per_1k_tokens))
-        return [*user_llms, *[get_chat_model(model) for model in models]]
+        clients = [*user_llms, *[get_chat_model(model) for model in models]]
+        if secondary is not None:
+            clients.append(secondary)
+        return clients
 
     def _record(
         self,
