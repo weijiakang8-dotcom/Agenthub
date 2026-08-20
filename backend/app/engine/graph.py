@@ -63,6 +63,20 @@ from app.rag.retrieval import retrieve_chunks
 logger = logging.getLogger(__name__)
 
 
+class ProposalClarificationError(ProposalInvalidError):
+    """副作用提案缺少必要参数：模型未给出 tool call，但给出了澄清文本。
+
+    安全语义不变：不产生任何副作用、不猜测参数、不静默放行；执行仍
+    fail-closed。区别只是把模型的澄清问题（例如「请提供收件人邮箱」）
+    原样呈现给用户，让用户补充信息后重试。
+    """
+
+    def __init__(self, text: str, step_id: str):
+        self.text = text
+        self.step_id = step_id
+        super().__init__(f"side-effect step {step_id} needs clarification: {text}")
+
+
 class AgentState(TypedDict, total=False):
     messages: list[Any]
     current_step: int
@@ -242,6 +256,14 @@ async def _propose_side_effect_calls(
             correlation_id=state.get("execution_id"),
         )
         calls = getattr(response, "tool_calls", None) or []
+        if len(calls) == 0:
+            content = str(getattr(response, "content", "") or "").strip()
+            text = content or (
+                "该操作缺少必要信息（例如收件人邮箱地址），请补充后再试。"
+            )
+            raise ProposalClarificationError(
+                text=text, step_id=str(step.get("step_id") or "")
+            )
         if len(calls) != 1:
             raise ProposalInvalidError(
                 f"side-effect step {step.get('step_id')} must propose exactly one "
@@ -454,6 +476,23 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
             plan_result["side_effect_proposals"] = await _propose_side_effect_calls(
                 plan_result, state
             )
+        except ProposalClarificationError as exc:
+            await audit_execution_event(
+                execution_id=execution_id,
+                action="proposal_clarification",
+                organization_id=state.get("organization_id"),
+                user_id=state.get("user_id"),
+                details={"step_id": exc.step_id, "question": exc.text},
+            )
+            await publish_execution_event(
+                execution_id,
+                {
+                    "event": "clarification",
+                    "execution_id": execution_id,
+                    "message": exc.text,
+                },
+            )
+            raise PlanInvalidError(exc.text) from exc
         except ProposalInvalidError as exc:
             reason = str(exc)
             await audit_execution_event(
