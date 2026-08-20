@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     REPLICA_DATABASE_URL: str = ""
     LLM_BASE_URL: str = "https://api.deepseek.com/v1"
     LLM_MODEL: str = "deepseek-v4-flash"
+    # 第二供应商（OpenAI）跨厂商回退：默认关闭；密钥未配置/未充值时自动跳过，
+    # 绝不阻塞主流程。充值后填入密钥并开启开关即可启用。
+    OPENAI_FALLBACK_ENABLED: bool = False
+    OPENAI_FALLBACK_API_KEY: str = ""
+    OPENAI_FALLBACK_BASE_URL: str = "https://api.openai.com/v1"
+    OPENAI_FALLBACK_MODEL: str = "gpt-4o-mini"
     TAVILY_API_KEY: str = ""
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
