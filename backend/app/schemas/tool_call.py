@@ -47,3 +47,5 @@ class ToolCallSummary(BaseModel):
     approved_by: str | None
     started_at: datetime | None
     completed_at: datetime | None
+    input_params: dict | None = None
+    output_result: dict | None = None

@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "nomic-embed-text:latest"
     EMBEDDING_BASE_URL: str = "http://127.0.0.1:11434"
     EMBEDDING_DIMENSION: int = 768
+    BENCHMARK_REPORT_PATH: str = (
+        "backend/tests/benchmark/phase1/reports/evaluation_report.json"
+    )
 
     @field_validator("RUNTIME_MODE")
     @classmethod

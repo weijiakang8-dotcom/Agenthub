@@ -53,6 +53,12 @@ class ExecutionTrace(BaseModel):
     current_step_index: int
     status: ExecutionStatus
     tool_calls: list[ToolCallSummary]
+    cost: float | None = None
+    token_usage: dict | None = None
+    model_used: list | None = None
+    verify_status: str | None = None
+    approval_mismatch_count: int = 0
+    side_effect_proposals: list | None = None
 
 
 class ExecutionAccepted(BaseModel):
