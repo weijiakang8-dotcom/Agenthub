@@ -13,6 +13,9 @@ class ToolSpec:
     handler: Callable[..., Awaitable[dict[str, Any]]]
     timeout: float = 30.0
     requires_approval: bool = False
+    # 副作用属性：true = claim 后 provider 调用最多一次，禁止自动 retry。
+    # 与 Capability.side_effect 同源；在工具边界显式化，避免重复 capability 体系。
+    side_effect: bool = False
 
 
 _registry: dict[str, ToolSpec] = {}
@@ -26,6 +29,7 @@ def register_tool(
     *,
     timeout: float = 30.0,
     requires_approval: bool = False,
+    side_effect: bool = False,
 ) -> None:
     """注册或覆盖一个工具。"""
     if not name:
@@ -37,6 +41,7 @@ def register_tool(
         handler=handler,
         timeout=timeout,
         requires_approval=requires_approval,
+        side_effect=side_effect,
     )
 
 
@@ -118,6 +123,7 @@ def register_builtin_tools() -> None:
         _send_email,
         timeout=30.0,
         requires_approval=True,
+        side_effect=True,
     )
 
 

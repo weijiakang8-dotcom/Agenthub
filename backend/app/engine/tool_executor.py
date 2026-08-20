@@ -8,7 +8,12 @@ from typing import Any
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
-from app.core.failure import TOOL_RETRY_POLICY, classify_error, should_retry
+from app.core.failure import (
+    TOOL_RETRY_POLICY,
+    ErrorCategory,
+    classify_error,
+    should_retry,
+)
 from app.database import async_session_factory
 from app.engine.canonical import params_canonical
 from app.engine.event_bus import publish_execution_event
@@ -222,6 +227,11 @@ async def _invoke_with_retry(
             "data": None,
             "error": f"Unknown tool: {tool_name}",
         }
+    if spec.side_effect:
+        # Contract 03：副作用工具 claim 后 provider 调用最多一次。
+        # TIMEOUT/TRANSIENT/连接丢失等结果不可知的错误 → UNKNOWN（IN_FLIGHT fail-closed），
+        # 禁止自动 retry；UNKNOWN 不等于 FAILED，由 reconciliation/query_effect 裁决。
+        return await _invoke_side_effect_once(spec, params, organization_id)
 
     last_error: Exception | None = None
     for attempt in range(TOOL_RETRY_POLICY.max_attempts):
@@ -246,6 +256,36 @@ async def _invoke_with_retry(
         "data": None,
         "error": str(last_error or "tool execution failed"),
     }
+
+
+async def _invoke_side_effect_once(
+    spec: Any,
+    params: dict[str, Any],
+    organization_id: uuid.UUID | str | None,
+) -> dict[str, Any]:
+    """副作用工具单次调用：绝不重试；无法确认结果时返回 UNKNOWN。"""
+    try:
+        result = await asyncio.wait_for(
+            spec.handler(params, organization_id), timeout=spec.timeout
+        )
+        if not isinstance(result, dict):
+            result = {"status": "success", "data": result, "error": None}
+        return result
+    except Exception as exc:  # noqa: BLE001
+        category = classify_error(exc)
+        if category in {
+            ErrorCategory.TIMEOUT,
+            ErrorCategory.TRANSIENT,
+            ErrorCategory.INFRASTRUCTURE,
+            ErrorCategory.PROVIDER,
+        }:
+            return {
+                "status": "unknown",
+                "data": None,
+                "error": f"{category.value}: {exc}",
+                "idempotent": True,
+            }
+        return {"status": "failed", "data": None, "error": str(exc)}
 
 
 async def execute_tool(
@@ -336,7 +376,9 @@ async def execute_tool(
             "result": result,
         },
     )
-    await _finish_tool_call(row.id, result)
+    if result.get("status") != "unknown":
+        # UNKNOWN：保留 IN_FLIGHT，不落 FAILED，等待 reconciliation / 人工裁决。
+        await _finish_tool_call(row.id, result)
     return result
 
 
@@ -385,5 +427,6 @@ async def execute_pending_tool_call(tool_call_id: uuid.UUID) -> dict[str, Any]:
             "result": result,
         },
     )
-    await _finish_tool_call(tool_call_id, result)
+    if result.get("status") != "unknown":
+        await _finish_tool_call(tool_call_id, result)
     return result

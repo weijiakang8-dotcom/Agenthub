@@ -51,7 +51,8 @@ Context Builder → LLM。检索与 LLM 解耦，故障 fail-open。
 ## 失败与重试
 
 `app/core/failure.py`：错误分类（transient/timeout/provider/infrastructure/permanent/business/approval）
-与分层重试职责；副作用工具幂等（`tool_calls.idempotency_key`）。
+与分层重试职责；副作用工具幂等（`tool_calls.idempotency_key`）且 claim 后禁止自动 retry
+（TIMEOUT/UNKNOWN → IN_FLIGHT fail-closed）。
 
 ## Event Contract
 

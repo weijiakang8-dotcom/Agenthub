@@ -36,6 +36,7 @@ from app.engine.approval import (
     proposals_from_plan,
     resume_approval_decision,
 )
+from app.engine.canonical import params_canonical
 from app.engine.capabilities import (
     APPROVAL_REQUIRED_TOOLS,
     CAPABILITIES,
@@ -270,7 +271,12 @@ async def _execute_frozen_side_effect(
     step: dict[str, Any],
     execution_id: str,
 ) -> tuple[dict[str, Any], bool]:
-    """按冻结提案执行副作用；任何不一致 → approval_mismatch → FAILED。"""
+    """按冻结提案执行副作用；runtime attempt 与冻结提案不一致 → abort（零副作用）。
+
+    T24 裁决（Decision C）：执行阶段必须显式比对 runtime tool/params 与冻结
+    proposal；tool 或 params_canonical 任意不一致 → approval_mismatch → audit →
+    FAILED，禁止 provider invocation，禁止“按构造冻结”把 attempt B 替换成 A 执行。
+    """
     plan_result = (state.get("plan_meta") or {}).get("plan") or {}
     proposals = proposals_from_plan(plan_result)
     proposal = next(
@@ -290,8 +296,10 @@ async def _execute_frozen_side_effect(
             "final_output": f"approval_mismatch: {reason}",
             "current_step": len(state.get("plan") or []),
         }, False
+    runtime_tool = str(step.get("tool") or "")
+    runtime_params = dict(step.get("params") or {})
     mismatch = proposal_mismatch_reason(
-        proposal.to_dict(), proposal.tool, proposal.params
+        proposal.to_dict(), runtime_tool, runtime_params
     )
     if mismatch is not None:
         await audit_execution_event(
@@ -299,7 +307,18 @@ async def _execute_frozen_side_effect(
             action="approval_mismatch",
             organization_id=state.get("organization_id"),
             user_id=state.get("user_id"),
-            details={"step_id": step.get("step_id"), "reason": mismatch},
+            details={
+                "step_id": step.get("step_id"),
+                "runtime_tool": runtime_tool,
+                "runtime_params_canonical": (
+                    params_canonical(runtime_params, tool_name=runtime_tool)
+                    if runtime_tool
+                    else ""
+                ),
+                "frozen_tool": proposal.tool,
+                "frozen_params_canonical": proposal.params_canonical,
+                "reason": mismatch,
+            },
         )
         return {
             "side_effect_failure": True,
@@ -666,9 +685,26 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
                 else {}
             )
             if current_step.get("side_effect"):
-                # Phase 6A：副作用步骤执行冻结提案，恰好一次 tool call
+                # T24 裁决：执行阶段显式产生 runtime attempt，与冻结提案比对。
+                attempt_response = await _gateway.invoke(
+                    bound_llms,
+                    messages,
+                    task_type=f"attempt:{name}",
+                    organization_id=state.get("organization_id"),
+                    correlation_id=state.get("execution_id"),
+                )
+                usage.append(_usage_of(attempt_response))
+                attempts = list(getattr(attempt_response, "tool_calls", None) or [])
+                attempt_step = dict(current_step)
+                if len(attempts) == 1:
+                    attempt_step["tool"] = str(attempts[0].get("name") or "")
+                    attempt_step["params"] = dict(attempts[0].get("args") or {})
+                else:
+                    # 0 次或多次 attempt：视为 runtime 与冻结提案不一致，fail-closed。
+                    attempt_step["tool"] = ""
+                    attempt_step["params"] = {}
                 effect_result, effect_ok = await _execute_frozen_side_effect(
-                    state, current_step, execution_id
+                    state, attempt_step, execution_id
                 )
                 if not effect_ok:
                     return effect_result
@@ -705,7 +741,7 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
                         **(state.get("node_outputs") or {}),
                         str(current_step.get("step_id") or index): effect_result,
                     },
-                    "llm_usage": state.get("llm_usage") or [],
+                    "llm_usage": [*state.get("llm_usage", []), *usage],
                     "budget_used": {
                         **budget,
                         "steps": int(budget.get("steps", 0)) + 1,
@@ -874,13 +910,34 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
 async def _verify_node(state: AgentState) -> dict[str, Any]:
     final_output = state.get("final_output") or ""
     budget = state.get("budget_used") or _new_budget_state()
+    execution_id = state.get("execution_id") or None
+    organization_id = state.get("organization_id")
+    user_id = state.get("user_id")
+    verify_start = time.perf_counter()
     if not final_output:
+        # Fail-closed（ADR-005）：空输出 = UNKNOWN，不调用 LLM、不 replan、不算 PASS。
+        await audit_execution_event(
+            execution_id=str(execution_id or ""),
+            action="verify_unknown",
+            organization_id=organization_id,
+            user_id=user_id,
+            details={"reason": "empty final output"},
+        )
+        await record_span(
+            trace_id=execution_id,
+            name="verify",
+            start=verify_start,
+            end=time.perf_counter(),
+            status="error",
+            details={"result": "UNKNOWN", "revision_requested": False},
+        )
         return {"revision_requested": False, "budget_used": budget}
     if int(budget.get("verifies", 0)) >= int(budget.get("max_verifies", 1)):
         # verify ≤1：不允许重复验证
         return {"revision_requested": False, "budget_used": budget}
     usage: list[dict[str, Any]] = []
-    verify_start = time.perf_counter()
+    result_state = "UNKNOWN"
+    error_reason: str | None = None
     try:
         llms = await _get_llms(
             state.get("organization_id"),
@@ -892,8 +949,8 @@ async def _verify_node(state: AgentState) -> dict[str, Any]:
             [
                 HumanMessage(
                     content=(
-                        "你是质量审查员。检查下面的 Agent 输出是否完整满足用户输入，"
-                        "只输出 PASS 或 FAIL（PASS=满足，FAIL=不满足）。\n"
+                        "你是质量审查员。检查下面的 Agent 输出是否完整满足用户输入。"
+                        "只允许输出 PASS 或 FAIL 两个单词，不要输出任何其他内容。\n"
                         f"用户输入：{state.get('user_input', '')}\n"
                         f"Agent 输出：{final_output}"
                     )
@@ -903,22 +960,38 @@ async def _verify_node(state: AgentState) -> dict[str, Any]:
             organization_id=state.get("organization_id"),
             correlation_id=state.get("execution_id"),
         )
-        text = str(getattr(response, "content", "")).strip().upper()
-        passed = text != "FAIL"
         usage.append(_usage_of(response))
-    except Exception:  # noqa: BLE001
-        passed = True
+        result_state = classify_verify_output(getattr(response, "content", None))
+    except Exception as exc:  # noqa: BLE001
+        # Fail-closed（ADR-005）：异常/超时 = ERROR，不 replan、不算 PASS。
+        result_state = "ERROR"
+        error_reason = f"{type(exc).__name__}: {str(exc)[:200]}"
 
+    passed = result_state == "PASS"
     revision_requested = (not passed) and state.get("revision_count", 0) == 0
+    if result_state in ("UNKNOWN", "ERROR"):
+        # UNKNOWN/ERROR 不得触发 replan（防基础设施抖动造成重规划循环）。
+        revision_requested = False
+        await audit_execution_event(
+            execution_id=str(execution_id or ""),
+            action="verify_unknown" if result_state == "UNKNOWN" else "verify_error",
+            organization_id=organization_id,
+            user_id=user_id,
+            details={
+                "reason": error_reason or "verifier output not certifiable",
+                "final_output": final_output[:400],
+            },
+        )
     await record_span(
-        trace_id=state.get("execution_id") or None,
+        trace_id=execution_id,
         name="verify",
         start=verify_start,
         end=time.perf_counter(),
         status="ok" if passed else "error",
         details={
-            "result": "PASS" if passed else "FAIL",
+            "result": result_state,
             "revision_requested": revision_requested,
+            "error": error_reason,
         },
     )
     return {
@@ -933,6 +1006,22 @@ async def _verify_node(state: AgentState) -> dict[str, Any]:
             "verifies": int(budget.get("verifies", 0)) + 1,
         },
     }
+
+
+def classify_verify_output(text: str | None) -> str:
+    """ADR-005：verify 输出判定（fail-closed）。
+
+    精确 PASS / FAIL（trim、大小写不敏感）之外的一切（空、None、非法内容）
+    一律 UNKNOWN；调用层异常由调用方映射为 ERROR。
+    """
+    if text is None:
+        return "UNKNOWN"
+    normalized = str(text).strip().upper()
+    if normalized == "PASS":
+        return "PASS"
+    if normalized == "FAIL":
+        return "FAIL"
+    return "UNKNOWN"
 
 
 async def _waiting_for_approval_node(state: AgentState) -> dict[str, Any]:
