@@ -10,6 +10,7 @@ from app.core.permissions import require_permission
 from app.core.telemetry import get_meter, get_tracer
 from app.engine.tasks import execute_workflow_task, resume_workflow_task
 from app.models import (
+    AuditLog,
     Execution,
     ExecutionFeedback,
     InterventionLog,
@@ -223,10 +224,24 @@ async def get_execution_trace(
         .order_by(ToolCall.started_at)
     )
     tool_calls = [ToolCallSummary.model_validate(tc) for tc in result.scalars().all()]
+    audit_result = await session.execute(
+        select(AuditLog.action).where(AuditLog.resource_id == str(execution_id))
+    )
+    audit_actions = [row[0] for row in audit_result.all()]
+    verify_status = next(
+        (a for a in ("verify_unknown", "verify_error") if a in audit_actions), None
+    )
+    plan = execution.plan or {}
     return ExecutionTrace(
         current_step_index=execution.current_step_index,
         status=execution.status,
         tool_calls=tool_calls,
+        cost=execution.cost,
+        token_usage=execution.token_usage,
+        model_used=execution.model_used,
+        verify_status=verify_status,
+        approval_mismatch_count=audit_actions.count("approval_mismatch"),
+        side_effect_proposals=plan.get("side_effect_proposals"),
     )
 
 

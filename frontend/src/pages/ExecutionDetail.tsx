@@ -74,6 +74,9 @@ export default function ExecutionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [data, setData] = useState<ExecutionDetail | null>(null);
+  const [trace, setTrace] = useState<
+    import("@/lib/api").Trace | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [modifiedPlan, setModifiedPlan] = useState("");
@@ -89,6 +92,14 @@ export default function ExecutionDetail() {
       .then(setData)
       .catch((e) => toast.error(String(e)))
       .finally(() => setLoading(false));
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    api
+      .getTrace(id)
+      .then(setTrace)
+      .catch(() => setTrace(null));
   }, [id]);
 
   useEffect(() => {
@@ -326,6 +337,105 @@ export default function ExecutionDetail() {
               ))}
             </div>
           ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="type-h3">执行轨迹与可靠性</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+            <div className="rounded-md border border-border/60 p-2">
+              <p className="text-muted-foreground">本次成本</p>
+              <p className="font-medium">
+                {trace?.cost != null ? `¥${Number(trace.cost).toFixed(6)}` : "—"}
+              </p>
+            </div>
+            <div className="rounded-md border border-border/60 p-2">
+              <p className="text-muted-foreground">验证状态</p>
+              <p className="font-medium">
+                {trace?.verify_status ?? "PASS/未验证"}
+              </p>
+            </div>
+            <div className="rounded-md border border-border/60 p-2">
+              <p className="text-muted-foreground">审批不一致</p>
+              <p className="font-medium">
+                {trace?.approval_mismatch_count ?? 0} 次
+              </p>
+            </div>
+            <div className="rounded-md border border-border/60 p-2">
+              <p className="text-muted-foreground">使用模型</p>
+              <p className="truncate font-medium">
+                {trace?.model_used?.length ? trace.model_used.join("、") : "—"}
+              </p>
+            </div>
+          </div>
+
+          {trace?.verify_status && (
+            <div className="rounded-md border border-agent-waiting/30 bg-agent-waiting/10 px-3 py-2 text-xs text-foreground">
+              本次输出未被验证器认证（{trace.verify_status}），业务结果保留但不可宣称“已验证安全”。
+            </div>
+          )}
+
+          {(trace?.approval_mismatch_count ?? 0) > 0 && (
+            <div className="rounded-md border border-agent-failed/30 bg-agent-failed/10 px-3 py-2 text-xs text-foreground">
+              检测到 {trace?.approval_mismatch_count} 次审批不一致：执行已被中止，未产生对应副作用。
+            </div>
+          )}
+
+          {trace?.side_effect_proposals?.length ? (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                冻结的副作用提案
+              </p>
+              {trace.side_effect_proposals.map((proposal, index) => (
+                <div
+                  key={index}
+                  className="rounded-md border border-border/60 px-3 py-2 text-xs"
+                >
+                  <span className="font-medium">{proposal.tool ?? proposal.capability}</span>
+                  {proposal.params ? (
+                    <span className="ml-2 text-muted-foreground">
+                      {JSON.stringify(proposal.params).slice(0, 180)}
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <Separator />
+
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground">工具调用轨迹</p>
+            {trace?.tool_calls.length ? (
+              trace.tool_calls.map((tc) => (
+                <div
+                  key={tc.id}
+                  className="flex items-start gap-2 rounded-md border border-border/60 px-3 py-2 text-xs"
+                >
+                  {toolIcon(tc)}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">
+                      {tc.tool_name}
+                      <span className="ml-2 text-muted-foreground">
+                        {tc.status}
+                        {formatToolDuration(tc) ? ` · ${formatToolDuration(tc)}` : ""}
+                      </span>
+                    </p>
+                    {tc.input_params ? (
+                      <p className="truncate text-muted-foreground">
+                        {JSON.stringify(tc.input_params).slice(0, 200)}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-muted-foreground">暂无工具调用记录</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 

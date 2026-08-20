@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import CurrentUserDep, SessionDep
+from app.config import PROJECT_ROOT, settings
 from app.database import async_session_factory
 from app.engine.evaluator import evaluate_execution
 from app.engine.tasks import execute_workflow_task
@@ -15,6 +18,23 @@ from app.models import EvalDataset, EvalRun, Execution, Workflow, utcnow
 from app.models.enums import ExecutionStatus
 
 router = APIRouter(prefix="/eval", tags=["eval"])
+
+
+@router.get("/benchmark/latest")
+async def latest_benchmark_report(user: CurrentUserDep) -> dict:
+    """返回最近一次 Phase 1B 任务级评测报告（只读文件，缺失时 404）。"""
+    report_path = Path(settings.BENCHMARK_REPORT_PATH)
+    if not report_path.is_absolute():
+        report_path = PROJECT_ROOT / report_path
+    if not report_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="暂无评测报告：请先运行 Phase 1B Benchmark 生成 evaluation_report.json",
+        )
+    try:
+        return json.loads(report_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="评测报告格式损坏")
 
 
 class DatasetCreate(BaseModel):

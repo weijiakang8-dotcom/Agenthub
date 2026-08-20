@@ -59,6 +59,43 @@ export type Trace = {
   current_step_index: number;
   status: ExecutionStatus;
   tool_calls: ToolCall[];
+  cost?: number | null;
+  token_usage?: Record<string, { input_tokens: number; output_tokens: number }> | null;
+  model_used?: string[] | null;
+  verify_status?: string | null;
+  approval_mismatch_count?: number;
+  side_effect_proposals?: Array<{
+    step_id?: string;
+    capability?: string;
+    tool?: string;
+    params?: Record<string, unknown>;
+    params_canonical?: string;
+  }> | null;
+};
+
+export type BenchmarkReport = {
+  experiment?: string;
+  contract?: string;
+  generated_at?: string;
+  runs?: number;
+  metrics_per_arm?: Record<
+    string,
+    {
+      ssr_bcr?: number;
+      ssr_bcr_ci95?: [number, number] | null;
+      sor?: number;
+      user?: number;
+      gcr?: number | null;
+      tool_accuracy?: number | null;
+      param_accuracy?: number | null;
+      cost_per_safe_success?: number | null;
+      p95_latency_ms?: number | null;
+    }
+  >;
+  evidence_chain?: Record<string, Record<string, number>>;
+  tiers?: {
+    r2_hard?: Record<string, Record<string, Record<string, number | null>>>;
+  };
 };
 
 export type Workflow = {
@@ -328,6 +365,7 @@ export const api = {
     ),
   getExecution: (id: string) => request<ExecutionDetail>(`/executions/${id}`),
   getTrace: (id: string) => request<Trace>(`/executions/${id}/trace`),
+  getBenchmarkReport: () => request<BenchmarkReport>("/eval/benchmark/latest"),
   listWorkflows: () => request<Workflow[]>("/workflows"),
   createExecution: (workflow_id: string, user_input: string) =>
     request<{ execution_id: string; status: ExecutionStatus }>("/executions", {

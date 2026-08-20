@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type Execution } from "@/lib/api";
+import { api, type BenchmarkReport, type Execution } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 const binColor: Record<string, string> = {
@@ -17,6 +17,8 @@ const binColor: Record<string, string> = {
 
 export default function Quality() {
   const [executions, setExecutions] = useState<Execution[]>([]);
+  const [benchmark, setBenchmark] = useState<BenchmarkReport | null>(null);
+  const [benchmarkMissing, setBenchmarkMissing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,6 +26,13 @@ export default function Quality() {
       .listExecutions()
       .then(setExecutions)
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    api
+      .getBenchmarkReport()
+      .then(setBenchmark)
+      .catch(() => setBenchmarkMissing(true));
   }, []);
 
   const scored = executions.filter((e) => e.eval_score !== null);
@@ -64,6 +73,87 @@ export default function Quality() {
           平均分 {average} · 已评估 {scored.length}
         </p>
       </div>
+
+      {benchmark ? (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="type-h3">
+              任务级评测（Phase 1B · {benchmark.runs ?? "—"} runs）
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-xs">
+                <thead>
+                  <tr className="border-b border-border/60 text-left text-muted-foreground">
+                    <th className="py-2 pr-3 font-medium">臂</th>
+                    <th className="py-2 pr-3 font-medium">SSR=业务完成率</th>
+                    <th className="py-2 pr-3 font-medium">安全守住率 SOR</th>
+                    <th className="py-2 pr-3 font-medium">不安全副作用率</th>
+                    <th className="py-2 pr-3 font-medium">拦截率 GCR</th>
+                    <th className="py-2 pr-3 font-medium">工具准确率</th>
+                    <th className="py-2 pr-3 font-medium">参数准确率</th>
+                    <th className="py-2 pr-3 font-medium">Cost/SS(¥)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(benchmark.metrics_per_arm ?? {}).map(
+                    ([arm, m]) => (
+                      <tr key={arm} className="border-b border-border/40">
+                        <td className="py-2 pr-3 font-medium">{arm}</td>
+                        <td className="py-2 pr-3">
+                          {m.ssr_bcr ?? "—"}%
+                          {m.ssr_bcr_ci95
+                            ? ` [${m.ssr_bcr_ci95[0]}, ${m.ssr_bcr_ci95[1]}]`
+                            : ""}
+                        </td>
+                        <td className="py-2 pr-3">{m.sor ?? "—"}%</td>
+                        <td className="py-2 pr-3">{m.user ?? "—"}%</td>
+                        <td className="py-2 pr-3">
+                          {m.gcr == null ? "N/A" : `${(m.gcr * 100).toFixed(1)}%`}
+                        </td>
+                        <td className="py-2 pr-3">{m.tool_accuracy ?? "—"}%</td>
+                        <td className="py-2 pr-3">{m.param_accuracy ?? "—"}%</td>
+                        <td className="py-2 pr-3">
+                          {m.cost_per_safe_success ?? "—"}
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {benchmark.evidence_chain ? (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">
+                  证据链：MODEL ERROR → LAYER → BLOCKED/ALLOWED → SIDE EFFECT → SAFE/UNSAFE
+                </p>
+                {Object.entries(benchmark.evidence_chain).map(([arm, c]) => (
+                  <p key={arm} className="text-xs">
+                    Arm {arm}：决策错误 {c.decision_errors} → 被拦截 {c.blocked} → 放行{" "}
+                    {c.allowed} → 不安全副作用 {c.unsafe} → 安全收尾 {c.safe_outcomes}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              EXPLORATORY：无 seed、单一 provider、模拟副作用环境；商业结论由
+              Pro/GPTLuna 裁决。
+            </p>
+          </CardContent>
+        </Card>
+      ) : benchmarkMissing ? (
+        <Card className="shadow-sm">
+          <CardContent className="py-6">
+            <EmptyState
+              title="暂无任务级评测报告"
+              description="运行 Phase 1B Benchmark 生成 evaluation_report.json 后自动展示。"
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Skeleton className="h-48 w-full" />
+      )}
 
       <Card className="shadow-sm">
         <CardHeader>
