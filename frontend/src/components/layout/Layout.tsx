@@ -11,6 +11,11 @@ import { cn } from "@/lib/utils";
 
 const titles: Record<string, string> = {
   "/": "工作区",
+  "/chat": "Chat",
+  "/dashboard": "Dashboard",
+  "/history": "History",
+  "/skills": "Skills",
+  "/guide": "使用指南",
   "/workflows": "Workflows",
   "/workflows/editor": "工作流编辑器",
   "/executions": "Executions",
@@ -24,9 +29,7 @@ export function Layout() {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const title =
-    titles[location.pathname] ??
-    (location.pathname.startsWith("/executions/") ? "执行详情" : "AgentHub");
+  const title = titles[location.pathname] ?? dynamicTitle(location.pathname);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
@@ -64,4 +67,11 @@ export function Layout() {
       </div>
     </div>
   );
+}
+
+function dynamicTitle(pathname: string): string {
+  if (pathname.startsWith("/executions/")) return "执行详情";
+  const segment = pathname.split("/").filter(Boolean).pop();
+  if (!segment) return "工作区";
+  return segment.charAt(0).toUpperCase() + segment.slice(1);
 }
