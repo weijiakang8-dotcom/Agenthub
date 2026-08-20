@@ -72,6 +72,53 @@ async def reconcile_stale_pending_executions() -> dict[str, int]:
     return {"reconciled": reconciled}
 
 
+async def reconcile_stale_waiting_approvals() -> dict[str, int]:
+    """悬挂审批超时收敛：WAITING_FOR_APPROVAL 超过阈值 → FAILED + audit（CAS 幂等）。"""
+    cutoff = datetime.now(timezone.utc) - timedelta(
+        minutes=settings.RECONCILE_APPROVAL_MINUTES
+    )
+    reconciled = 0
+    async with async_session_factory() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(Execution).where(
+                        Execution.status == ExecutionStatus.WAITING_FOR_APPROVAL,
+                        Execution.updated_at < cutoff,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for execution in rows:
+            result = await session.execute(
+                update(Execution)
+                .where(
+                    Execution.id == execution.id,
+                    Execution.status == ExecutionStatus.WAITING_FOR_APPROVAL,
+                )
+                .values(
+                    status=ExecutionStatus.FAILED,
+                    error_message="reconciled: approval timed out",
+                    completed_at=datetime.now(timezone.utc),
+                )
+                .returning(Execution.id)
+            )
+            if result.scalar_one_or_none() is None:
+                continue
+            reconciled += 1
+            await audit_execution_event(
+                execution_id=str(execution.id),
+                action="approval_timeout_reconciled",
+                organization_id=execution.organization_id,
+                user_id=execution.user_id,
+                details={"reason": "waiting_for_approval timed out"},
+            )
+        await session.commit()
+    return {"reconciled": reconciled}
+
+
 async def reconcile_tool_calls() -> dict[str, int]:
     """tool_call 对账：
     - 孤儿 PENDING（带 key、所属 execution 已终止、超时）→ FAILED + audit（绝不执行）；

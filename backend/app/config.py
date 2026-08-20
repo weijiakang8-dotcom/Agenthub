@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:8080"
     REPLICA_DATABASE_URL: str = ""
     LLM_BASE_URL: str = "https://api.deepseek.com/v1"
-    LLM_MODEL: str = "deepseek-chat"
+    LLM_MODEL: str = "deepseek-v4-flash"
     TAVILY_API_KEY: str = ""
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     RUNTIME_MODE: str = "legacy"
     RECONCILE_PENDING_EXECUTION_MINUTES: int = 30
     RECONCILE_TOOLCALL_MINUTES: int = 30
+    RECONCILE_APPROVAL_MINUTES: int = 1440
     CHECKPOINT_RETENTION_DAYS: int = 7
     ALERT_DLQ_MIN: int = 5
     ALERT_PENDING_MIN: int = 5
