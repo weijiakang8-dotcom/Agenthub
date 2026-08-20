@@ -111,6 +111,7 @@ export default function Chat() {
       const decoder = new TextDecoder();
       let buffer = "";
       let assistant = "";
+      let clarificationSeen = false;
 
       const updateAssistant = (text: string) => {
         assistant = text;
@@ -140,7 +141,17 @@ export default function Chat() {
               updateAssistant(assistant);
             }
             if (
+              data.event === "clarification" &&
+              typeof data.message === "string" &&
+              data.message
+            ) {
+              clarificationSeen = true;
+              assistant = data.message;
+              updateAssistant(assistant);
+            }
+            if (
               data.event === "error" &&
+              !clarificationSeen &&
               typeof data.message === "string" &&
               data.message
             ) {
@@ -149,6 +160,7 @@ export default function Chat() {
             }
             if (
               data.event === "execution_failed" &&
+              !clarificationSeen &&
               typeof data.error === "string" &&
               data.error
             ) {
@@ -158,7 +170,11 @@ export default function Chat() {
             if (data.final_output) updateAssistant(data.final_output);
             if (data.event === "done") {
               if (data.status === "failed") {
-                if (typeof data.error_message === "string" && data.error_message) {
+                if (
+                  !clarificationSeen &&
+                  typeof data.error_message === "string" &&
+                  data.error_message
+                ) {
                   assistant = `执行失败：${data.error_message}`;
                   updateAssistant(assistant);
                 }
