@@ -20,6 +20,7 @@ describe("Sidebar", () => {
   it("shows only the conversation-first navigation entries", () => {
     renderSidebar();
 
+    expect(screen.getByText("synplex")).toBeInTheDocument();
     expect(screen.getByText("新建对话")).toBeInTheDocument();
     expect(screen.getByText("对话历史")).toBeInTheDocument();
     expect(screen.getByText("Skill 库")).toBeInTheDocument();
