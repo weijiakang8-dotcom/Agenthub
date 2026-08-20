@@ -47,7 +47,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+    <div className="dark relative min-h-screen overflow-hidden bg-background text-foreground">
       <GalaxyBackground />
 
       <main className="relative z-10 mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 text-center">

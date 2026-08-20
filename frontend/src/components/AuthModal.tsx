@@ -208,9 +208,9 @@ export function AuthModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="surface-isolated overflow-hidden border-border/80 bg-white text-[#1f2937] shadow-xl">
+      <DialogContent className="surface-isolated overflow-hidden border-border/80 shadow-xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-[#1f2937]">
+          <DialogTitle className="flex items-center gap-2">
             <BrandLogo size="sm" showWordmark={false} />
             <span>
               {mode === "login"

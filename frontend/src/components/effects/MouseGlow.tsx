@@ -1,6 +1,10 @@
 import { useEffect, useRef } from "react";
 
-export function MouseGlow() {
+export function MouseGlow({
+  variant = "purple",
+}: {
+  variant?: "purple" | "water";
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
@@ -11,6 +15,16 @@ export function MouseGlow() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const colors =
+      variant === "water"
+        ? {
+            core: "rgba(56, 189, 248, 0.16)",
+            mid: "rgba(59, 130, 246, 0.08)",
+          }
+        : {
+            core: "rgba(129, 140, 248, 0.14)",
+            mid: "rgba(168, 85, 247, 0.08)",
+          };
     const target = { x: -1000, y: -1000 };
     const pos = { x: -1000, y: -1000 };
     let raf = 0;
@@ -36,8 +50,8 @@ export function MouseGlow() {
         pos.y,
         radius,
       );
-      gradient.addColorStop(0, "rgba(129, 140, 248, 0.14)");
-      gradient.addColorStop(0.45, "rgba(168, 85, 247, 0.08)");
+      gradient.addColorStop(0, colors.core);
+      gradient.addColorStop(0.45, colors.mid);
       gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -54,7 +68,7 @@ export function MouseGlow() {
       window.removeEventListener("resize", resize);
       window.removeEventListener("pointermove", move);
     };
-  }, []);
+  }, [variant]);
 
   return (
     <canvas

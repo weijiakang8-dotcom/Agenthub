@@ -1,12 +1,16 @@
-import { Bell, Menu, PanelLeft } from "lucide-react";
+import { Bell, Menu, Moon, PanelLeft, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { AuthModal } from "@/components/AuthModal";
-import { BrandLogo } from "@/components/brand/BrandLogo";
 import { getAccessToken, logout } from "@/lib/api";
+import {
+  getStoredTheme,
+  toggleTheme,
+  type Theme,
+} from "@/lib/theme";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +33,7 @@ export function Header({
 }) {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
   const loggedIn = Boolean(getAccessToken());
 
   useEffect(() => {
@@ -68,16 +73,38 @@ export function Header({
             <Menu className="h-4 w-4" />
           </Button>
         </Hint>
-        <div className="hidden sm:block">
-          <BrandLogo size="sm" />
-        </div>
-        <span className="hidden text-slate-300 sm:inline">/</span>
+        <span className="hidden text-sm text-muted-foreground sm:inline">
+          synplex
+        </span>
+        <span className="hidden text-muted-foreground/60 sm:inline">/</span>
+        <span className="hidden text-sm font-semibold tracking-tight text-primary sm:inline">
+          AgentHub
+        </span>
+        <span className="hidden text-muted-foreground/60 sm:inline">/</span>
         <h1 className="truncate text-lg font-semibold tracking-tight">
           {title}
         </h1>
       </div>
 
       <div className="flex items-center gap-2">
+        <Hint
+          label={
+            theme === "dark" ? "切换为浅色日间模式" : "切换为深色夜间模式"
+          }
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={theme === "dark" ? "切换为浅色模式" : "切换为深色模式"}
+            onClick={() => setTheme(toggleTheme(theme))}
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </Button>
+        </Hint>
         {!loggedIn && (
           <>
             <Hint label="使用邮箱和密码登录（无需验证码）">

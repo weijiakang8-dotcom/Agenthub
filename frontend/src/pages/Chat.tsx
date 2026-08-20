@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { api, getAccessToken, type ExecutionDetail } from "@/lib/api";
+import {
+  getStoredTheme,
+  THEME_CHANGED_EVENT,
+  type Theme,
+} from "@/lib/theme";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -22,8 +27,16 @@ export default function Chat() {
   const [modifiedPlan, setModifiedPlan] = useState("");
   const [activeModel, setActiveModel] = useState<string | null>(null);
   const [optimizing, setOptimizing] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const onChange = (event: Event) =>
+      setTheme((event as CustomEvent<Theme>).detail);
+    window.addEventListener(THEME_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, onChange);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -219,9 +232,10 @@ export default function Chat() {
   }
 
   return (
-    <div className="relative mx-auto flex h-[calc(100vh-7rem)] max-w-3xl flex-col">
-      <MouseGlow />
-      <div className="relative z-10 flex-1 space-y-4 overflow-y-auto py-4">
+    <div className="relative flex h-[calc(100vh-7rem)] w-full items-center justify-center">
+      <MouseGlow variant={theme === "light" ? "water" : "purple"} />
+      <div className="relative z-10 flex h-full w-full max-w-3xl flex-col">
+        <div className="flex-1 space-y-4 overflow-y-auto py-4">
         {messages.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             开始对话，描述你想让 AgentHub 完成的任务。
@@ -317,9 +331,9 @@ export default function Chat() {
           ))
         )}
         <div ref={bottomRef} />
-      </div>
+        </div>
 
-      <div className="relative z-10 shrink-0 space-y-2 pb-2">
+        <div className="relative z-10 shrink-0 space-y-2 pb-2">
         <Textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -357,6 +371,7 @@ export default function Chat() {
         <p className="text-right text-xs text-muted-foreground">
           当前模型：{activeModel ?? "系统默认"}
         </p>
+        </div>
       </div>
     </div>
   );
