@@ -13,6 +13,7 @@
 6. 非法计划 → plan_invalid，禁止静默降级。
 7. 预算按副作用区分强制等级；副作用预算超限禁止自动 replan。
 8. Verify 只有 PASS/FAIL 职权；replan 必须重过全部验证与审批闸门。
+   （ADR-005 补充：UNKNOWN/ERROR 不算 PASS、不触发 replan；判定 fail-closed。）
 9. Memory 分层与归属；Cache 永不视为 Memory；V1 显式写入。
 10. 所有模型调用必须经 Model Gateway；业务代码禁止写死模型。
 11. Failure/Retry 分层；副作用必须幂等；Provider 超时不触发 Celery 重试。

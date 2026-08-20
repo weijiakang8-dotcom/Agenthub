@@ -43,3 +43,7 @@ k8s/*.env
 
 backups/
 docker/nginx/ssl/
+
+# ===== Benchmark 产物（可由 harness 重新生成，不入库） =====
+backend/tests/benchmark/reports/
+backend/tests/benchmark/phase1/reports/

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -18,7 +19,7 @@ from sqlalchemy import select, update
 from app.config import settings
 from app.database import async_session_factory
 from app.engine.executor import audit_execution_event
-from app.models import Execution, ToolCall
+from app.models import AuditLog, Execution, ToolCall
 from app.models.enums import ExecutionStatus, ToolCallStatus
 
 logger = logging.getLogger(__name__)
@@ -103,30 +104,42 @@ async def reconcile_tool_calls() -> dict[str, int]:
         for call in calls:
             execution = await session.get(Execution, call.execution_id)
             if call.status == ToolCallStatus.IN_FLIGHT:
-                result["unknown_flagged"] += 1
-                await audit_execution_event(
-                    execution_id=str(call.execution_id),
+                if not await _audit_exists(
+                    session,
                     action="side_effect_unknown_reconciled",
-                    organization_id=call.organization_id,
-                    user_id=execution.user_id if execution else None,
-                    details={
-                        "tool_call_id": str(call.id),
-                        "reason": "IN_FLIGHT older than cutoff; fail-closed, manual",
-                    },
-                )
+                    execution_id=call.execution_id,
+                    tool_call_id=call.id,
+                ):
+                    result["unknown_flagged"] += 1
+                    await audit_execution_event(
+                        execution_id=str(call.execution_id),
+                        action="side_effect_unknown_reconciled",
+                        organization_id=call.organization_id,
+                        user_id=execution.user_id if execution else None,
+                        details={
+                            "tool_call_id": str(call.id),
+                            "reason": "IN_FLIGHT older than cutoff; fail-closed, manual",
+                        },
+                    )
                 continue
             if not call.idempotency_key:
-                result["manual_flagged"] += 1
-                await audit_execution_event(
-                    execution_id=str(call.execution_id),
+                if not await _audit_exists(
+                    session,
                     action="tool_call_manual_required",
-                    organization_id=call.organization_id,
-                    user_id=execution.user_id if execution else None,
-                    details={
-                        "tool_call_id": str(call.id),
-                        "reason": "legacy PENDING without idempotency key",
-                    },
-                )
+                    execution_id=call.execution_id,
+                    tool_call_id=call.id,
+                ):
+                    result["manual_flagged"] += 1
+                    await audit_execution_event(
+                        execution_id=str(call.execution_id),
+                        action="tool_call_manual_required",
+                        organization_id=call.organization_id,
+                        user_id=execution.user_id if execution else None,
+                        details={
+                            "tool_call_id": str(call.id),
+                            "reason": "legacy PENDING without idempotency key",
+                        },
+                    )
                 continue
             if execution is None or execution.status in {
                 ExecutionStatus.COMPLETED,
@@ -165,6 +178,26 @@ async def reconcile_tool_calls() -> dict[str, int]:
                 )
         await session.commit()
     return result
+
+
+async def _audit_exists(
+    session: Any,
+    *,
+    action: str,
+    execution_id: uuid.UUID,
+    tool_call_id: uuid.UUID,
+) -> bool:
+    """确定性审计去重：同一 tool_call 的同一动作只写一次（reconcile 幂等）。"""
+    row = await session.execute(
+        select(AuditLog.id)
+        .where(
+            AuditLog.action == action,
+            AuditLog.resource_id == str(execution_id),
+            AuditLog.details["tool_call_id"].as_string() == str(tool_call_id),
+        )
+        .limit(1)
+    )
+    return row.scalar_one_or_none() is not None
 
 
 async def cleanup_old_checkpoints(*, dry_run: bool = False) -> dict[str, Any]:

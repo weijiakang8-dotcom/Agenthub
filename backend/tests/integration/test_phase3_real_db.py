@@ -22,6 +22,8 @@ from types import SimpleNamespace
 
 import asyncpg
 import pytest
+from langchain_core.messages import AIMessage
+
 from app.config import settings
 from app.engine import graph as graph_module
 from app.engine import runner, tool_executor
@@ -29,7 +31,6 @@ from app.engine.planner import normalize_plan
 from app.memory import service as memory_service
 from app.models.enums import ExecutionStatus
 from app.rag import retrieval, vector_store
-from langchain_core.messages import AIMessage
 
 
 def _sync_url() -> str:
@@ -551,6 +552,21 @@ def test_real_approval_freeze_resume_no_duplicate_side_effect(monkeypatch):
                             }
                         ]
                     },
+                    # T24 裁决：执行阶段显式 runtime attempt（与冻结 proposal 一致）
+                    {
+                        "tool_calls": [
+                            {
+                                "name": "send_email",
+                                "args": {
+                                    "to": "test@example.com",
+                                    "subject": "x",
+                                    "body": "y",
+                                },
+                                "id": "call_email_attempt",
+                                "type": "tool_call",
+                            }
+                        ]
+                    },
                     "PASS",
                 ],
             )
@@ -730,8 +746,9 @@ def test_real_model_gateway_records_llm_span():
         conn = await asyncpg.connect(_sync_url())
         trace_id = str(uuid.uuid4())
         try:
-            from app.core.model_gateway import ModelGateway
             from langchain_core.messages import HumanMessage
+
+            from app.core.model_gateway import ModelGateway
 
             class StubLLM:
                 model_name = "stub-model"

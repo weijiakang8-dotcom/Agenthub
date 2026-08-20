@@ -13,6 +13,8 @@
 - 孤儿 PENDING tool_call（终止 execution）→ FAILED + audit，绝不执行
 - IN_FLIGHT 超时 → 保持 + side_effect_unknown_reconciled（fail-closed）
 - 历史无 key PENDING → 保持 + tool_call_manual_required
+- 幂等：重复运行零状态变化、零重复审计；manual / unknown 审计按
+  (resource_id, action, tool_call_id) 确定性去重，reconcile(reconcile(x)) == reconcile(x)
 
 ## DLQ（人工 CLI）
 
