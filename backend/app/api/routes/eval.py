@@ -23,10 +23,25 @@ router = APIRouter(prefix="/eval", tags=["eval"])
 @router.get("/benchmark/latest")
 async def latest_benchmark_report(user: CurrentUserDep) -> dict:
     """返回最近一次 Phase 1B 任务级评测报告（只读文件，缺失时 404）。"""
-    report_path = Path(settings.BENCHMARK_REPORT_PATH)
-    if not report_path.is_absolute():
-        report_path = PROJECT_ROOT / report_path
-    if not report_path.exists():
+    configured = Path(settings.BENCHMARK_REPORT_PATH)
+    candidates = []
+    if configured.is_absolute():
+        candidates.append(configured)
+    else:
+        # 兼容容器布局：镜像内 backend/ 被拷贝到 /app 根目录。
+        candidates.append(PROJECT_ROOT / configured)
+        candidates.append(
+            PROJECT_ROOT / configured.relative_to("backend")
+            if str(configured).startswith("backend/")
+            else PROJECT_ROOT
+            / "tests"
+            / "benchmark"
+            / "phase1"
+            / "reports"
+            / "evaluation_report.json"
+        )
+    report_path = next((p for p in candidates if p.exists()), None)
+    if report_path is None:
         raise HTTPException(
             status_code=404,
             detail="暂无评测报告：请先运行 Phase 1B Benchmark 生成 evaluation_report.json",
