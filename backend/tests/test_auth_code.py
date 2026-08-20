@@ -7,8 +7,9 @@ from types import SimpleNamespace
 
 import jwt
 import pytest
-from app.api.routes import auth as auth_routes
 from fastapi import HTTPException
+
+from app.api.routes import auth as auth_routes
 
 
 class FakeRedis:
@@ -566,6 +567,26 @@ def test_login_success(monkeypatch):
     assert result.access_token
     assert result.refresh_token
     assert session.committed is True
+
+
+def test_login_rate_limited_returns_429(monkeypatch):
+    async def deny(*_args, **_kwargs):
+        return False
+
+    session = FakeSession(user=make_user())
+    monkeypatch.setattr(auth_routes, "rate_limit", deny)
+    monkeypatch.setattr(auth_routes, "master_session_factory", lambda: session)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            auth_routes.login(
+                payload=auth_routes.LoginRequest(email="a@b.com", password="password"),
+                request=SimpleNamespace(
+                    headers={}, client=SimpleNamespace(host="1.2.3.4")
+                ),
+            )
+        )
+    assert exc.value.status_code == 429
 
 
 def test_refresh_requires_bearer():

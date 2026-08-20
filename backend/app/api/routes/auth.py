@@ -319,9 +319,15 @@ async def register(payload: RegisterRequest) -> AuthResponse:
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(payload: LoginRequest) -> AuthResponse:
+async def login(payload: LoginRequest, request: Request = None) -> AuthResponse:
     email = _validate_email(payload.email)
     # 登录流程已移除邮箱验证码校验，仅保留账号 + 密码。
+    if request is not None:
+        client_ip = get_client_ip(request)
+        if not await rate_limit(f"login:email:{email}", limit=5, window_seconds=300):
+            raise auth_error(429, "AUTH_001", "登录尝试过于频繁，请稍后再试")
+        if not await rate_limit(f"login:ip:{client_ip}", limit=30, window_seconds=300):
+            raise auth_error(429, "AUTH_001", "登录尝试过于频繁，请稍后再试")
     async with master_session_factory() as session:
         user = (
             await session.execute(select(User).where(User.email == email))

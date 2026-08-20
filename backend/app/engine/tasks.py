@@ -52,6 +52,10 @@ celery_app.conf.beat_schedule = {
         "task": "agenthub.reconcile_state",
         "schedule": 300.0,
     },
+    "reconcile-approvals": {
+        "task": "agenthub.reconcile_stale_approvals",
+        "schedule": 300.0,
+    },
     "cleanup-checkpoints": {
         "task": "agenthub.cleanup_checkpoints",
         "schedule": 3600.0,
@@ -172,6 +176,13 @@ def reconcile_state_task() -> dict:
         return {"executions": executions, "tool_calls": tool_calls}
 
     return asyncio.run(_run())
+
+
+@celery_app.task(name="agenthub.reconcile_stale_approvals")
+def reconcile_stale_approvals_task() -> dict:
+    from app.engine.reconciliation import reconcile_stale_waiting_approvals
+
+    return asyncio.run(reconcile_stale_waiting_approvals())
 
 
 @celery_app.task(name="agenthub.cleanup_checkpoints")

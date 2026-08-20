@@ -79,7 +79,6 @@ export default function ExecutionDetail() {
   >(null);
   const [loading, setLoading] = useState(true);
   const [interventions, setInterventions] = useState<Intervention[]>([]);
-  const [modifiedPlan, setModifiedPlan] = useState("");
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [feedbacks, setFeedbacks] = useState<ExecutionFeedback[]>([]);
@@ -635,13 +634,10 @@ export default function ExecutionDetail() {
                   Agent 想要执行：
                   {pendingCall ? pendingCall.tool_name : "下一步计划"}
                 </p>
-                <textarea
-                  className="w-full rounded-md border border-input bg-background p-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                  rows={3}
-                  value={modifiedPlan}
-                  onChange={(e) => setModifiedPlan(e.target.value)}
-                  placeholder="修改 Agent 的下一步计划…"
-                />
+                <p className="rounded-md border border-border/60 px-3 py-2 text-xs text-muted-foreground">
+                  审批冻结语义：执行必须与已批准的参数完全一致。如需修改计划，
+                  请先“终止”本次执行，再重新创建任务获得新的审批。
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <Hint label="批准并严格按冻结计划执行副作用">
                     <Button
@@ -657,24 +653,6 @@ export default function ExecutionDetail() {
                       }}
                     >
                       批准执行
-                    </Button>
-                  </Hint>
-                  <Hint label="按修改后的计划重新执行（需重新审批）">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={async () => {
-                        await api.intervene(data.id, {
-                          operator: "admin",
-                          action: "modified",
-                          modified_plan: modifiedPlan,
-                        });
-                        toast.success("已按修改内容执行");
-                        window.location.reload();
-                      }}
-                    >
-                      按修改执行
                     </Button>
                   </Hint>
                   <Hint label="终止本次执行，副作用立即停止">
