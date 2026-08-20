@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.api.deps import CurrentUserDep, SessionDep
-from app.config import PROJECT_ROOT, settings
+from app.config import settings
 from app.database import async_session_factory
 from app.engine.evaluator import evaluate_execution
 from app.engine.tasks import execute_workflow_task
@@ -23,17 +23,17 @@ router = APIRouter(prefix="/eval", tags=["eval"])
 @router.get("/benchmark/latest")
 async def latest_benchmark_report(user: CurrentUserDep) -> dict:
     """返回最近一次 Phase 1B 任务级评测报告（只读文件，缺失时 404）。"""
+    # 容器内 backend/ 被拷贝为 /app，本地则为仓库根下的 backend/；
+    # 以本模块位置推导两种布局下的根目录。
+    root = Path(__file__).resolve().parents[3]
     configured = Path(settings.BENCHMARK_REPORT_PATH)
     candidates = []
     if configured.is_absolute():
         candidates.append(configured)
     else:
-        # 兼容容器布局：镜像内 backend/ 被拷贝到 /app 根目录。
-        candidates.append(PROJECT_ROOT / configured)
+        candidates.append(root / configured)
         candidates.append(
-            PROJECT_ROOT / configured.relative_to("backend")
-            if str(configured).startswith("backend/")
-            else PROJECT_ROOT
+            root
             / "tests"
             / "benchmark"
             / "phase1"
