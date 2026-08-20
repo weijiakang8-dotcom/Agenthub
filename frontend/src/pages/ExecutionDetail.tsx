@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Separator } from "@/components/ui/separator";
@@ -239,29 +240,33 @@ export default function ExecutionDetail() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/executions")}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            返回
-          </Button>
+          <Hint label="返回执行记录列表">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/executions")}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              返回
+            </Button>
+          </Hint>
           <StatusBadge status={data.status} />
         </div>
         {data.status === "waiting_for_approval" && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={async () => {
-              await api.resumeExecution(data.id, true);
-              toast.success("已恢复执行");
-              window.location.reload();
-            }}
-          >
-            <RotateCcw className="h-4 w-4" />
-            断点续跑
-          </Button>
+          <Hint label="按原审批继续执行该任务">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                await api.resumeExecution(data.id, true);
+                toast.success("已恢复执行");
+                window.location.reload();
+              }}
+            >
+              <RotateCcw className="h-4 w-4" />
+              断点续跑
+            </Button>
+          </Hint>
         )}
       </div>
 
@@ -528,50 +533,56 @@ export default function ExecutionDetail() {
                   placeholder="修改 Agent 的下一步计划…"
                 />
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    onClick={async () => {
-                      await api.intervene(data.id, {
-                        operator: "admin",
-                        action: "approved",
-                      });
-                      toast.success("已按原计划执行");
-                      window.location.reload();
-                    }}
-                  >
-                    批准执行
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={async () => {
-                      await api.intervene(data.id, {
-                        operator: "admin",
-                        action: "modified",
-                        modified_plan: modifiedPlan,
-                      });
-                      toast.success("已按修改内容执行");
-                      window.location.reload();
-                    }}
-                  >
-                    按修改执行
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={async () => {
-                      await api.intervene(data.id, {
-                        operator: "admin",
-                        action: "terminate",
-                      });
-                      toast.success("已终止任务");
-                      window.location.reload();
-                    }}
-                  >
-                    终止
-                  </Button>
+                  <Hint label="批准并严格按冻结计划执行副作用">
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      onClick={async () => {
+                        await api.intervene(data.id, {
+                          operator: "admin",
+                          action: "approved",
+                        });
+                        toast.success("已按原计划执行");
+                        window.location.reload();
+                      }}
+                    >
+                      批准执行
+                    </Button>
+                  </Hint>
+                  <Hint label="按修改后的计划重新执行（需重新审批）">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={async () => {
+                        await api.intervene(data.id, {
+                          operator: "admin",
+                          action: "modified",
+                          modified_plan: modifiedPlan,
+                        });
+                        toast.success("已按修改内容执行");
+                        window.location.reload();
+                      }}
+                    >
+                      按修改执行
+                    </Button>
+                  </Hint>
+                  <Hint label="终止本次执行，副作用立即停止">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={async () => {
+                        await api.intervene(data.id, {
+                          operator: "admin",
+                          action: "terminate",
+                        });
+                        toast.success("已终止任务");
+                        window.location.reload();
+                      }}
+                    >
+                      终止
+                    </Button>
+                  </Hint>
                 </div>
               </div>
             )}

@@ -40,6 +40,7 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+    # 兼容历史客户端：登录不再使用验证码，该字段保留但被忽略。
     code: str = ""
 
 
@@ -264,11 +265,9 @@ async def send_code(payload: SendCodeRequest, request: Request) -> dict:
         if not result.get("ok"):
             raise auth_error(502, "AUTH_001", "验证码发送失败，请稍后再试")
     elif mode == "login":
-        # 登录模式不暴露邮箱是否已注册：仅对已注册邮箱真实发送验证码。
-        if await _email_exists(email):
-            result = await _send_code(email, mode)
-            if not result.get("ok"):
-                raise auth_error(502, "AUTH_001", "验证码发送失败，请稍后再试")
+        # 登录已移除邮箱验证码（仅账号+密码）；该分支为兼容旧调用方保留，
+        # 不再真实发送验证码，也不暴露邮箱是否注册。
+        return {"status": "ok", "note": "login does not require an email code"}
     else:
         # 兼容未携带 mode 的旧调用方。
         result = await _send_code(email, mode)
@@ -322,8 +321,7 @@ async def register(payload: RegisterRequest) -> AuthResponse:
 @router.post("/login", response_model=AuthResponse)
 async def login(payload: LoginRequest) -> AuthResponse:
     email = _validate_email(payload.email)
-    if not await _verify_code(email, payload.code, "login"):
-        raise auth_error(401, "INVALID_VERIFY_CODE", "验证码错误，请重新输入")
+    # 登录流程已移除邮箱验证码校验，仅保留账号 + 密码。
     async with master_session_factory() as session:
         user = (
             await session.execute(select(User).where(User.email == email))

@@ -284,7 +284,7 @@ export default function UserGuide() {
         badge="5 分钟上手"
       >
         <Step index={1} title="注册 / 登录">
-          使用邮箱验证码完成注册或登录。
+          注册需要邮箱验证码；登录只需邮箱和密码。
         </Step>
         <Step index={2} title="创建 Agent 模板">
           当前平台通过 Skill 库管理可复用的任务模板；你也可以在 Skill
@@ -549,9 +549,9 @@ export default function UserGuide() {
         <div className="grid gap-3">
           <ProblemCard
             title="登录失败"
-            symptom="输入邮箱和密码后无法登录，或验证码收不到。"
-            reason="邮箱未注册、密码错误、验证码过期，或邮件被收进垃圾箱。"
-            solution="确认邮箱已注册并检查垃圾邮件；使用验证码登录时重新获取验证码，稍后重试。"
+            symptom="输入邮箱和密码后无法登录。"
+            reason="邮箱未注册，或密码错误（登录不再需要验证码）。"
+            solution="确认邮箱已注册、密码正确；若忘记密码，请使用“找回密码”重置。"
           />
           <ProblemCard
             title="Agent 执行失败"

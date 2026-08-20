@@ -4,14 +4,21 @@ import { describe, expect, it } from "vitest";
 
 import { Sidebar } from "@/components/layout/Sidebar";
 import { setAccessToken } from "@/lib/api";
+import { TooltipProvider } from "@/components/ui/tooltip";
+
+function renderSidebar() {
+  return render(
+    <MemoryRouter>
+      <TooltipProvider>
+        <Sidebar />
+      </TooltipProvider>
+    </MemoryRouter>,
+  );
+}
 
 describe("Sidebar", () => {
   it("shows only the conversation-first navigation entries", () => {
-    render(
-      <MemoryRouter>
-        <Sidebar />
-      </MemoryRouter>,
-    );
+    renderSidebar();
 
     expect(screen.getByText("新建对话")).toBeInTheDocument();
     expect(screen.getByText("对话历史")).toBeInTheDocument();
@@ -23,11 +30,7 @@ describe("Sidebar", () => {
 
   it("clears the access token when logging out", () => {
     setAccessToken("token-123");
-    render(
-      <MemoryRouter>
-        <Sidebar />
-      </MemoryRouter>,
-    );
+    renderSidebar();
 
     fireEvent.click(screen.getByText("退出登录"));
 
