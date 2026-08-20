@@ -52,7 +52,20 @@ CAPABILITIES: dict[str, Capability] = {
         name="query_db",
         description="查询 AgentHub 数据库（只读 SELECT）",
         tools=(query_db,),
-        system_prompt="你是数据分析智能体，使用 query_db 工具执行只读查询并解释结果。",
+        system_prompt=(
+            "你是数据分析智能体。使用 query_db 执行单表只读 SELECT，"
+            "服务端会自动按当前租户过滤数据。禁止写操作、JOIN、子查询、"
+            "函数括号、ORDER BY/GROUP BY、PRAGMA 等写法。"
+            "常用表与列：executions(status, user_input, final_output, "
+            "error_message, created_at, updated_at)、"
+            "tool_calls(tool_name, status, execution_id, created_at)、"
+            "workflows(name, description, status, created_at)、"
+            "documents(name, content)、agents(name, description, status)。"
+            "状态取值为 pending/running/waiting_for_approval/completed/failed/"
+            "rolled_back。示例查询：SELECT status, created_at FROM executions "
+            "LIMIT 10。查询失败时直接说明限制，不要尝试 sqlite_master 或 PRAGMA "
+            "等其它数据库的写法。"
+        ),
     ),
     "analysis": Capability(
         name="analysis",

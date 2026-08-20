@@ -157,7 +157,22 @@ async def search_web(query: str) -> dict:
 
 @tool
 async def query_db(sql: str) -> dict:
-    """Run a single read-only SELECT query against the AgentHub database."""
+    """Run a single read-only SELECT query against the AgentHub database (PostgreSQL).
+
+    仅允许单表 SELECT，服务端自动注入 organization_id 租户过滤。
+    禁止 INSERT/UPDATE/DELETE、JOIN、子查询、函数括号、ORDER BY/GROUP BY、PRAGMA。
+    可查询的表与常用列：
+    - executions: status, user_input, final_output, error_message,
+      current_step_index, created_at, updated_at, completed_at
+    - tool_calls: execution_id, tool_name, status, input_params,
+      output_result, requires_approval, created_at
+    - workflows: name, description, status, created_at, updated_at
+    - documents: name, content, created_at
+    - agents: name, description, status
+    状态取值：pending / running / waiting_for_approval / completed / failed /
+    rolled_back。
+    示例：SELECT status, created_at FROM executions LIMIT 10
+    """
     # 实际执行统一走 run_query_db，租户由执行引擎服务端注入，不允许 Agent 自行决定。
     return await run_query_db(sql, None)
 
