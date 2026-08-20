@@ -232,7 +232,10 @@ def test_send_code_login_does_not_leak_unregistered_email(monkeypatch):
         )
     )
 
-    assert result == {"status": "ok"}
+    assert result == {
+        "status": "ok",
+        "note": "login does not require an email code",
+    }
 
 
 def test_send_code_register_rejects_existing_email(monkeypatch):
@@ -270,7 +273,7 @@ def test_send_code_passes_mode_to_sender(monkeypatch):
         return True
 
     async def email_exists(_email):
-        return True
+        return False
 
     async def fake_send_code(email, mode=""):
         calls.append((email, mode))
@@ -282,12 +285,12 @@ def test_send_code_passes_mode_to_sender(monkeypatch):
 
     asyncio.run(
         auth_routes.send_code(
-            payload=auth_routes.SendCodeRequest(email="a@b.com", mode="login"),
+            payload=auth_routes.SendCodeRequest(email="a@b.com", mode="register"),
             request=SimpleNamespace(headers={}, client=SimpleNamespace(host="1.2.3.4")),
         )
     )
 
-    assert calls == [("a@b.com", "login")]
+    assert calls == [("a@b.com", "register")]
 
 
 def test_send_code_removes_code_when_email_fails(monkeypatch):
@@ -464,11 +467,20 @@ def test_reset_password_rejects_invalid_code(monkeypatch):
     assert exc.value.detail["code"] == "INVALID_VERIFY_CODE"
 
 
-def test_login_rejects_invalid_code(monkeypatch):
+def test_login_ignores_code_and_never_verifies(monkeypatch):
+    called = []
+
     async def verify_code(_email, _code, _mode):
+        called.append(True)
         return False
 
+    def verify_password(_password, _stored):
+        return False
+
+    session = FakeSession(user=make_user())
     monkeypatch.setattr(auth_routes, "_verify_code", verify_code)
+    monkeypatch.setattr(auth_routes, "verify_password", verify_password)
+    monkeypatch.setattr(auth_routes, "master_session_factory", lambda: session)
 
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
@@ -479,7 +491,8 @@ def test_login_rejects_invalid_code(monkeypatch):
             )
         )
     assert exc.value.status_code == 401
-    assert exc.value.detail["code"] == "INVALID_VERIFY_CODE"
+    assert exc.value.detail["code"] == "INVALID_PASSWORD"
+    assert called == []
 
 
 def test_login_rejects_unknown_email_without_leaking(monkeypatch):

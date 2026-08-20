@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import {
   Dialog,
   DialogContent,
@@ -101,12 +102,14 @@ export function CreateExecutionDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button
-            onClick={submit}
-            disabled={submitting || !workflowId || !userInput.trim()}
-          >
-            {submitting ? "创建中…" : "启动执行"}
-          </Button>
+          <Hint label="按所选工作流创建并启动一次 Agent 执行">
+            <Button
+              onClick={submit}
+              disabled={submitting || !workflowId || !userInput.trim()}
+            >
+              {submitting ? "创建中…" : "启动执行"}
+            </Button>
+          </Hint>
         </DialogFooter>
       </DialogContent>
     </Dialog>
