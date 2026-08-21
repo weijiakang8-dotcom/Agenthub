@@ -119,3 +119,92 @@ test("authenticated usage page shows tenant quota", async ({ page }) => {
   await expect(page.getByText("本月 Tokens 预算")).toBeVisible();
   await expect(page.getByText(/300 \/ 1,?000/)).toBeVisible();
 });
+
+test("failed execution can be re-launched with the original task prefilled", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("agenthub.access_token", "playwright-e2e-token");
+    localStorage.setItem("agenthub.onboarded", "1");
+  });
+  const execution = {
+    id: "exec-failed-1",
+    workflow_id: "wf-1",
+    status: "failed",
+    current_step_index: 0,
+    checkpoint_data: null,
+    user_input: "发一封测试邮件",
+    final_output: null,
+    error_message: "approval_mismatch: params mismatch",
+    created_at: "2026-08-21T00:00:00Z",
+    updated_at: "2026-08-21T00:00:00Z",
+    completed_at: "2026-08-21T00:01:00Z",
+    eval_score: null,
+    eval_details: null,
+    feedback: null,
+    steps: [],
+    token_usage: null,
+    model_used: [],
+    tool_calls: [],
+  };
+  await page.route("**/api/executions/exec-failed-1", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(execution),
+    }),
+  );
+  await page.route("**/api/executions/exec-failed-1/trace", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        tool_calls: [],
+        approval_mismatch_count: 1,
+        cost: null,
+        verify_status: null,
+        model_used: [],
+        side_effect_proposals: [],
+      }),
+    }),
+  );
+  await page.route("**/api/executions/exec-failed-1/interventions", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    }),
+  );
+  await page.route("**/api/executions/exec-failed-1/feedback", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: "[]",
+    }),
+  );
+  await page.route("**/api/conversations", (route) => {
+    if (route.request().method() === "POST") {
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "rerun-conversation",
+          title: "新对话",
+          messages: [],
+        }),
+      });
+    }
+    return route.continue();
+  });
+
+  await page.goto("/executions/exec-failed-1");
+
+  await expect(page.getByText("执行失败")).toBeVisible();
+  await expect(page.getByText("approval_mismatch: params mismatch")).toBeVisible();
+  await page.getByRole("button", { name: "重新发起" }).click();
+
+  await expect(page).toHaveURL(/\/chat\?draft=/);
+  await expect(
+    page.getByPlaceholder("输入消息，Enter 发送"),
+  ).toHaveValue("发一封测试邮件");
+});
