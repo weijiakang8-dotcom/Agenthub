@@ -5,7 +5,11 @@ import asyncio
 from langchain_core.messages import AIMessage, SystemMessage
 
 from app.engine import tools
-from app.engine.graph import _final_output_or_fallback, _route_after_prepare
+from app.engine.graph import (
+    _final_output_or_fallback,
+    _route_after_prepare,
+    _route_step,
+)
 from app.engine.planner import Planner
 
 
@@ -110,3 +114,20 @@ def test_final_output_or_fallback_handles_success_without_text():
         tool_results=[{"tool_name": "query_db", "status": "success", "error": None}],
     )
     assert fallback.strip()
+
+
+def test_route_step_triggers_tool_failure_replan_once():
+    state = {
+        "tool_failure_replan": True,
+        "revision_count": 0,
+        "plan": [{"capability": "query_db"}],
+        "current_step": 0,
+        "intent": {"category": "TASK"},
+    }
+    assert asyncio.run(_route_step(state)) == "plan"
+
+    state["revision_count"] = 1
+    assert asyncio.run(_route_step(state)) == "query_db"
+
+    state["tool_failure_replan"] = False
+    assert asyncio.run(_route_step(state)) == "query_db"
