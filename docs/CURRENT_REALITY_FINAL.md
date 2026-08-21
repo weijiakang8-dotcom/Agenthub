@@ -35,6 +35,8 @@
 | 08-21 | Skill 无生态无进化 | 仅 kernel 模板 | 8 预设包 + 匹配 + 自成长提议（采纳制）+ 档位反哺 | 单测 + 生产匹配验证 |
 | 08-21 | 多 Agent 是静态提示词 | 无版本无更新 | 6 Agent 注册表 + 自更新管线（候选→门禁→激活→回滚） | 单测全链 |
 | 08-21 | 路由无记忆 | 无绩效档案 | usage_events/model_performance 回写 + 时间衰减 | 单测 |
+| 08-21 | 调度中枢未上生产 | 仅本地 | bundle 部署到生产：迁移 0020、8 预设包播种、MCP 上线、health 全绿 | 生产验证 https 200 + db/redis/llm true |
+| 08-21 | 仓库含陈旧文档与缓存 | 历史遗留 | 删除 6 个旧根文档 + 本地缓存；README/resume/index.html 对齐新定位；全历史密钥扫描零命中 | 本地=生产 23cb7d76 |
 | 08-21 | CI backend 全红 | pytest 无 pythonpath 配置 | pytest.ini 增加 pythonpath/testpaths | 待 CI |
 | 08-21 | CI Playwright 全红 | E2E 无真实后端 | CI 拆分 e2e job + postgres/redis + uvicorn | 待 CI |
 | 08-21 | 生产查询失败空输出 | query_db 拒绝 COUNT + 无兜底 | 安全聚合 + fail-visible | 生产 E2E 通过 |
