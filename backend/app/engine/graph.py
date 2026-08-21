@@ -995,10 +995,18 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
             and any(item.get("status") != "success" for item in tool_results)
             and int(state.get("revision_count", 0)) == 0
         )
-        final_output = _final_output_or_fallback(
-            _strip_raw_tool_call_text(getattr(final_response, "content", "") or ""),
-            tool_results=tool_results if executed_tool else [],
+        raw_output = _strip_raw_tool_call_text(
+            getattr(final_response, "content", "") or ""
         )
+        if raw_output.strip():
+            final_output = raw_output
+        elif executed_tool:
+            final_output = _final_output_or_fallback("", tool_results=tool_results)
+        elif state.get("final_output"):
+            # 无工具步骤空输出：透传上一步已生成的结果，绝不丢失
+            final_output = state.get("final_output")
+        else:
+            final_output = _final_output_or_fallback("", tool_results=[])
         await publish_execution_event(
             execution_id,
             {
