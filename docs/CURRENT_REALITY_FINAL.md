@@ -50,6 +50,7 @@
 | 08-21 | Trace 页无 span 时间线 | span 按 correlation_id 存储，端点只查 execution_id | spans API（execution_id OR correlation_id）+ 前端 Span 时间线；生产 chat trace 返回 intent/llm/memory/respond | Playwright 6/6 + 生产验证 |
 | 08-21 | API Key 无轮换 | 只能增删/启停 | POST /user-api-keys/{id}/rotate + 设置页「轮换」；所有权校验 + 解密断言；Playwright 7/7 | 610 passed |
 | 08-21 | SLO 告警无回归 | 阈值/冷却幂等未锁定 | 阈值单测 + mismatch→AlertEvent 落库一次 + 冷却抑制；生产直调 0 新事件、beat 调度确认、历史事件存在 | 612 passed |
+| 08-21 | 配额不可管理 | 仅 env 全局只读 | Redis per-org 覆盖 + PUT /api/quotas（admin）+ 用量页编辑；生产 set 123→GET 123→reset 验证 | 614 passed + Playwright 7/7 |
 
 ## 3. 已知 P0/P1（见基线 §23）
 
