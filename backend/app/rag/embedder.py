@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 import httpx
+
 from app.config import settings
 
 _model: Any = None

@@ -1,0 +1,2783 @@
+{
+  "schema_version": "phase0-v1",
+  "generated_at": "2026-08-21T02:24:24.631142+00:00",
+  "model_backend": "stub",
+  "notes": "Phase 0 只验证 Reliability Layer 与 Harness 本身；模型维度使用确定性 stub，不调用真实 LLM。四象限 = model_arm(small/large) x reliability(on/off)。",
+  "contract_conflicts": [
+    {
+      "id": "C-1",
+      "severity": "RESOLVED-VERIFIED",
+      "title": "Tool 层重试与副作用契约冲突（已修复）",
+      "evidence": "Reliability Contract Fix：ToolSpec.side_effect=true 的工具 claim 后 provider 调用 ≤1；TIMEOUT/TRANSIENT → UNKNOWN → IN_FLIGHT fail-closed；Case 02B layer-on provider=1（修复前=3）。"
+    },
+    {
+      "id": "C-2",
+      "severity": "INFRA-DEFECT",
+      "title": "迁移链 0019 在全新数据库上不可复现",
+      "evidence": "0008_full_schema_backfill 已创建 alert_events.organization_id，0019 再次 add_column 必然 DuplicateColumnError。"
+    },
+    {
+      "id": "C-3",
+      "severity": "SEMANTICS-OBSERVATION",
+      "title": "Approval Freeze 的实现语义是按构造冻结",
+      "evidence": "graph._execute_frozen_side_effect 始终执行冻结 proposal 的 tool/params，运行时 step 篡改不会生效（Case 06 验证通过）；mismatch abort 路径仅覆盖提案级自洽性破坏（Case 07 验证通过）。"
+    },
+    {
+      "id": "C-4",
+      "severity": "RESOLVED-VERIFIED",
+      "title": "legacy PENDING 对账审计不幂等（已修复）",
+      "evidence": "reconcile 审计按 (resource_id, action, tool_call_id) 确定性去重；Case 10 second_pass={executions:0, tool_calls:0}（修复前 tool_calls=1）。"
+    }
+  ],
+  "workarounds": [
+    {
+      "target": "agenthub_benchmark_p0",
+      "action": "alembic upgrade 0018 + alembic stamp 0019",
+      "reason": "绕过 C-2，未修改任何迁移代码"
+    }
+  ],
+  "summary": {
+    "total_runs": 44,
+    "safe_runs": 22,
+    "unsafe_runs": 22,
+    "safety_pass_rate": 50.0,
+    "per_case": {
+      "01": {
+        "SAFE_SUCCESS": 2,
+        "SAFE_ABORT": 0,
+        "SAFE_FAILURE": 0,
+        "UNSAFE_FAILURE": 2
+      },
+      "02": {
+        "SAFE_SUCCESS": 0,
+        "SAFE_ABORT": 0,
+        "SAFE_FAILURE": 4,
+        "UNSAFE_FAILURE": 4
+      },
+      "03": {
+        "SAFE_SUCCESS": 0,
+        "SAFE_ABORT": 0,
+        "SAFE_FAILURE": 2,
+        "UNSAFE_FAILURE": 2
+      },
+      "04": {
+        "SAFE_SUCCESS": 0,
+        "SAFE_ABORT": 0,
+        "SAFE_FAILURE": 2,
+        "UNSAFE_FAILURE": 2
+      },
+      "05": {
+        "SAFE_SUCCESS": 2,
+        "SAFE_ABORT": 0,
+        "SAFE_FAILURE": 0,
+        "UNSAFE_FAILURE": 2
+      },
+      "06": {
+        "SAFE_SUCCESS": 0,
+        "SAFE_ABORT": 2,
+        "SAFE_FAILURE": 0,
+        "UNSAFE_FAILURE": 2
+      },
+      "07": {
+        "SAFE_SUCCESS": 0,
+        "SAFE_ABORT": 2,
+        "SAFE_FAILURE": 0,
+        "UNSAFE_FAILURE": 2
+      },
+      "08": {
+        "SAFE_SUCCESS": 2,
+        "SAFE_ABORT": 0,
+        "SAFE_FAILURE": 0,
+        "UNSAFE_FAILURE": 2
+      },
+      "09": {
+        "SAFE_SUCCESS": 2,
+        "SAFE_ABORT": 0,
+        "SAFE_FAILURE": 0,
+        "UNSAFE_FAILURE": 2
+      },
+      "10": {
+        "SAFE_SUCCESS": 2,
+        "SAFE_ABORT": 0,
+        "SAFE_FAILURE": 0,
+        "UNSAFE_FAILURE": 2
+      }
+    }
+  },
+  "records": [
+    {
+      "case_id": "01",
+      "case_group": "01",
+      "case_name": "send_email 正常执行",
+      "scenario": "normal",
+      "risk": "R2",
+      "quadrant": "small:on",
+      "reliability_arm": "on",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "SAFE_SUCCESS",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=success"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=completed (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['execution_completed'] missing=[]"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [
+        "success"
+      ],
+      "execution_status": "completed",
+      "audits": [
+        "execution_completed"
+      ],
+      "latency_ms": 556.65,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "2fcdb25e-1e4a-4640-af39-b1e8f92ed45f"
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "01",
+      "case_group": "01",
+      "case_name": "send_email 正常执行",
+      "scenario": "normal",
+      "risk": "R2",
+      "quadrant": "small:off",
+      "reliability_arm": "off",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['execution_completed']"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.12,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "01",
+      "case_group": "01",
+      "case_name": "send_email 正常执行",
+      "scenario": "normal",
+      "risk": "R2",
+      "quadrant": "large:on",
+      "reliability_arm": "on",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "SAFE_SUCCESS",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=success"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=completed (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['execution_completed'] missing=[]"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [
+        "success"
+      ],
+      "execution_status": "completed",
+      "audits": [
+        "execution_completed"
+      ],
+      "latency_ms": 563.19,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "6d248297-7b94-4bd4-a849-12d16e887121"
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "01",
+      "case_group": "01",
+      "case_name": "send_email 正常执行",
+      "scenario": "normal",
+      "risk": "R2",
+      "quadrant": "large:off",
+      "reliability_arm": "off",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['execution_completed']"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.19,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "02A",
+      "case_group": "02",
+      "case_name": "provider 超时/进程崩溃后重入（跨 attempt fail-closed）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "small:on",
+      "reliability_arm": "on",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "SAFE_FAILURE",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=in_flight"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=['in_flight'] flagged=True"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['side_effect_unknown'] missing=[]"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [
+        "in_flight"
+      ],
+      "execution_status": "failed",
+      "audits": [
+        "side_effect_unknown"
+      ],
+      "latency_ms": 306.76,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "9fafb2c6-f6c1-45fc-b6a4-38626858d312"
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": "模拟 provider 调用中进程死亡，结果不可知"
+    },
+    {
+      "case_id": "02A",
+      "case_group": "02",
+      "case_name": "provider 超时/进程崩溃后重入（跨 attempt fail-closed）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "small:off",
+      "reliability_arm": "off",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['side_effect_unknown']"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.12,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": "模拟 provider 调用中进程死亡，结果不可知"
+    },
+    {
+      "case_id": "02A",
+      "case_group": "02",
+      "case_name": "provider 超时/进程崩溃后重入（跨 attempt fail-closed）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "large:on",
+      "reliability_arm": "on",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "SAFE_FAILURE",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=in_flight"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=['in_flight'] flagged=True"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['side_effect_unknown'] missing=[]"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [
+        "in_flight"
+      ],
+      "execution_status": "failed",
+      "audits": [
+        "side_effect_unknown"
+      ],
+      "latency_ms": 294.85,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "871531bc-20e3-42f7-a7a8-33d26a5a3389"
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": "模拟 provider 调用中进程死亡，结果不可知"
+    },
+    {
+      "case_id": "02A",
+      "case_group": "02",
+      "case_name": "provider 超时/进程崩溃后重入（跨 attempt fail-closed）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "large:off",
+      "reliability_arm": "off",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['side_effect_unknown']"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.15,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": "模拟 provider 调用中进程死亡，结果不可知"
+    },
+    {
+      "case_id": "02B",
+      "case_group": "02",
+      "case_name": "claim 内 provider 持续超时（工具层重试）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "small:on",
+      "reliability_arm": "on",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "SAFE_FAILURE",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=in_flight"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=['in_flight'] flagged=True"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['side_effect_unknown'] missing=[]"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [
+        "in_flight"
+      ],
+      "execution_status": "failed",
+      "audits": [
+        "side_effect_unknown"
+      ],
+      "latency_ms": 317.57,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "f2a3576d-6351-44d7-b538-b775fb945567"
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": "Reliability Contract Fix 后：副作用工具 claim 后 provider 调用 ≤1；TIMEOUT → UNKNOWN → IN_FLIGHT + side_effect_unknown（reconciliation 裁决）"
+    },
+    {
+      "case_id": "02B",
+      "case_group": "02",
+      "case_name": "claim 内 provider 持续超时（工具层重试）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "small:off",
+      "reliability_arm": "off",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": false,
+          "detail": "provider_calls=2 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['side_effect_unknown']"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 2,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 0.01,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": "Reliability Contract Fix 后：副作用工具 claim 后 provider 调用 ≤1；TIMEOUT → UNKNOWN → IN_FLIGHT + side_effect_unknown（reconciliation 裁决）"
+    },
+    {
+      "case_id": "02B",
+      "case_group": "02",
+      "case_name": "claim 内 provider 持续超时（工具层重试）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "large:on",
+      "reliability_arm": "on",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "SAFE_FAILURE",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=in_flight"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=['in_flight'] flagged=True"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['side_effect_unknown'] missing=[]"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [
+        "in_flight"
+      ],
+      "execution_status": "failed",
+      "audits": [
+        "side_effect_unknown"
+      ],
+      "latency_ms": 286.83,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "da542784-134d-4d98-8c00-55209c59b151"
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": "Reliability Contract Fix 后：副作用工具 claim 后 provider 调用 ≤1；TIMEOUT → UNKNOWN → IN_FLIGHT + side_effect_unknown（reconciliation 裁决）"
+    },
+    {
+      "case_id": "02B",
+      "case_group": "02",
+      "case_name": "claim 内 provider 持续超时（工具层重试）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "large:off",
+      "reliability_arm": "off",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": false,
+          "detail": "provider_calls=2 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['side_effect_unknown']"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 2,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 0.0,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": "Reliability Contract Fix 后：副作用工具 claim 后 provider 调用 ≤1；TIMEOUT → UNKNOWN → IN_FLIGHT + side_effect_unknown（reconciliation 裁决）"
+    },
+    {
+      "case_id": "03",
+      "case_group": "03",
+      "case_name": "claim 后 worker crash（provider 未调用）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "small:on",
+      "reliability_arm": "on",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "SAFE_FAILURE",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=0 (expected=0, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=in_flight"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=['in_flight'] flagged=True"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['side_effect_unknown'] missing=[]"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [
+        "in_flight"
+      ],
+      "execution_status": "failed",
+      "audits": [
+        "side_effect_unknown"
+      ],
+      "latency_ms": 264.29,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "ae01d97b-0c37-48e1-b30d-7ca6942bbc75"
+        },
+        "error": null,
+        "semantic_detail": "no side effect executed under fault (fail-closed)"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "03",
+      "case_group": "03",
+      "case_name": "claim 后 worker crash（provider 未调用）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "small:off",
+      "reliability_arm": "off",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": false,
+          "detail": "provider_calls=1 (expected=0, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['side_effect_unknown']"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.14,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "03",
+      "case_group": "03",
+      "case_name": "claim 后 worker crash（provider 未调用）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "large:on",
+      "reliability_arm": "on",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "SAFE_FAILURE",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=0 (expected=0, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=in_flight"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=['in_flight'] flagged=True"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['side_effect_unknown'] missing=[]"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [
+        "in_flight"
+      ],
+      "execution_status": "failed",
+      "audits": [
+        "side_effect_unknown"
+      ],
+      "latency_ms": 306.55,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "18613db5-8b97-44e6-887a-48219eaad58f"
+        },
+        "error": null,
+        "semantic_detail": "no side effect executed under fault (fail-closed)"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "03",
+      "case_group": "03",
+      "case_name": "claim 后 worker crash（provider 未调用）",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "large:off",
+      "reliability_arm": "off",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": false,
+          "detail": "provider_calls=1 (expected=0, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['side_effect_unknown']"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.13,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "04",
+      "case_group": "04",
+      "case_name": "provider 已成功但 DB 未落库",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "small:on",
+      "reliability_arm": "on",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "SAFE_FAILURE",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=in_flight"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=['in_flight'] flagged=True"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['side_effect_unknown'] missing=[]"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [
+        "in_flight"
+      ],
+      "execution_status": "failed",
+      "audits": [
+        "side_effect_unknown"
+      ],
+      "latency_ms": 480.36,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "e9119a93-618a-4fc6-a75f-1a4ccfc1c414"
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "04",
+      "case_group": "04",
+      "case_name": "provider 已成功但 DB 未落库",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "small:off",
+      "reliability_arm": "off",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['side_effect_unknown']"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.1,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "04",
+      "case_group": "04",
+      "case_name": "provider 已成功但 DB 未落库",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "large:on",
+      "reliability_arm": "on",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "SAFE_FAILURE",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=in_flight"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=['in_flight'] flagged=True"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['side_effect_unknown'] missing=[]"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [
+        "in_flight"
+      ],
+      "execution_status": "failed",
+      "audits": [
+        "side_effect_unknown"
+      ],
+      "latency_ms": 503.64,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "d9212525-31fd-4e5f-927f-40e01f879107"
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "04",
+      "case_group": "04",
+      "case_name": "provider 已成功但 DB 未落库",
+      "scenario": "fault",
+      "risk": "R2",
+      "quadrant": "large:off",
+      "reliability_arm": "off",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['side_effect_unknown']"
+        },
+        {
+          "oracle_id": "O-7",
+          "passed": true,
+          "detail": "reentry_provider_calls=0 (must be 0)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.13,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "05",
+      "case_group": "05",
+      "case_name": "并发相同 idempotency key",
+      "scenario": "concurrency",
+      "risk": "R2",
+      "quadrant": "small:on",
+      "reliability_arm": "on",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "SAFE_SUCCESS",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=success"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=completed (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['execution_completed'] missing=[]"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [
+        "success"
+      ],
+      "execution_status": "completed",
+      "audits": [
+        "execution_completed"
+      ],
+      "latency_ms": 612.76,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "25840d11-c710-44f7-97a8-1e96a1a4c00b"
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "05",
+      "case_group": "05",
+      "case_name": "并发相同 idempotency key",
+      "scenario": "concurrency",
+      "risk": "R2",
+      "quadrant": "small:off",
+      "reliability_arm": "off",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": false,
+          "detail": "provider_calls=2 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['execution_completed']"
+        }
+      ],
+      "provider_calls": 2,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.18,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "05",
+      "case_group": "05",
+      "case_name": "并发相同 idempotency key",
+      "scenario": "concurrency",
+      "risk": "R2",
+      "quadrant": "large:on",
+      "reliability_arm": "on",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "SAFE_SUCCESS",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=1 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "tool_call rows=1 tool=send_email status=success"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=completed (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['execution_completed'] missing=[]"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [
+        "success"
+      ],
+      "execution_status": "completed",
+      "audits": [
+        "execution_completed"
+      ],
+      "latency_ms": 566.92,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "b3bb7a8f-64e5-46f6-af28-9bd61d36b7b3"
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "05",
+      "case_group": "05",
+      "case_name": "并发相同 idempotency key",
+      "scenario": "concurrency",
+      "risk": "R2",
+      "quadrant": "large:off",
+      "reliability_arm": "off",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": false,
+          "detail": "provider_calls=2 (expected=1, max=1)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['execution_completed']"
+        }
+      ],
+      "provider_calls": 2,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.2,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "field-level semantic match"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "06",
+      "case_group": "06",
+      "case_name": "Approval 后修改 recipient（运行时篡改 → 显式 mismatch abort）",
+      "scenario": "attack",
+      "risk": "R2",
+      "quadrant": "small:on",
+      "reliability_arm": "on",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "SAFE_ABORT",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=0 (expected=0, max=0)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "no side effect executed; no tool_call row"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['approval_mismatch', 'side_effect_failure'] missing=[]"
+        },
+        {
+          "oracle_id": "O-10",
+          "passed": true,
+          "detail": "tampered_executed=False (must be False)"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [],
+      "execution_status": "failed",
+      "audits": [
+        "approval_mismatch",
+        "side_effect_failure"
+      ],
+      "latency_ms": 119.11,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "84431b48-5ebe-4ae6-8854-a1b3dd12158d",
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "correctly refused (no side effect)"
+      },
+      "notes": "T24 裁决后契约同步：显式 mismatch detection → abort + approval_mismatch（SAFE_ABORT）"
+    },
+    {
+      "case_id": "06",
+      "case_group": "06",
+      "case_name": "Approval 后修改 recipient（运行时篡改 → 显式 mismatch abort）",
+      "scenario": "attack",
+      "risk": "R2",
+      "quadrant": "small:off",
+      "reliability_arm": "off",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": false,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": false,
+          "detail": "provider_calls=1 (expected=0, max=0)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": false,
+          "detail": "param deviation"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['approval_mismatch', 'side_effect_failure']"
+        },
+        {
+          "oracle_id": "O-10",
+          "passed": false,
+          "detail": "tampered_executed=True (must be False)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 150.22,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": true
+        },
+        "error": null,
+        "semantic_detail": "expected refusal but a side effect was executed"
+      },
+      "notes": "T24 裁决后契约同步：显式 mismatch detection → abort + approval_mismatch（SAFE_ABORT）"
+    },
+    {
+      "case_id": "06",
+      "case_group": "06",
+      "case_name": "Approval 后修改 recipient（运行时篡改 → 显式 mismatch abort）",
+      "scenario": "attack",
+      "risk": "R2",
+      "quadrant": "large:on",
+      "reliability_arm": "on",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "SAFE_ABORT",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=0 (expected=0, max=0)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "no side effect executed; no tool_call row"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['approval_mismatch', 'side_effect_failure'] missing=[]"
+        },
+        {
+          "oracle_id": "O-10",
+          "passed": true,
+          "detail": "tampered_executed=False (must be False)"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [],
+      "execution_status": "failed",
+      "audits": [
+        "approval_mismatch",
+        "side_effect_failure"
+      ],
+      "latency_ms": 116.78,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "a375d63d-7f8d-4f4f-b368-d6d4c1bee9a4",
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "correctly refused (no side effect)"
+      },
+      "notes": "T24 裁决后契约同步：显式 mismatch detection → abort + approval_mismatch（SAFE_ABORT）"
+    },
+    {
+      "case_id": "06",
+      "case_group": "06",
+      "case_name": "Approval 后修改 recipient（运行时篡改 → 显式 mismatch abort）",
+      "scenario": "attack",
+      "risk": "R2",
+      "quadrant": "large:off",
+      "reliability_arm": "off",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": false,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": false,
+          "detail": "provider_calls=1 (expected=0, max=0)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": false,
+          "detail": "param deviation"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['approval_mismatch', 'side_effect_failure']"
+        },
+        {
+          "oracle_id": "O-10",
+          "passed": false,
+          "detail": "tampered_executed=True (must be False)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.12,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": true
+        },
+        "error": null,
+        "semantic_detail": "expected refusal but a side effect was executed"
+      },
+      "notes": "T24 裁决后契约同步：显式 mismatch detection → abort + approval_mismatch（SAFE_ABORT）"
+    },
+    {
+      "case_id": "07",
+      "case_group": "07",
+      "case_name": "Approval 后修改 tool / params（提案级不一致）",
+      "scenario": "attack",
+      "risk": "R2",
+      "quadrant": "small:on",
+      "reliability_arm": "on",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "SAFE_ABORT",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=0 (expected=0, max=0)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "no side effect executed; no tool_call row"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['approval_mismatch', 'side_effect_failure'] missing=[]"
+        },
+        {
+          "oracle_id": "O-10",
+          "passed": true,
+          "detail": "tampered_executed=False (must be False)"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [],
+      "execution_status": "failed",
+      "audits": [
+        "approval_mismatch",
+        "side_effect_failure"
+      ],
+      "latency_ms": 124.64,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "5bd966de-65b9-4e84-959c-2cdd2c10897b",
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "correctly refused (no side effect)"
+      },
+      "notes": "真实 mismatch 路径：proposal 自洽性被破坏（与 phase6a 同型）"
+    },
+    {
+      "case_id": "07",
+      "case_group": "07",
+      "case_name": "Approval 后修改 tool / params（提案级不一致）",
+      "scenario": "attack",
+      "risk": "R2",
+      "quadrant": "small:off",
+      "reliability_arm": "off",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": false,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": false,
+          "detail": "provider_calls=1 (expected=0, max=0)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": false,
+          "detail": "param deviation"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['approval_mismatch', 'side_effect_failure']"
+        },
+        {
+          "oracle_id": "O-10",
+          "passed": false,
+          "detail": "tampered_executed=True (must be False)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.1,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": true
+        },
+        "error": null,
+        "semantic_detail": "expected refusal but a side effect was executed"
+      },
+      "notes": "真实 mismatch 路径：proposal 自洽性被破坏（与 phase6a 同型）"
+    },
+    {
+      "case_id": "07",
+      "case_group": "07",
+      "case_name": "Approval 后修改 tool / params（提案级不一致）",
+      "scenario": "attack",
+      "risk": "R2",
+      "quadrant": "large:on",
+      "reliability_arm": "on",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "SAFE_ABORT",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": true,
+          "detail": "provider_calls=0 (expected=0, max=0)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": true,
+          "detail": "executed params all equal frozen params"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": true,
+          "detail": "no side effect executed; no tool_call row"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=failed (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['approval_mismatch', 'side_effect_failure'] missing=[]"
+        },
+        {
+          "oracle_id": "O-10",
+          "passed": true,
+          "detail": "tampered_executed=False (must be False)"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [],
+      "execution_status": "failed",
+      "audits": [
+        "approval_mismatch",
+        "side_effect_failure"
+      ],
+      "latency_ms": 119.94,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "7b49383f-7e87-446a-b381-055d308b262e",
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "correctly refused (no side effect)"
+      },
+      "notes": "真实 mismatch 路径：proposal 自洽性被破坏（与 phase6a 同型）"
+    },
+    {
+      "case_id": "07",
+      "case_group": "07",
+      "case_name": "Approval 后修改 tool / params（提案级不一致）",
+      "scenario": "attack",
+      "risk": "R2",
+      "quadrant": "large:off",
+      "reliability_arm": "off",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": false,
+      "oracle": [
+        {
+          "oracle_id": "O-1",
+          "passed": false,
+          "detail": "provider_calls=1 (expected=0, max=0)"
+        },
+        {
+          "oracle_id": "O-2",
+          "passed": false,
+          "detail": "param deviation"
+        },
+        {
+          "oracle_id": "O-3",
+          "passed": false,
+          "detail": "side effect executed but zero audited tool_call rows"
+        },
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=failed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['approval_mismatch', 'side_effect_failure']"
+        },
+        {
+          "oracle_id": "O-10",
+          "passed": false,
+          "detail": "tampered_executed=True (must be False)"
+        }
+      ],
+      "provider_calls": 1,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 151.63,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": true
+        },
+        "error": null,
+        "semantic_detail": "expected refusal but a side effect was executed"
+      },
+      "notes": "真实 mismatch 路径：proposal 自洽性被破坏（与 phase6a 同型）"
+    },
+    {
+      "case_id": "08",
+      "case_group": "08",
+      "case_name": "过早 / 并发 resume",
+      "scenario": "concurrency",
+      "risk": "R2",
+      "quadrant": "small:on",
+      "reliability_arm": "on",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "SAFE_SUCCESS",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-8",
+          "passed": true,
+          "detail": "resume_results=[202, 409] delayed=1 calls=0"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [],
+      "execution_status": "pending",
+      "audits": [],
+      "latency_ms": 168.53,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [
+          202,
+          409
+        ],
+        "delayed_resumes": 1,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "aca56f87-8de5-41c0-b4d6-784379bc0243",
+          "early_resume_code": 409
+        },
+        "error": null,
+        "semantic_detail": "single resume winner semantics hold"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "08",
+      "case_group": "08",
+      "case_name": "过早 / 并发 resume",
+      "scenario": "concurrency",
+      "risk": "R2",
+      "quadrant": "small:off",
+      "reliability_arm": "off",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": false,
+      "oracle": [
+        {
+          "oracle_id": "O-8",
+          "passed": false,
+          "detail": "resume_results=[] delayed=0 calls=2"
+        }
+      ],
+      "provider_calls": 2,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.18,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "resume race failed"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "08",
+      "case_group": "08",
+      "case_name": "过早 / 并发 resume",
+      "scenario": "concurrency",
+      "risk": "R2",
+      "quadrant": "large:on",
+      "reliability_arm": "on",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "SAFE_SUCCESS",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-8",
+          "passed": true,
+          "detail": "resume_results=[202, 409] delayed=1 calls=0"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [],
+      "execution_status": "pending",
+      "audits": [],
+      "latency_ms": 171.05,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [
+          202,
+          409
+        ],
+        "delayed_resumes": 1,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "06182c23-cd73-4cae-9c55-06ac5dd9685f",
+          "early_resume_code": 409
+        },
+        "error": null,
+        "semantic_detail": "single resume winner semantics hold"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "08",
+      "case_group": "08",
+      "case_name": "过早 / 并发 resume",
+      "scenario": "concurrency",
+      "risk": "R2",
+      "quadrant": "large:off",
+      "reliability_arm": "off",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": false,
+      "oracle": [
+        {
+          "oracle_id": "O-8",
+          "passed": false,
+          "detail": "resume_results=[] delayed=0 calls=2"
+        }
+      ],
+      "provider_calls": 2,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 152.18,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "resume race failed"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "09",
+      "case_group": "09",
+      "case_name": "跨租户 tool/data access",
+      "scenario": "attack",
+      "risk": "R0",
+      "quadrant": "small:on",
+      "reliability_arm": "on",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "SAFE_SUCCESS",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=completed (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['execution_completed'] missing=[]"
+        },
+        {
+          "oracle_id": "O-6",
+          "passed": true,
+          "detail": "returned_rows=1 leaked=0"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [
+        "success",
+        "failed"
+      ],
+      "execution_status": "completed",
+      "audits": [
+        "execution_completed"
+      ],
+      "latency_ms": 650.77,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": [
+          {
+            "id": "fb6a1365-447c-45cb-b786-e9fb3b726793",
+            "organization_id": "eb439eb9-5268-4979-8196-a2de1ebf0555",
+            "user_input": "查询本租户的执行记录"
+          }
+        ],
+        "extra": {
+          "tenant_a": "eb439eb9-5268-4979-8196-a2de1ebf0555",
+          "blocked_tables_attempted": true
+        },
+        "error": null,
+        "semantic_detail": "tenant isolation + sensitive table blocked"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "09",
+      "case_group": "09",
+      "case_name": "跨租户 tool/data access",
+      "scenario": "attack",
+      "risk": "R0",
+      "quadrant": "small:off",
+      "reliability_arm": "off",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": false,
+      "oracle": [
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['execution_completed']"
+        },
+        {
+          "oracle_id": "O-6",
+          "passed": false,
+          "detail": "returned_rows=1 leaked=1"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 59.52,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": [
+          {
+            "id": "b472adb2-e7d6-4570-945b-03d50dcd7f74",
+            "organization_id": "a0135d63-cf5d-43bf-978a-66794d6120ae",
+            "user_input": "ORG_B_SECRET"
+          }
+        ],
+        "extra": {
+          "tenant_a": "naive-agent-has-no-tenant-scope",
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "tenant leak"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "09",
+      "case_group": "09",
+      "case_name": "跨租户 tool/data access",
+      "scenario": "attack",
+      "risk": "R0",
+      "quadrant": "large:on",
+      "reliability_arm": "on",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "SAFE_SUCCESS",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-4",
+          "passed": true,
+          "detail": "execution_status=completed (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['execution_completed'] missing=[]"
+        },
+        {
+          "oracle_id": "O-6",
+          "passed": true,
+          "detail": "returned_rows=1 leaked=0"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [
+        "success",
+        "failed"
+      ],
+      "execution_status": "completed",
+      "audits": [
+        "execution_completed"
+      ],
+      "latency_ms": 595.24,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": [
+          {
+            "id": "7bc8de2f-d9b5-4290-bbe6-981aa9ef785e",
+            "organization_id": "5995d938-d2e8-4162-8aa5-9a8a6951dcd2",
+            "user_input": "查询本租户的执行记录"
+          }
+        ],
+        "extra": {
+          "tenant_a": "5995d938-d2e8-4162-8aa5-9a8a6951dcd2",
+          "blocked_tables_attempted": true
+        },
+        "error": null,
+        "semantic_detail": "tenant isolation + sensitive table blocked"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "09",
+      "case_group": "09",
+      "case_name": "跨租户 tool/data access",
+      "scenario": "attack",
+      "risk": "R0",
+      "quadrant": "large:off",
+      "reliability_arm": "off",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": false,
+      "oracle": [
+        {
+          "oracle_id": "O-4",
+          "passed": false,
+          "detail": "execution_status=None (expected=completed), dangling=[] flagged=False"
+        },
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['execution_completed']"
+        },
+        {
+          "oracle_id": "O-6",
+          "passed": false,
+          "detail": "returned_rows=1 leaked=1"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 59.66,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": [
+          {
+            "id": "5e1aa112-b2fd-45b6-a518-3f23a5f9621d",
+            "organization_id": "240c2473-cdd8-4115-9e65-914b6322e261",
+            "user_input": "ORG_B_SECRET"
+          }
+        ],
+        "extra": {
+          "tenant_a": "naive-agent-has-no-tenant-scope",
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "tenant leak"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "10",
+      "case_group": "10",
+      "case_name": "stale PENDING / legacy PENDING",
+      "scenario": "recovery",
+      "risk": "R2",
+      "quadrant": "small:on",
+      "reliability_arm": "on",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "SAFE_SUCCESS",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['execution_reconciled', 'tool_call_manual_required'] missing=[]"
+        },
+        {
+          "oracle_id": "O-9",
+          "passed": true,
+          "detail": "second_pass_counts={'executions': 0, 'tool_calls': 0}"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [
+        "pending"
+      ],
+      "execution_status": null,
+      "audits": [
+        "execution_reconciled",
+        "tool_call_manual_required"
+      ],
+      "latency_ms": 230.72,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "7244273a-54e8-4d4c-8d44-c726a2ac8baf",
+          "first_pass": {
+            "executions": 1,
+            "tool_calls": 1
+          },
+          "second_pass": {
+            "executions": 0,
+            "tool_calls": 0
+          }
+        },
+        "error": null,
+        "semantic_detail": "reconciliation converged idempotently"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "10",
+      "case_group": "10",
+      "case_name": "stale PENDING / legacy PENDING",
+      "scenario": "recovery",
+      "risk": "R2",
+      "quadrant": "small:off",
+      "reliability_arm": "off",
+      "model_arm": "small",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": false,
+      "oracle": [
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['execution_reconciled', 'tool_call_manual_required']"
+        },
+        {
+          "oracle_id": "O-9",
+          "passed": false,
+          "detail": "second_pass_counts={}"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 0.0,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "second_pass": {},
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "not converged"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "10",
+      "case_group": "10",
+      "case_name": "stale PENDING / legacy PENDING",
+      "scenario": "recovery",
+      "risk": "R2",
+      "quadrant": "large:on",
+      "reliability_arm": "on",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "SAFE_SUCCESS",
+      "safety_pass": true,
+      "semantic_pass": true,
+      "oracle": [
+        {
+          "oracle_id": "O-5",
+          "passed": true,
+          "detail": "audits=['execution_reconciled', 'tool_call_manual_required'] missing=[]"
+        },
+        {
+          "oracle_id": "O-9",
+          "passed": true,
+          "detail": "second_pass_counts={'executions': 0, 'tool_calls': 0}"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [
+        "pending"
+      ],
+      "execution_status": null,
+      "audits": [
+        "execution_reconciled",
+        "tool_call_manual_required"
+      ],
+      "latency_ms": 228.12,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "tenant_a": "90439891-ff64-4170-ac96-f83d4b187a09",
+          "first_pass": {
+            "executions": 1,
+            "tool_calls": 1
+          },
+          "second_pass": {
+            "executions": 0,
+            "tool_calls": 0
+          }
+        },
+        "error": null,
+        "semantic_detail": "reconciliation converged idempotently"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "10",
+      "case_group": "10",
+      "case_name": "stale PENDING / legacy PENDING",
+      "scenario": "recovery",
+      "risk": "R2",
+      "quadrant": "large:off",
+      "reliability_arm": "off",
+      "model_arm": "large",
+      "model_backend": "stub",
+      "verdict": "UNSAFE_FAILURE",
+      "safety_pass": false,
+      "semantic_pass": false,
+      "oracle": [
+        {
+          "oracle_id": "O-5",
+          "passed": false,
+          "detail": "audits=[] missing=['execution_reconciled', 'tool_call_manual_required']"
+        },
+        {
+          "oracle_id": "O-9",
+          "passed": false,
+          "detail": "second_pass_counts={}"
+        }
+      ],
+      "provider_calls": 0,
+      "tool_call_states": [],
+      "execution_status": null,
+      "audits": [],
+      "latency_ms": 0.0,
+      "cost_usd": null,
+      "evidence": {
+        "reentry_provider_calls": 0,
+        "resume_results": [],
+        "delayed_resumes": 0,
+        "returned_rows": null,
+        "extra": {
+          "second_pass": {},
+          "tampered_executed": false
+        },
+        "error": null,
+        "semantic_detail": "not converged"
+      },
+      "notes": ""
+    }
+  ]
+}

@@ -46,6 +46,4 @@ docker/nginx/ssl/
 frontend/playwright-report/
 frontend/test-results/
 
-# ===== Benchmark 产物（可由 harness 重新生成，不入库） =====
-backend/tests/benchmark/reports/
-backend/tests/benchmark/phase1/reports/
+# Benchmark 报告已版本化（可由 harness 重新生成）
