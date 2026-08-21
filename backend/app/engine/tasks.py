@@ -60,6 +60,10 @@ celery_app.conf.beat_schedule = {
         "task": "agenthub.cleanup_checkpoints",
         "schedule": 3600.0,
     },
+    "cleanup-expired-memories": {
+        "task": "agenthub.cleanup_expired_memories",
+        "schedule": 3600.0,
+    },
 }
 
 
@@ -190,6 +194,13 @@ def cleanup_checkpoints_task() -> dict:
     from app.engine.reconciliation import cleanup_old_checkpoints
 
     return asyncio.run(cleanup_old_checkpoints())
+
+
+@celery_app.task(name="agenthub.cleanup_expired_memories")
+def cleanup_expired_memories_task() -> int:
+    from app.memory.service import delete_expired_memories
+
+    return asyncio.run(delete_expired_memories())
 
 
 @celery_app.task(name="agenthub.evaluate_production_alerts")

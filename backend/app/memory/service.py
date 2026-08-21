@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sqlalchemy import delete, select
+
+from app.config import settings
 from app.core.model_gateway import ModelGateway
 from app.database import async_session_factory
 from app.engine.observability import trace_span
 from app.models import UserMemory, utcnow
 from app.rag.embedder import embed_text
-from sqlalchemy import delete, select
 
 SIMILARITY_THRESHOLD = 0.9
 
@@ -38,6 +40,10 @@ async def add_memory(
     expires_at: datetime | None = None,
     merge: bool = True,
 ) -> UserMemory:
+    if expires_at is None and settings.MEMORY_DEFAULT_TTL_DAYS > 0:
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            days=settings.MEMORY_DEFAULT_TTL_DAYS
+        )
     embedding = await embed_text(content)
     if merge:
         similar = await _find_similar_memory(
@@ -231,6 +237,20 @@ async def _retrieve_memories_impl(
     return [{"kind": m.kind, "content": m.content} for m in picked]
 
 
+async def delete_expired_memories() -> int:
+    """删除所有已过期记忆（expires_at < now）；返回删除条数。"""
+    now = datetime.now(timezone.utc)
+    async with async_session_factory() as session:
+        result = await session.execute(
+            delete(UserMemory).where(
+                UserMemory.expires_at.is_not(None),
+                UserMemory.expires_at < now,
+            )
+        )
+        await session.commit()
+        return int(result.rowcount or 0)
+
+
 async def summarize_text(
     *,
     messages: list[dict[str, Any]],
@@ -266,6 +286,7 @@ async def summarize_text(
 __all__ = [
     "SIMILARITY_THRESHOLD",
     "add_memory",
+    "delete_expired_memories",
     "delete_memory",
     "list_memories",
     "retrieve_memories",
