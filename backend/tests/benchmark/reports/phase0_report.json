@@ -1,6 +1,6 @@
 {
   "schema_version": "phase0-v1",
-  "generated_at": "2026-08-21T02:24:24.631142+00:00",
+  "generated_at": "2026-08-21T02:34:40.419406+00:00",
   "model_backend": "stub",
   "notes": "Phase 0 只验证 Reliability Layer 与 Harness 本身；模型维度使用确定性 stub，不调用真实 LLM。四象限 = model_arm(small/large) x reliability(on/off)。",
   "contract_conflicts": [
@@ -153,7 +153,7 @@
       "audits": [
         "execution_completed"
       ],
-      "latency_ms": 556.65,
+      "latency_ms": 551.96,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -161,7 +161,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "2fcdb25e-1e4a-4640-af39-b1e8f92ed45f"
+          "tenant_a": "e43c8269-1b5c-47e1-ac1f-70c33b71daac"
         },
         "error": null,
         "semantic_detail": "field-level semantic match"
@@ -212,7 +212,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.12,
+      "latency_ms": 151.1,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -275,7 +275,7 @@
       "audits": [
         "execution_completed"
       ],
-      "latency_ms": 563.19,
+      "latency_ms": 521.74,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -283,7 +283,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "6d248297-7b94-4bd4-a849-12d16e887121"
+          "tenant_a": "51d34c08-bc1d-43bb-8fae-d2e0c820b1f5"
         },
         "error": null,
         "semantic_detail": "field-level semantic match"
@@ -334,7 +334,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.19,
+      "latency_ms": 151.13,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -402,7 +402,7 @@
       "audits": [
         "side_effect_unknown"
       ],
-      "latency_ms": 306.76,
+      "latency_ms": 279.96,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -410,7 +410,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "9fafb2c6-f6c1-45fc-b6a4-38626858d312"
+          "tenant_a": "ccf9aa38-903f-40f8-9955-6329157607da"
         },
         "error": null,
         "semantic_detail": "field-level semantic match"
@@ -466,7 +466,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.12,
+      "latency_ms": 151.13,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -534,7 +534,7 @@
       "audits": [
         "side_effect_unknown"
       ],
-      "latency_ms": 294.85,
+      "latency_ms": 284.87,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -542,7 +542,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "871531bc-20e3-42f7-a7a8-33d26a5a3389"
+          "tenant_a": "5e55d4fc-31bc-462a-8cc1-c5ecc7572510"
         },
         "error": null,
         "semantic_detail": "field-level semantic match"
@@ -598,7 +598,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.15,
+      "latency_ms": 151.11,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -666,7 +666,7 @@
       "audits": [
         "side_effect_unknown"
       ],
-      "latency_ms": 317.57,
+      "latency_ms": 300.18,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -674,7 +674,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "f2a3576d-6351-44d7-b538-b775fb945567"
+          "tenant_a": "cc351de0-f272-4518-8429-197f39159b18"
         },
         "error": null,
         "semantic_detail": "field-level semantic match"
@@ -798,7 +798,7 @@
       "audits": [
         "side_effect_unknown"
       ],
-      "latency_ms": 286.83,
+      "latency_ms": 284.59,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -806,7 +806,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "da542784-134d-4d98-8c00-55209c59b151"
+          "tenant_a": "e2589678-f41d-4aa3-a281-c84c9f375493"
         },
         "error": null,
         "semantic_detail": "field-level semantic match"
@@ -930,7 +930,7 @@
       "audits": [
         "side_effect_unknown"
       ],
-      "latency_ms": 264.29,
+      "latency_ms": 263.96,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -938,7 +938,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "ae01d97b-0c37-48e1-b30d-7ca6942bbc75"
+          "tenant_a": "1c9277f2-3106-4215-a1b3-b16e426e39a5"
         },
         "error": null,
         "semantic_detail": "no side effect executed under fault (fail-closed)"
@@ -994,7 +994,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.14,
+      "latency_ms": 151.14,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1062,7 +1062,7 @@
       "audits": [
         "side_effect_unknown"
       ],
-      "latency_ms": 306.55,
+      "latency_ms": 274.59,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1070,7 +1070,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "18613db5-8b97-44e6-887a-48219eaad58f"
+          "tenant_a": "59b482fb-9b2e-42e2-8c38-f2676a3622dd"
         },
         "error": null,
         "semantic_detail": "no side effect executed under fault (fail-closed)"
@@ -1126,7 +1126,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.13,
+      "latency_ms": 151.1,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1194,7 +1194,7 @@
       "audits": [
         "side_effect_unknown"
       ],
-      "latency_ms": 480.36,
+      "latency_ms": 486.92,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1202,7 +1202,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "e9119a93-618a-4fc6-a75f-1a4ccfc1c414"
+          "tenant_a": "51730fef-0bf2-4893-93ad-a824f8a2befa"
         },
         "error": null,
         "semantic_detail": "field-level semantic match"
@@ -1258,7 +1258,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.1,
+      "latency_ms": 151.12,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1326,7 +1326,7 @@
       "audits": [
         "side_effect_unknown"
       ],
-      "latency_ms": 503.64,
+      "latency_ms": 478.42,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1334,7 +1334,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "d9212525-31fd-4e5f-927f-40e01f879107"
+          "tenant_a": "6cf365e3-cb45-48c8-93d5-f28916b8c36e"
         },
         "error": null,
         "semantic_detail": "field-level semantic match"
@@ -1390,7 +1390,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.13,
+      "latency_ms": 151.08,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1453,7 +1453,7 @@
       "audits": [
         "execution_completed"
       ],
-      "latency_ms": 612.76,
+      "latency_ms": 586.79,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1461,7 +1461,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "25840d11-c710-44f7-97a8-1e96a1a4c00b"
+          "tenant_a": "4aa084f3-6b72-46a4-87bb-2c8972f9d379"
         },
         "error": null,
         "semantic_detail": "field-level semantic match"
@@ -1512,7 +1512,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.18,
+      "latency_ms": 151.15,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1575,7 +1575,7 @@
       "audits": [
         "execution_completed"
       ],
-      "latency_ms": 566.92,
+      "latency_ms": 575.57,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1583,7 +1583,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "b3bb7a8f-64e5-46f6-af28-9bd61d36b7b3"
+          "tenant_a": "5617739d-4c4a-432c-836d-99887670929c"
         },
         "error": null,
         "semantic_detail": "field-level semantic match"
@@ -1634,7 +1634,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.2,
+      "latency_ms": 151.2,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1701,7 +1701,7 @@
         "approval_mismatch",
         "side_effect_failure"
       ],
-      "latency_ms": 119.11,
+      "latency_ms": 110.27,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1709,7 +1709,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "84431b48-5ebe-4ae6-8854-a1b3dd12158d",
+          "tenant_a": "eeb75c1a-afc6-435d-b44d-3bc607cedfd0",
           "tampered_executed": false
         },
         "error": null,
@@ -1766,7 +1766,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 150.22,
+      "latency_ms": 151.14,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1833,7 +1833,7 @@
         "approval_mismatch",
         "side_effect_failure"
       ],
-      "latency_ms": 116.78,
+      "latency_ms": 101.41,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1841,7 +1841,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "a375d63d-7f8d-4f4f-b368-d6d4c1bee9a4",
+          "tenant_a": "2b3cacda-4a85-48f3-b497-a25d5b7f2073",
           "tampered_executed": false
         },
         "error": null,
@@ -1898,7 +1898,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.12,
+      "latency_ms": 151.09,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1965,7 +1965,7 @@
         "approval_mismatch",
         "side_effect_failure"
       ],
-      "latency_ms": 124.64,
+      "latency_ms": 111.5,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -1973,7 +1973,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "5bd966de-65b9-4e84-959c-2cdd2c10897b",
+          "tenant_a": "20f1ab09-f4c0-4094-8df3-39a319efe865",
           "tampered_executed": false
         },
         "error": null,
@@ -2030,7 +2030,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.1,
+      "latency_ms": 151.1,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2097,7 +2097,7 @@
         "approval_mismatch",
         "side_effect_failure"
       ],
-      "latency_ms": 119.94,
+      "latency_ms": 102.87,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2105,7 +2105,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "7b49383f-7e87-446a-b381-055d308b262e",
+          "tenant_a": "fb554769-69e7-4c0d-9e9b-e19b5b356b21",
           "tampered_executed": false
         },
         "error": null,
@@ -2162,7 +2162,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 151.63,
+      "latency_ms": 151.15,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2201,7 +2201,7 @@
       "tool_call_states": [],
       "execution_status": "pending",
       "audits": [],
-      "latency_ms": 168.53,
+      "latency_ms": 511.23,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2212,7 +2212,7 @@
         "delayed_resumes": 1,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "aca56f87-8de5-41c0-b4d6-784379bc0243",
+          "tenant_a": "ecc6cb96-3521-4da3-925c-5127f6f99f7d",
           "early_resume_code": 409
         },
         "error": null,
@@ -2244,7 +2244,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.18,
+      "latency_ms": 151.15,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2283,7 +2283,7 @@
       "tool_call_states": [],
       "execution_status": "pending",
       "audits": [],
-      "latency_ms": 171.05,
+      "latency_ms": 142.07,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2294,7 +2294,7 @@
         "delayed_resumes": 1,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "06182c23-cd73-4cae-9c55-06ac5dd9685f",
+          "tenant_a": "34cdbaac-8761-47bc-adf2-f45d102b5bce",
           "early_resume_code": 409
         },
         "error": null,
@@ -2326,7 +2326,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 152.18,
+      "latency_ms": 151.21,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2380,7 +2380,7 @@
       "audits": [
         "execution_completed"
       ],
-      "latency_ms": 650.77,
+      "latency_ms": 612.99,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2388,13 +2388,13 @@
         "delayed_resumes": 0,
         "returned_rows": [
           {
-            "id": "fb6a1365-447c-45cb-b786-e9fb3b726793",
-            "organization_id": "eb439eb9-5268-4979-8196-a2de1ebf0555",
+            "id": "da0300f3-3683-4e86-8633-d634965048f8",
+            "organization_id": "5db8a1ee-7fee-4dc9-8b26-f420a1405366",
             "user_input": "查询本租户的执行记录"
           }
         ],
         "extra": {
-          "tenant_a": "eb439eb9-5268-4979-8196-a2de1ebf0555",
+          "tenant_a": "5db8a1ee-7fee-4dc9-8b26-f420a1405366",
           "blocked_tables_attempted": true
         },
         "error": null,
@@ -2436,7 +2436,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 59.52,
+      "latency_ms": 58.91,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2444,8 +2444,8 @@
         "delayed_resumes": 0,
         "returned_rows": [
           {
-            "id": "b472adb2-e7d6-4570-945b-03d50dcd7f74",
-            "organization_id": "a0135d63-cf5d-43bf-978a-66794d6120ae",
+            "id": "97ba7872-0ea2-43c3-9121-fb53d61b8d9f",
+            "organization_id": "486fb701-bd55-408f-aa12-4e50b46500d7",
             "user_input": "ORG_B_SECRET"
           }
         ],
@@ -2497,7 +2497,7 @@
       "audits": [
         "execution_completed"
       ],
-      "latency_ms": 595.24,
+      "latency_ms": 594.63,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2505,13 +2505,13 @@
         "delayed_resumes": 0,
         "returned_rows": [
           {
-            "id": "7bc8de2f-d9b5-4290-bbe6-981aa9ef785e",
-            "organization_id": "5995d938-d2e8-4162-8aa5-9a8a6951dcd2",
+            "id": "12a05360-dcae-4884-b9cb-b4686330a312",
+            "organization_id": "8d35f750-96b3-4e96-b7c4-5d5ebb8d6921",
             "user_input": "查询本租户的执行记录"
           }
         ],
         "extra": {
-          "tenant_a": "5995d938-d2e8-4162-8aa5-9a8a6951dcd2",
+          "tenant_a": "8d35f750-96b3-4e96-b7c4-5d5ebb8d6921",
           "blocked_tables_attempted": true
         },
         "error": null,
@@ -2553,7 +2553,7 @@
       "tool_call_states": [],
       "execution_status": null,
       "audits": [],
-      "latency_ms": 59.66,
+      "latency_ms": 58.23,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2561,8 +2561,8 @@
         "delayed_resumes": 0,
         "returned_rows": [
           {
-            "id": "5e1aa112-b2fd-45b6-a518-3f23a5f9621d",
-            "organization_id": "240c2473-cdd8-4115-9e65-914b6322e261",
+            "id": "da765a5c-7525-4ad5-98aa-c39fc7fd0c03",
+            "organization_id": "32550ecb-80e3-4a7f-b2ba-e52c0b434abe",
             "user_input": "ORG_B_SECRET"
           }
         ],
@@ -2609,7 +2609,7 @@
         "execution_reconciled",
         "tool_call_manual_required"
       ],
-      "latency_ms": 230.72,
+      "latency_ms": 224.8,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2617,7 +2617,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "7244273a-54e8-4d4c-8d44-c726a2ac8baf",
+          "tenant_a": "675bda07-2ada-4232-bc69-07c664ff6f8e",
           "first_pass": {
             "executions": 1,
             "tool_calls": 1
@@ -2711,7 +2711,7 @@
         "execution_reconciled",
         "tool_call_manual_required"
       ],
-      "latency_ms": 228.12,
+      "latency_ms": 239.08,
       "cost_usd": null,
       "evidence": {
         "reentry_provider_calls": 0,
@@ -2719,7 +2719,7 @@
         "delayed_resumes": 0,
         "returned_rows": null,
         "extra": {
-          "tenant_a": "90439891-ff64-4170-ac96-f83d4b187a09",
+          "tenant_a": "8a6e99a3-5858-4482-8fe2-3b2bed4bcc16",
           "first_pass": {
             "executions": 1,
             "tool_calls": 1
