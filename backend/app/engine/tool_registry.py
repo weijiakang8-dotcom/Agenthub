@@ -71,20 +71,35 @@ def register_builtin_tools() -> None:
     """注册内置工具，幂等。"""
     from app.engine import tools as builtin_tools
 
-    async def _search_web(params, organization_id=None):
+    async def _search_web(params, organization_id=None, user_id=None):
         return await builtin_tools.search_web.ainvoke(params)
 
-    async def _query_db(params, organization_id=None):
+    async def _query_db(params, organization_id=None, user_id=None):
         return await builtin_tools.run_query_db(params.get("sql", ""), organization_id)
 
-    async def _search_knowledge(params, organization_id=None):
+    async def _search_knowledge(params, organization_id=None, user_id=None):
         return await builtin_tools.run_search_knowledge(
             params.get("query", ""),
             organization_id,
             top_k=params.get("top_k", 5),
         )
 
-    async def _send_email(params, organization_id=None):
+    async def _recall_memory(params, organization_id=None, user_id=None):
+        return await builtin_tools.run_recall_memory(
+            params.get("query", ""),
+            organization_id,
+            user_id=user_id,
+            top_k=params.get("top_k", 3),
+        )
+
+    async def _recall_executions(params, organization_id=None, user_id=None):
+        return await builtin_tools.run_recall_executions(
+            organization_id,
+            user_id=user_id,
+            limit=params.get("limit", 5),
+        )
+
+    async def _send_email(params, organization_id=None, user_id=None):
         return await builtin_tools.send_email.ainvoke(params)
 
     register_tool(
@@ -135,6 +150,48 @@ def register_builtin_tools() -> None:
             "required": ["query"],
         },
         _search_knowledge,
+        timeout=30.0,
+        requires_approval=False,
+    )
+    register_tool(
+        "recall_memory",
+        "Recall the current user's long-term memory entries relevant to the query.",
+        {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "What to recall",
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "Number of memories to return (1-10)",
+                    "minimum": 1,
+                    "maximum": 10,
+                },
+            },
+            "required": ["query"],
+        },
+        _recall_memory,
+        timeout=30.0,
+        requires_approval=False,
+    )
+    register_tool(
+        "recall_executions",
+        "Recall recent completed executions for the current tenant/user.",
+        {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of executions to return (1-10)",
+                    "minimum": 1,
+                    "maximum": 10,
+                }
+            },
+            "required": [],
+        },
+        _recall_executions,
         timeout=30.0,
         requires_approval=False,
     )

@@ -305,6 +305,104 @@ async def search_knowledge(query: str, top_k: int = 5) -> dict:
     return await run_search_knowledge(query, None, top_k=top_k)
 
 
+async def run_recall_memory(
+    query: str,
+    organization_id: Any,
+    *,
+    user_id: Any = None,
+    top_k: int = 3,
+) -> dict:
+    """检索当前用户长期记忆（只读；租户 + 用户双重隔离）。"""
+    query = (query or "").strip()
+    if not query:
+        return {"status": "failed", "data": None, "error": "query is required"}
+    org_id = _coerce_org_id(organization_id)
+    if org_id is None:
+        return {"status": "failed", "data": None, "error": "tenant context required"}
+    if user_id is None:
+        from app.engine.tool_executor import current_tool_user_id
+
+        user_id = current_tool_user_id.get()
+    if user_id is None:
+        return {"status": "failed", "data": None, "error": "user context required"}
+    try:
+        from app.memory.service import retrieve_memories
+
+        memories = await retrieve_memories(
+            user_id=uuid.UUID(str(user_id)),
+            organization_id=org_id,
+            query=query,
+            top_k=max(1, min(int(top_k or 3), 10)),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "failed", "data": None, "error": str(exc)}
+    return {"status": "success", "data": memories, "error": None}
+
+
+async def run_recall_executions(
+    organization_id: Any,
+    *,
+    user_id: Any = None,
+    limit: int = 5,
+) -> dict:
+    """检索最近完成的执行记录（只读；租户隔离，可按用户过滤）。"""
+    org_id = _coerce_org_id(organization_id)
+    if org_id is None:
+        return {"status": "failed", "data": None, "error": "tenant context required"}
+    if user_id is None:
+        from app.engine.tool_executor import current_tool_user_id
+
+        user_id = current_tool_user_id.get()
+    try:
+        from sqlalchemy import select
+
+        from app.database import async_session_factory
+        from app.models import Execution
+        from app.models.enums import ExecutionStatus
+
+        stmt = select(Execution).where(
+            Execution.organization_id == org_id,
+            Execution.status == ExecutionStatus.COMPLETED,
+        )
+        if user_id is not None:
+            stmt = stmt.where(Execution.user_id == uuid.UUID(str(user_id)))
+        stmt = stmt.order_by(Execution.updated_at.desc()).limit(
+            max(1, min(int(limit or 5), 10))
+        )
+        async with async_session_factory() as session:
+            rows = list((await session.execute(stmt)).scalars().all())
+        data = [
+            {
+                "id": str(row.id),
+                "user_input": row.user_input,
+                "final_output": (row.final_output or "")[:500],
+                "status": (
+                    row.status.value
+                    if hasattr(row.status, "value")
+                    else str(row.status)
+                ),
+                "created_at": row.created_at.isoformat(),
+                "updated_at": row.updated_at.isoformat(),
+            }
+            for row in rows
+        ]
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "failed", "data": None, "error": str(exc)}
+    return {"status": "success", "data": data, "error": None}
+
+
+@tool
+async def recall_memory(query: str, top_k: int = 3) -> dict:
+    """Recall the current user's long-term memory entries relevant to the query."""
+    return await run_recall_memory(query, None, top_k=top_k)
+
+
+@tool
+async def recall_executions(limit: int = 5) -> dict:
+    """Recall recent completed executions for the current tenant/user."""
+    return await run_recall_executions(None, limit=limit)
+
+
 async def run_query_db(sql: str, organization_id: Any) -> dict:
     """以强制租户边界执行 query_db：只读、单表、白名单、自动注入 org 谓词。"""
     org_id = _coerce_org_id(organization_id)
