@@ -216,3 +216,58 @@ test("failed execution can be re-launched with the original task prefilled", asy
     page.getByPlaceholder("输入消息，Enter 发送"),
   ).toHaveValue("发一封测试邮件");
 });
+
+test("api key can be rotated from settings", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("agenthub.access_token", "playwright-e2e-token");
+    localStorage.setItem("agenthub.onboarded", "1");
+  });
+  const original = {
+    id: "key-1",
+    provider: "deepseek",
+    model: "deepseek-chat",
+    base_url: "https://api.deepseek.com/v1",
+    api_key_masked: "****1234",
+    is_active: true,
+    created_at: "2026-08-21T00:00:00Z",
+  };
+  let rotated = false;
+  await page.route("**/api/user-api-keys", async (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          rotated
+            ? { ...original, api_key_masked: "****9999" }
+            : original,
+        ]),
+      });
+    }
+    if (route.request().method() === "POST") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ...original, api_key_masked: "****9999" }),
+      });
+    }
+    return route.continue();
+  });
+  await page.route("**/api/user-api-keys/key-1/rotate", (route) => {
+    rotated = true;
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ...original, api_key_masked: "****9999" }),
+    });
+  });
+  page.on("dialog", (dialog) => dialog.accept("sk-new-9999"));
+
+  await page.goto("/settings");
+  await page.getByRole("tab", { name: "我的密钥" }).click();
+
+  await expect(page.getByText("****1234")).toBeVisible();
+  await page.getByRole("button", { name: "轮换" }).click();
+  await expect(page.getByText("****9999")).toBeVisible();
+  await expect(page.getByText("API Key 已轮换")).toBeVisible();
+});

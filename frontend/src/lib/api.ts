@@ -515,6 +515,11 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ is_active }),
     }),
+  rotateUserApiKey: (id: string, api_key: string) =>
+    request<UserApiKey>(`/user-api-keys/${id}/rotate`, {
+      method: "POST",
+      body: JSON.stringify({ api_key }),
+    }),
   deleteUserApiKey: (id: string) =>
     request<void>(`/user-api-keys/${id}`, { method: "DELETE" }),
   listSkills: () => request<Skill[]>("/skills"),
