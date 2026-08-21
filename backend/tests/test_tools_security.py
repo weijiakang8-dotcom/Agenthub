@@ -5,6 +5,7 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
+
 from app.engine import tools
 
 ORG_A = uuid.uuid4()
@@ -124,3 +125,75 @@ def test_query_db_legal_query_passes(monkeypatch):
     assert result["status"] == "success"
     assert result["data"] == [{"id": 2, "name": "analyze"}]
     assert engine.connection.params == {"org": str(ORG_B)}
+
+
+def test_query_db_aggregate_count_passes(monkeypatch):
+    row = SimpleNamespace(_mapping={"count": 3})
+    engine = CapturingEngine(rows=[row])
+    monkeypatch.setattr(tools, "engine", engine)
+
+    result = _run("select count(*) from executions", ORG_A)
+
+    assert result["status"] == "success"
+    assert result["data"] == [{"count": 3}]
+    assert "organization_id = :org" in engine.connection.statement
+    assert engine.connection.params == {"org": str(ORG_A)}
+
+
+def test_query_db_aggregate_with_where_is_scoped(monkeypatch):
+    row = SimpleNamespace(_mapping={"total": 7})
+    engine = CapturingEngine(rows=[row])
+    monkeypatch.setattr(tools, "engine", engine)
+
+    result = _run(
+        "select sum(id) from tool_calls where status = 'success'",
+        ORG_B,
+    )
+
+    assert result["status"] == "success"
+    assert "status = 'success'" in engine.connection.statement
+    assert "and organization_id = :org" in engine.connection.statement.lower()
+    assert engine.connection.params == {"org": str(ORG_B)}
+
+
+def test_query_db_aggregate_rejects_unsafe_constructs(monkeypatch):
+    engine = CapturingEngine(rows=[])
+    monkeypatch.setattr(tools, "engine", engine)
+
+    for sql in (
+        "select count(*) from agents join workflows on true",
+        "select count(*) from agents order by count(*)",
+        "select count(*) from agents; drop table agents",
+        "select count(*) from users",
+    ):
+        result = _run(sql, ORG_A)
+        assert result["status"] == "failed", sql
+
+
+def test_search_knowledge_requires_tenant_and_query():
+    result = asyncio.run(tools.run_search_knowledge("anything", None))
+    assert result["status"] == "failed"
+    assert "tenant" in result["error"].lower()
+
+    result = asyncio.run(tools.run_search_knowledge("", ORG_A))
+    assert result["status"] == "failed"
+    assert "query" in result["error"].lower()
+
+
+def test_search_knowledge_is_tenant_scoped(monkeypatch):
+    captured = {}
+
+    async def fake_retrieve(query, org_id, top_k=5, correlation_id=None):
+        captured["org_id"] = org_id
+        captured["query"] = query
+        return [{"name": "doc", "content": "chunk", "score": 0.9}]
+
+    monkeypatch.setattr(
+        "app.rag.retrieval.retrieve_chunks",
+        fake_retrieve,
+    )
+    result = asyncio.run(tools.run_search_knowledge("退款政策", ORG_A, top_k=3))
+
+    assert result["status"] == "success"
+    assert captured["org_id"] == ORG_A
+    assert captured["query"] == "退款政策"

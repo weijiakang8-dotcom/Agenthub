@@ -170,6 +170,27 @@ def _strip_raw_tool_call_text(text: str) -> str:
     return "\n".join(kept).strip()
 
 
+def _final_output_or_fallback(final_output: str, *, tool_results: list[dict]) -> str:
+    """工具步骤产出空文本时绝不向用户返回空白结果（fail-visible）。"""
+    text = (final_output or "").strip()
+    if text:
+        return text
+    errors: list[str] = []
+    for item in tool_results or []:
+        if item.get("status") != "success":
+            errors.append(
+                f"{item.get('tool_name') or 'tool'}: "
+                f"{str(item.get('error') or 'failed')[:200]}"
+            )
+    if errors:
+        return (
+            "任务执行中工具调用失败："
+            + "；".join(errors)
+            + "。请检查参数后重试，或补充必要信息。"
+        )
+    return "任务已完成，但没有生成可展示的结果。"
+
+
 async def _get_llms(
     organization_id: str | None = None,
     *,
@@ -762,6 +783,8 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
         )
         tools = list(capability.tools)
         bound_llms = [llm.bind_tools(tools) for llm in llms] if tools else llms
+        executed_tool = False
+        tool_results: list[dict] = []
 
         if tools:
             current_step = (
@@ -841,7 +864,6 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
             )
             usage.append(_usage_of(response))
             new_messages: list[BaseMessage] = [*state.get("messages", []), response]
-            executed_tool = False
             for tool_call in getattr(response, "tool_calls", None) or []:
                 tool_name = tool_call.get("name", "")
                 tool_args = tool_call.get("args") or {}
@@ -881,6 +903,13 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
                     }
                 result = await tool_executor.execute_tool(
                     tool_name, tool_args, execution_id
+                )
+                tool_results.append(
+                    {
+                        "tool_name": tool_name,
+                        "status": result.get("status"),
+                        "error": result.get("error"),
+                    }
                 )
                 if step.get("side_effect") and result.get("status") != "success":
                     # Contract 03：副作用步骤失败 → 立即终止 + audit，不重试/重排
@@ -939,8 +968,9 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
             final_response = streamed
             usage.append(_usage_of(streamed))
 
-        final_output = _strip_raw_tool_call_text(
-            getattr(final_response, "content", "") or ""
+        final_output = _final_output_or_fallback(
+            _strip_raw_tool_call_text(getattr(final_response, "content", "") or ""),
+            tool_results=tool_results if executed_tool else [],
         )
         await publish_execution_event(
             execution_id,

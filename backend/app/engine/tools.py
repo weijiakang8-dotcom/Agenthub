@@ -27,6 +27,18 @@ _FORBIDDEN_SQL_RE = re.compile(
     r"[();]|--|/\*|\bJOIN\b|\bUNION\b|\bINTO\b|\bGROUP\s+BY\b|\bORDER\s+BY\b|\bHAVING\b",
     re.IGNORECASE,
 )
+_AGGREGATE_SELECT_RE = re.compile(
+    r"^\s*SELECT\s+"
+    r"(?P<agg>COUNT\(\s*\*\s*\)|COUNT\(\s*[A-Za-z_][A-Za-z0-9_]*\s*\)|"
+    r"SUM\(\s*[A-Za-z_][A-Za-z0-9_]*\s*\)|AVG\(\s*[A-Za-z_][A-Za-z0-9_]*\s*\)|"
+    r"MIN\(\s*[A-Za-z_][A-Za-z0-9_]*\s*\)|MAX\(\s*[A-Za-z_][A-Za-z0-9_]*\s*\))"
+    r"\s+FROM\s+(?P<table>[A-Za-z_][A-Za-z0-9_]*)\s*(?P<rest>.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_AGGREGATE_FORBIDDEN_RE = re.compile(
+    r";|--|/\*|\bJOIN\b|\bUNION\b|\bINTO\b|\bGROUP\s+BY\b|\bORDER\s+BY\b|\bHAVING\b",
+    re.IGNORECASE,
+)
 
 # query_db 只允许访问这些带 organization_id 的业务表。
 # 敏感表（users / organizations / model_configs / api_keys / audit_logs 等）被自动拒绝。
@@ -230,7 +242,9 @@ async def query_db(sql: str) -> dict:
     """Run a single read-only SELECT query against the AgentHub database (PostgreSQL).
 
     仅允许单表 SELECT，服务端自动注入 organization_id 租户过滤。
-    禁止 INSERT/UPDATE/DELETE、JOIN、子查询、函数括号、ORDER BY/GROUP BY、PRAGMA。
+    统计查询允许 COUNT(*)/COUNT(col)/SUM(col)/AVG(col)/MIN(col)/MAX(col)（单表、
+    只读、自动租户过滤）。禁止 INSERT/UPDATE/DELETE、JOIN、子查询、ORDER BY/
+    GROUP BY、PRAGMA。
     可查询的表与常用列：
     - executions: status, user_input, final_output, error_message,
       current_step_index, created_at, updated_at, completed_at
@@ -242,9 +256,53 @@ async def query_db(sql: str) -> dict:
     状态取值：pending / running / waiting_for_approval / completed / failed /
     rolled_back。
     示例：SELECT status, created_at FROM executions LIMIT 10
+    统计示例：SELECT COUNT(*) FROM executions
     """
     # 实际执行统一走 run_query_db，租户由执行引擎服务端注入，不允许 Agent 自行决定。
     return await run_query_db(sql, None)
+
+
+async def run_search_knowledge(
+    query: str,
+    organization_id: Any,
+    *,
+    top_k: int = 5,
+) -> dict:
+    """检索当前租户知识库（RAG）：只读、强制租户隔离、失败 fail-open 为空。"""
+    from app.rag.retrieval import retrieve_chunks
+
+    query = (query or "").strip()
+    if not query:
+        return {
+            "status": "failed",
+            "data": None,
+            "error": "query is required",
+        }
+    org_id = _coerce_org_id(organization_id)
+    if org_id is None:
+        return {
+            "status": "failed",
+            "data": None,
+            "error": "tenant context required",
+        }
+    try:
+        chunks = await retrieve_chunks(
+            query,
+            org_id,
+            top_k=max(1, min(int(top_k or 5), 10)),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "failed", "data": None, "error": str(exc)}
+    return {"status": "success", "data": chunks, "error": None}
+
+
+@tool
+async def search_knowledge(query: str, top_k: int = 5) -> dict:
+    """Search the tenant knowledge base (RAG) for the given query.
+
+    Only returns content from the current organization's documents.
+    """
+    return await run_search_knowledge(query, None, top_k=top_k)
 
 
 async def run_query_db(sql: str, organization_id: Any) -> dict:
@@ -268,6 +326,52 @@ async def run_query_db(sql: str, organization_id: Any) -> dict:
             "data": None,
             "error": "Only a single read-only SELECT is allowed",
         }
+
+    aggregate = _AGGREGATE_SELECT_RE.match(statement)
+    if aggregate is not None:
+        table = aggregate.group("table").lower()
+        rest = aggregate.group("rest").strip()
+        if table not in _QUERY_DB_ALLOWED_TABLES:
+            return {
+                "status": "failed",
+                "data": None,
+                "error": f"Table '{table}' is not accessible",
+            }
+        if _AGGREGATE_FORBIDDEN_RE.search(rest):
+            return {
+                "status": "failed",
+                "data": None,
+                "error": "Unsupported SQL construct",
+            }
+        if rest:
+            where_match = re.match(
+                r"^WHERE\s+(?P<where>.+)$", rest, re.IGNORECASE | re.DOTALL
+            )
+            if not where_match or _AGGREGATE_FORBIDDEN_RE.search(
+                where_match.group("where")
+            ):
+                return {
+                    "status": "failed",
+                    "data": None,
+                    "error": "Only a single WHERE clause is allowed for aggregates",
+                }
+            scoped = (
+                f"SELECT {aggregate.group('agg')} FROM {table} "
+                f"WHERE ({where_match.group('where')}) AND organization_id = :org"
+            )
+        else:
+            scoped = (
+                f"SELECT {aggregate.group('agg')} FROM {table} "
+                "WHERE organization_id = :org"
+            )
+        try:
+            async with engine.connect() as conn:
+                result = await conn.execute(text(scoped), {"org": str(org_id)})
+                rows = [_jsonable(dict(row._mapping)) for row in result.fetchall()]
+            return {"status": "success", "data": rows, "error": None}
+        except Exception as exc:  # noqa: BLE001
+            return {"status": "failed", "data": None, "error": str(exc)}
+
     if _FORBIDDEN_SQL_RE.search(statement):
         return {
             "status": "failed",

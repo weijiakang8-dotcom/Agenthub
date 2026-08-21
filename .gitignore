@@ -43,6 +43,8 @@ k8s/*.env
 
 backups/
 docker/nginx/ssl/
+frontend/playwright-report/
+frontend/test-results/
 
 # ===== Benchmark 产物（可由 harness 重新生成，不入库） =====
 backend/tests/benchmark/reports/

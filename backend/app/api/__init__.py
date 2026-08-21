@@ -18,6 +18,7 @@ from app.api.routes import (
     skills,
     tasks,
     tool_calls,
+    tools,
     usage,
     user_api_keys,
     workflow_templates,
@@ -32,6 +33,7 @@ api_router.include_router(agents.router)
 api_router.include_router(workflows.router)
 api_router.include_router(executions.router)
 api_router.include_router(tool_calls.router)
+api_router.include_router(tools.router)
 api_router.include_router(alerts.router)
 api_router.include_router(alert_rules.router)
 api_router.include_router(audit_logs.router)

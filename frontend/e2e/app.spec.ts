@@ -1,25 +1,19 @@
 import { expect, test } from "@playwright/test";
 
-test("unauthenticated landing page renders workspace and sidebar", async ({
-  page,
-}) => {
+test("unauthenticated landing page renders hero and CTAs", async ({ page }) => {
   await page.goto("/");
 
-  await expect(
-    page.locator("main").getByRole("heading", { name: "工作区" }),
-  ).toBeVisible();
-  await expect(page.getByText("请先登录后再使用")).toBeVisible();
-  await expect(page.getByRole("link", { name: "对话" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "历史记录" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "设置" })).toBeVisible();
+  await expect(page.getByText("让 Agent 不再是固定岗位")).toBeVisible();
+  await expect(page.getByRole("button", { name: "登录" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "开始体验" })).toBeVisible();
 });
 
 test("login button opens the authentication dialog", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "登录 / 注册" }).click();
+  await page.getByRole("button", { name: "登录" }).click();
 
   await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "登录" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "登录 AgentHub" })).toBeVisible();
 });
 
 test("authenticated chat page can render a new conversation", async ({

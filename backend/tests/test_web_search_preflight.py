@@ -5,7 +5,7 @@ import asyncio
 from langchain_core.messages import AIMessage, SystemMessage
 
 from app.engine import tools
-from app.engine.graph import _route_after_prepare
+from app.engine.graph import _final_output_or_fallback, _route_after_prepare
 from app.engine.planner import Planner
 
 
@@ -85,3 +85,28 @@ def test_route_after_prepare_uses_intent_flag():
     assert _route_after_prepare({"intent": {"needs_web_search": False}}) == "plan"
     assert _route_after_prepare({"intent": {}}) == "plan"
     assert _route_after_prepare({}) == "plan"
+
+
+def test_final_output_or_fallback_never_returns_blank_on_tool_failure():
+    assert _final_output_or_fallback("有内容", tool_results=[]) == "有内容"
+    fallback = _final_output_or_fallback(
+        "",
+        tool_results=[
+            {
+                "tool_name": "query_db",
+                "status": "failed",
+                "error": "Unsupported SQL construct",
+            }
+        ],
+    )
+    assert "query_db" in fallback
+    assert "Unsupported SQL construct" in fallback
+    assert fallback.strip()
+
+
+def test_final_output_or_fallback_handles_success_without_text():
+    fallback = _final_output_or_fallback(
+        "",
+        tool_results=[{"tool_name": "query_db", "status": "success", "error": None}],
+    )
+    assert fallback.strip()

@@ -77,6 +77,13 @@ def register_builtin_tools() -> None:
     async def _query_db(params, organization_id=None):
         return await builtin_tools.run_query_db(params.get("sql", ""), organization_id)
 
+    async def _search_knowledge(params, organization_id=None):
+        return await builtin_tools.run_search_knowledge(
+            params.get("query", ""),
+            organization_id,
+            top_k=params.get("top_k", 5),
+        )
+
     async def _send_email(params, organization_id=None):
         return await builtin_tools.send_email.ainvoke(params)
 
@@ -105,6 +112,29 @@ def register_builtin_tools() -> None:
             "required": ["sql"],
         },
         _query_db,
+        timeout=30.0,
+        requires_approval=False,
+    )
+    register_tool(
+        "search_knowledge",
+        "Search the tenant knowledge base (RAG) and return relevant chunks.",
+        {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query",
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "Number of chunks to return (1-10)",
+                    "minimum": 1,
+                    "maximum": 10,
+                },
+            },
+            "required": ["query"],
+        },
+        _search_knowledge,
         timeout=30.0,
         requires_approval=False,
     )
