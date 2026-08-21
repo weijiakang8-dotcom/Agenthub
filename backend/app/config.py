@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     OPENAI_FALLBACK_API_KEY: str = ""
     OPENAI_FALLBACK_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_FALLBACK_MODEL: str = "gpt-4o-mini"
+    OTEL_SDK_DISABLED: bool = False
     TAVILY_API_KEY: str = ""
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587

@@ -10,9 +10,10 @@
 |---|---|---|---|
 | 产品定位 | Agent Orchestration / Workflow Executor MVP + 3 tools | 进行中 | — |
 | 生产工具 | search_web / query_db / send_email | 进行中 | tool_registry.py |
-| CI | 红（backend import path / Playwright 无后端） | 已修配置，待 CI 验证 | ci.yml + pytest.ini |
-| Observability | Jaeger 0 服务 / Prometheus target down | 待修 | jaeger/prometheus 查询 |
-| query_db 失败闭环 | 失败后空输出 | 待修 | 生产 E2E c20e27ff |
+| 生产工具 | search_web / query_db / search_knowledge / send_email | ✅ 4 个 + GET /api/tools + 前端工具页 | tool_registry.py + 生产验证 |
+| CI | 红（backend import path / Playwright 无后端） | 本地修复完成；GitHub 待 workflow token 推送 | pytest.ini + ci.yml（本地） |
+| Observability | Jaeger 0 服务 / Prometheus target down | ✅ Jaeger 有 agenthub-backend；Prometheus target up；collector 689 指标 | 生产验证 08-21 |
+| query_db 失败闭环 | 失败后空输出 | ✅ 安全聚合 + 禁止空输出；生产 E2E 成功 | 生产 E2E eff7b8ee |
 | RAG | hash embedding | 待升级 | EMBEDDING_PROVIDER=hash |
 | Multi-Agent | 角色提示词模拟 | 待评估/补齐 | graph.py |
 | T24 | 实现=契约（显式 mismatch→abort） | 保持不动 | 61 tests passed |
@@ -28,6 +29,10 @@
 |---|---|---|---|---|
 | 08-21 | CI backend 全红 | pytest 无 pythonpath 配置 | pytest.ini 增加 pythonpath/testpaths | 待 CI |
 | 08-21 | CI Playwright 全红 | E2E 无真实后端 | CI 拆分 e2e job + postgres/redis + uvicorn | 待 CI |
+| 08-21 | 生产查询失败空输出 | query_db 拒绝 COUNT + 无兜底 | 安全聚合 + fail-visible | 生产 E2E 通过 |
+| 08-21 | OTel 空转/不生效 | .env 未声明字段不被 os.getenv 读取 | Settings.OTEL_SDK_DISABLED 字段 | 单测 + 生产验证 |
+| 08-21 | 工具不可发现 | 只有后端注册表 | GET /api/tools + 前端工具页 | Playwright 4/4 |
+| 08-21 | README 与现状不符 | 历史营销口径 | 重写为证据版 README | 文档审查 |
 
 ## 3. 已知 P0/P1（见基线 §23）
 

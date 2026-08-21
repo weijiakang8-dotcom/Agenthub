@@ -1,135 +1,133 @@
-# AgentHub — 企业级 Agent 生产运行时
+# AgentHub（对外品牌 synplex）
 
-> 让 AI 从"会回答"走向"敢执行"。
+> 目标定位：**Agent Production Runtime** —— 让企业敢于把真实业务任务交给 Agent：
+> 在受控边界内可靠地规划、调用工具、执行副作用、审批、审计、恢复、评测与控制成本。
+>
+> 当前真实定位：**Agent Orchestration / Workflow Executor MVP（产品化进行中）**。
+> 本文档只描述有代码、测试或生产运行证据的能力；证据等级定义见
+> [CURRENT_REALITY_BASELINE.md](docs/CURRENT_REALITY_BASELINE.md)。
 
-AgentHub 把概率性的 AI 决策，转化为企业可以**验证、控制、审计、恢复**的确定性业务执行。
-它不是一个聊天机器人或工作流 Demo，而是一套面向真实副作用的
-**Agent Production Runtime / Reliability Layer**。
+## 当前真实能力（以证据分级）
 
-## 一句话产品假设
+### L3 INTEGRATION_VERIFIED（有真实运行与测试证据）
 
-> Reliability Layer 把 LLM 的概率性错误限制在决策层，
-> 让更小、更便宜的模型也能承担真实业务执行。
+- 认证：注册（邮箱验证码）、登录、刷新、找回密码、JWT、登录/全局限流、安全响应头。
+- 多租户：`organization_id` 贯穿业务表；`query_db` 强制注入租户谓词。
+- Chat：SSE 流式；Agent：Intent → Planner → LangGraph → 执行 → Verify。
+- 可靠性：Approval Freeze（T24，运行时 mismatch → 零副作用 → 审计 → abort）、
+  幂等 claim（`tool_calls` 唯一事实源）、IN_FLIGHT/UNKNOWN fail-closed、
+  副作用不重试、reconciliation 幂等、checkpoint/resume、DLQ、执行预算。
+- 工具（真实生产 Tool Registry，4 个）：
 
-核心能力不是"功能多"，而是五个可靠性支柱：
+| 工具 | Provider | 副作用 | 租户 | 说明 |
+|---|---|---|---|---|
+| `search_web` | Tavily（DDG 兜底） | 否 | 否 | 已生产 E2E |
+| `query_db` | 本库 PostgreSQL | 否 | 是 | 只读单表 + 安全聚合（COUNT/SUM/AVG/MIN/MAX） |
+| `search_knowledge` | 本库 RAG（pgvector） | 否 | 是 | 检索当前租户文档 |
+| `send_email` | SMTP（Resend 兜底） | 是（需审批） | 否 | 已生产 E2E（审批后执行） |
 
-1. **可靠执行**：副作用恰好一次、崩溃可恢复、UNKNOWN fail-closed。
-2. **边界控制**：审批冻结（Approval Freeze），运行期参数不一致即中止。
-3. **全程审计**：每次执行可还原、可追责、可导出。
-4. **质量可证明**：任务级评测与四象限基准（Safe Success / 拦截率 / 成本）。
-5. **成本可控**：per-request 成本、预算闸门、双供应商回退降本。
+- 审计/观测：`audit_logs` + `tool_calls` + span 持久化；OTel→Jaeger、Prometheus 已打通
+  （2026-08-21 生产验证：Jaeger 可查到 `agenthub-backend`，Prometheus 有业务指标）。
+- RAG：文档 → 分块(800/100) → 向量（当前生产为哈希 embedding）→ pgvector 余弦检索
+  → top-k → 上下文注入。是“最小可用 RAG”，不是语义检索级 RAG。
+- 记忆：长期记忆（显式 save/update/delete + 检索），租户隔离。
+- 成本：模型价格配置 + 每次调用 usage/cost 记录 + 执行预算。
+- 测试：后端 590 passed / 20 skipped（本地真实 DB）；前端 vitest 22 + Playwright E2E 3；
+  迁移全新库 0019 通过；Kernel 单测 102。
 
-## 已上线功能
+### L2 PARTIAL / L1 DECLARED
 
-- 认证：账号+密码登录（无验证码）、注册（邮箱验证码 + 确认密码）、找回密码、
-  JWT（access 30min / refresh 7d）自动刷新、登录防爆破限流。
-- 账户体验：密码明文/密文一键切换、表单实时校验、全站核心入口悬浮提示（Tooltip）。
-- 多租户与权限：org/user 隔离、RBAC（admin/member/viewer）、动作级审计。
-- 三运行时：Chat（SSE 流式）、Agent（异步 Planner→执行→Verify→完成）、
-  Kernel（确定性 Skill 执行内核）。
-- 工作流：可视化 DAG 编辑器、人工审批节点、断点续跑、执行轨迹与可靠性面板。
-- 模型层：多模型网关、**DeepSeek 主 + OpenAI 备用双供应商自动回退**（可配置开关，
-  未配置/未充值自动跳过，绝不阻塞主流程）。
-- 可靠性层：Approval Freeze（T24 显式 mismatch 中止）、幂等状态机（claim/IN_FLIGHT/
-  UNKNOWN）、副作用不重试、对账幂等、审批悬挂超时收敛、DLQ、checkpoint 保留。
-- 评测体系：Phase 0 事故回归集、Phase 1A/1B 真实模型四象限基准（416 runs）、
-  任务级评测看板（SSR/SOR/USER/GCR/成本）。
-- 运维：Staging 预发布环境、生产自动回滚、CI 功能与延迟回归门禁、
-  前后端安全响应头（Nginx + API 双层）。
-- 数据：PostgreSQL + pgvector、Redis、成本计量、告警、邮件（SMTP/Resend 回退）。
+- Kernel 确定性内核：代码与单测真实，但生产 `RUNTIME_MODE` 未启用。
+- 双供应商回退（OpenAI）：代码存在，开关默认关闭且密钥未充值 → 未验证。
+- RBAC：有 `role` 字段与接口依赖，但缺少细粒度策略证据（实际以 admin 为主）。
+- Workflow/DAG：有编辑器与 workflow 映射，执行仍为串行；并行/条件执行未实现。
+- 观测面板：Grafana/Jaeger/Prometheus 容器与数据管道已通，dashboard 成熟度未审计。
+- MCP：未实现（L0）。Prompt Injection 防线：设计冻结，未实现（L0）。
+
+### 明确的“未实现/不宣称”
+
+- Multi-Agent 目前是**角色提示词模拟**（同一串行图 + 不同 system prompt），
+  不是 Agent 间通信/并行/聚合/评审。
+- `send_sms / create_ticket / refund_order / ticket_assign / list_unpaid_tickets` 等
+  仅存在于 benchmark fixture，**不是生产工具**。
+- 自动回滚、自动部署、CI 全绿：当前尚未达成（CI workflow 修复已提交本地，待
+  workflow 权限 token 推送后验证）。
+
+## 技术栈
+
+- 后端：Python 3.11 / FastAPI / SQLAlchemy(asyncpg) / LangGraph / Celery / Redis。
+- 数据：PostgreSQL 16 + pgvector；Alembic 当前 head `0019`。
+- 模型：DeepSeek（OpenAI 兼容端点）；Model Gateway 统一路由/重试/回退/成本。
+- 前端：React + Vite + TypeScript + Tailwind + Radix（深色/浅色双主题）。
+- 部署：Docker Compose（backend/worker/frontend/postgres/redis/mailhog + 监控栈）。
 
 ## 架构
 
-```mermaid
-flowchart TB
-    U[用户] --> F[React + TypeScript + Vite 前端]
-    F --> N[Nginx: 静态资源 + 反向代理 + 安全响应头]
-    N --> API[FastAPI REST / SSE / WebSocket]
-    API --> GW[Model Gateway]
-    GW --> DS[DeepSeek 主供应商]
-    GW -. 故障/超时自动回退 .-> OAI[OpenAI 备用供应商<br/>可配置开关]
-    API --> Q[Redis: broker / events / cache]
-    API --> PG[(PostgreSQL + pgvector)]
-    Q --> W[Celery Worker + Beat]
-    W --> GR[LangGraph Agent Runtime]
-    GR --> REL[Reliability Layer:<br/>Approval Freeze / Idempotency /<br/>Recovery / Audit / Verify]
-    REL --> TOOLS[工具: CRM / 工单 / 邮件 / 发票 / 内部 API]
-    API --> KERNEL[Kernel: 确定性 Skill 执行]
-    GR --> OBS[Observability: Trace / Cost / Metrics]
-    OBS --> PROM[Prometheus + Grafana]
-
-    subgraph Deploy[运维体系]
-        CI[CI: 测试 + 延迟/通过率门禁]
-        STAGING[Staging 预发布环境<br/>独立 compose 项目 + staging 分支]
-        ROLLBACK[生产自动回滚<br/>健康门禁失败即回退]
-    end
+```text
+Frontend (React) → API (FastAPI, JWT + 限流)
+  → Intent → Planner → LangGraph 执行图
+      → [search_preflight 按需联网] → Approval(冻结) → Tool Executor
+          → Tool Registry（4 个真实工具）→ Provider（Tavily/PostgreSQL/SMTP）
+      → Verify(fail-closed) → Audit/Trace → SSE → Frontend
+Reliability：Idempotency claim / IN_FLIGHT fail-closed / Reconciliation / Checkpoint-Resume / DLQ
+Observability：audit_logs spans + OTel(collector) → Jaeger / Prometheus / Grafana
 ```
 
-## 核心契约（Frozen Core）
+## 快速开始（本地）
 
-- Approval Freeze：审批载荷冻结 `{plan_hash, approval_id, side_effect_proposals}`；
-  运行期 tool/params 与冻结提案不一致 → 零副作用 + `approval_mismatch` 审计 + 中止。
-- Idempotency：`tool_calls` 是副作用唯一事实源；
-  `PENDING → claim → IN_FLIGHT → SUCCESS/FAILED/REJECTED`；IN_FLIGHT 遇恢复 = UNKNOWN，
-  绝不自动重放。
-- Tool Retry：副作用工具 claim 后 provider 调用 ≤1；TIMEOUT/TRANSIENT → UNKNOWN。
-- Verify Fail-Closed：PASS/FAIL/UNKNOWN/ERROR 四态，UNKNOWN/ERROR 不触发 replan、不冒充 PASS。
-- Reconciliation 幂等：重复运行零状态变化、零重复审计。
-
-## 快速开始
+前置：Docker Desktop。
 
 ```bash
 git clone https://github.com/weijiakang8-dotcom/Agenthub.git
 cd Agenthub
-cp .env.example .env              # 填写 DeepSeek/OpenAI 备用密钥（备用未充值可保持关闭）
-docker compose -f docker/docker-compose.yml up -d --build
-open http://localhost:8080
+cp .env.example .env          # 填入 DEEPSEEK_API_KEY / TAVILY_API_KEY 等
+docker compose -f docker/docker-compose.yml up -d postgres redis mailhog
+cd backend && ../.venv311/bin/python -m uvicorn app.main:app --port 8000
+cd frontend && npm install && npm run dev
 ```
 
-双供应商回退配置（.env）：
+本地默认关闭 OTel（`.env` 中 `OTEL_SDK_DISABLED=true`）；
+接入监控栈时设为 `false`，并启动 `docker compose up -d otel-collector jaeger prometheus grafana`。
 
-```env
-OPENAI_FALLBACK_ENABLED=false   # 充值并填入密钥后改为 true 即启用
-OPENAI_FALLBACK_API_KEY=
-OPENAI_FALLBACK_BASE_URL=https://api.openai.com/v1
-OPENAI_FALLBACK_MODEL=gpt-4o-mini
-```
-
-## 测试与评测
+## 测试
 
 ```bash
-cd backend && pytest -q            # 全量后端（含契约/集成）
-cd frontend && npm run test:run    # 前端单测
-cd backend && BENCH_REAL_MODELS=1 PHASE1B_MODE=full python -m tests.benchmark.phase1.run_1b
+cd backend
+../.venv311/bin/python -m pytest -q                    # 590 passed / 20 skipped（本地实测）
+../.venv311/bin/python -m pytest -q tests/migration/test_migration_fresh_db.py
+cd frontend
+npm run typecheck && npm run test:run && npm run lint && npm run build
+npm run test:e2e                                        # 需要本地后端已启动
 ```
 
-评测口径见
-[SAFE_CONTAINED_METRICS_CONTRACT](backend/tests/benchmark/SAFE_CONTAINED_METRICS_CONTRACT.md)
-与 [PHASE1B_EXPERIMENT_SPEC](backend/tests/benchmark/PHASE1B_EXPERIMENT_SPEC.md)。
+Benchmark（真实模型，需显式开启）：
 
-## 部署
+```bash
+cd backend
+BENCH_REAL_MODELS=1 python -m tests.benchmark.phase1.run_1a
+BENCH_REAL_MODELS=1 PHASE1B_MODE=full python -m tests.benchmark.phase1.run_1b
+```
 
-- 生产：GitHub Actions `deploy.yml` → `deploy/production-deploy.sh`
-  （稳定点记录 + 健康门禁 + 失败自动回滚）。
-- 预发布：`staging` 分支 → `staging.yml` → `deploy/staging-deploy.sh`
-  （独立 `agenthub-staging` compose 项目，内部端口 8001/8081/5434/6380）。
-- 手动回滚：`bash deploy/rollback.sh`（默认回退到 `deploy/.last-good-commit`）。
+历史报告：`backend/tests/benchmark/reports/`（Phase 0）与
+`backend/tests/benchmark/phase1/reports/`（Phase 1A/1B，416 runs）当前在本地生成、未入库。
 
-## 项目进度
+## 生产部署
 
-- ✅ 生产化：三运行时、认证、多租户、审批/幂等/恢复、审计、成本、告警。
-- ✅ 可靠性契约：T24 / C-1 / C-4 / C-2 / Verify Fail-Closed（含回归）。
-- ✅ 基准：Phase 0 十事故、Phase 1A 60 runs、Phase 1B 416 runs、任务级评测看板。
-- ✅ 双供应商回退架构、Staging、自动回滚、CI 门禁、安全头、文档同步。
-- ⏳ 待评审：Prompt Injection 防线（设计稿冻结，未实现）。
-- ⏳ 待业务阶段：真实用户流量验证、真实第二供应商充值启用。
+- 生产站：https://synplex.xyz（腾讯云 Ubuntu，Docker Compose）。
+- 当前真实部署路径：本地 commit → patch/scp → 服务器 `git am` → 重建容器 → 健康/E2E 验证。
+- GitHub Actions：`ci.yml`（修复已就绪，待 workflow 权限 token 推送）、`deploy.yml`
+  （CI 成功后自动 SSH 部署）、`staging.yml`。
+- 可靠性契约、部署细节、生产状态见
+  [docs/contracts](docs/contracts) 与
+  [CURRENT_REALITY_FINAL.md](docs/CURRENT_REALITY_FINAL.md)。
 
-## 后续规划
+## P0 路线（当前）
 
-1. Prompt Injection 防线（Decision Integrity Guard）评审通过后实现。
-2. 真实客户与真实流量验证产品假设。
-3. RAG hybrid 检索 / citation / rerank。
-4. Trace Viewer / Approval UX / Context Budget 的进一步产品化。
+1. CI 全绿并恢复自动部署（workflow 文件已改，待推送验证）。
+2. 观测管道（已完成生产验证：Jaeger/Prometheus 有数据）。
+3. 失败闭环（已完成：query_db 安全聚合 + 禁止空输出，生产 E2E 通过）。
+4. 工具生态（已完成第 4 个生产工具 `search_knowledge`；继续补齐真实业务工具）。
+5. RAG 语义化、Memory 分层、复杂编排、前端产品化、治理/配额/备份恢复。
 
 ## License
 

@@ -158,6 +158,14 @@ export type Skill = {
   created_at: string;
 };
 
+export type ToolSpec = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  timeout: number;
+  requires_approval: boolean;
+};
+
 export type ExecutionFeedback = {
   id: string;
   execution_id: string;
@@ -489,6 +497,7 @@ export const api = {
   deleteUserApiKey: (id: string) =>
     request<void>(`/user-api-keys/${id}`, { method: "DELETE" }),
   listSkills: () => request<Skill[]>("/skills"),
+  listTools: () => request<ToolSpec[]>("/tools"),
   createSkill: (payload: {
     name: string;
     description: string;

@@ -15,6 +15,7 @@ import AlertRules from "@/pages/AlertRules";
 import Chat from "@/pages/Chat";
 import History from "@/pages/History";
 import Skills from "@/pages/Skills";
+import Tools from "@/pages/Tools";
 import Landing from "@/pages/Landing";
 import UserGuide from "@/pages/UserGuide";
 
@@ -56,6 +57,14 @@ export default function App() {
           element={
             <RequireAuth>
               <Skills />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/tools"
+          element={
+            <RequireAuth>
+              <Tools />
             </RequireAuth>
           }
         />

@@ -44,3 +44,32 @@ test("authenticated chat page can render a new conversation", async ({
   ).toBeVisible();
   await expect(page.getByPlaceholder("输入消息，Enter 发送")).toBeEnabled();
 });
+
+test("authenticated tools page renders the real tool registry", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("agenthub.access_token", "playwright-e2e-token");
+  });
+  await page.route("**/api/tools", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify([
+        {
+          name: "query_db",
+          description: "Run a single read-only SQL SELECT query.",
+          parameters: { required: ["sql"] },
+          timeout: 30,
+          requires_approval: false,
+        },
+      ]),
+    }),
+  );
+
+  await page.goto("/tools");
+
+  await expect(page.getByText("工具注册表")).toBeVisible();
+  await expect(page.getByText("query_db")).toBeVisible();
+  await expect(page.getByText("必填参数：sql")).toBeVisible();
+});

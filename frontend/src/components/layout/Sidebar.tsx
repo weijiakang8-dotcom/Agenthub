@@ -8,6 +8,7 @@ import {
   Sparkles,
   ListChecks,
   BookOpen,
+  Wrench,
   Plus,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ const items = [
   { to: "/chat", label: "新建对话", icon: Plus },
   { to: "/history", label: "对话历史", icon: MessageSquare },
   { to: "/skills", label: "Skill 库", icon: Library },
+  { to: "/tools", label: "工具", icon: Wrench },
   { to: "/executions", label: "执行记录", icon: ListChecks },
   { to: "/guide", label: "使用指南", icon: BookOpen },
   { to: "/settings", label: "模型与设置", icon: Settings },
@@ -51,6 +53,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
               "/chat": "创建新的对话任务",
               "/history": "查看历史对话",
               "/skills": "浏览与执行确定性 Skill",
+              "/tools": "查看当前运行时真实工具注册表",
               "/executions": "查看 Agent 执行记录与审计",
               "/guide": "查看使用指南",
               "/settings": "配置模型、知识与通知",
