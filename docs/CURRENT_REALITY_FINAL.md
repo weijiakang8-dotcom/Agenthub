@@ -8,9 +8,12 @@
 
 | 项 | 初始事实（审计 08-21） | 当前状态 | 证据 |
 |---|---|---|---|
-| 产品定位 | Agent Orchestration / Workflow Executor MVP + 3 tools | 进行中 | — |
-| 生产工具 | search_web / query_db / send_email | 进行中 | tool_registry.py |
-| 生产工具 | search_web / query_db / search_knowledge / send_email | ✅ 4 个 + GET /api/tools + 前端工具页 | tool_registry.py + 生产验证 |
+| 产品定位 | Agent Orchestration / Workflow Executor MVP + 3 tools | ✅ **动态调度中枢**（模型路由 + 省钱 + 自成长） | README + DISPATCH_CENTER.md |
+| 动态路由 | 仅 simple/complex 两档 | ✅ 复杂度评分器 + 路由策略引擎 + 升级阶梯 + 决策留痕 | 34+ 单测 + 生产冒烟（节省 90%）|
+| 澄清中断 | 仅 proposal 错误提示 | ✅ 歧义弹选项 → 用户选择 → 断点继续 → 审计 | 契约测试 + 生产冒烟（零副作用）|
+| Skill | 仅 kernel 模板 | ✅ 8 预设包 + 匹配 + 自成长提议（用户采纳才生效）| 单测 + 生产匹配验证 |
+| Multi-Agent | 角色提示词模拟 | ✅ 6 Agent 注册表 + 版本化自更新管线（门禁/回滚）| 单测（候选→门禁→激活→回滚）|
+| 成本看板 | 仅 usage 汇总 | ✅ 省钱账单（全pro基线对比）+ 逐模型 token 看板 | 生产冒烟 ¥0.0018 vs ¥0.0182 |
 | CI | 红（backend import path / Playwright 无后端） | 本地修复完成；GitHub 待 workflow token 推送 | pytest.ini + ci.yml（本地） |
 | Observability | Jaeger 0 服务 / Prometheus target down | ✅ Jaeger 有 agenthub-backend；Prometheus target up；collector 689 指标 | 生产验证 08-21 |
 | query_db 失败闭环 | 失败后空输出 | ✅ 安全聚合 + 禁止空输出；生产 E2E 成功 | 生产 E2E eff7b8ee |
@@ -27,6 +30,11 @@
 
 | 日期 | 问题 | 根因 | 修复 | 回归 |
 |---|---|---|---|---|
+| 08-21 | 模型只有简单/复杂两档、无省钱闭环 | 无评分器/路由层 | 复杂度评分器 + 路由策略引擎 + 升级阶梯 + routing_decisions 审计 + 省钱账单 | 658 passed + 生产冒烟省 90% |
+| 08-21 | 歧义任务直接失败 | 澄清只是错误提示 | 澄清中断（弹选项→断点继续→审计），超限 fail-closed 零副作用 | 契约测试 + 生产冒烟 |
+| 08-21 | Skill 无生态无进化 | 仅 kernel 模板 | 8 预设包 + 匹配 + 自成长提议（采纳制）+ 档位反哺 | 单测 + 生产匹配验证 |
+| 08-21 | 多 Agent 是静态提示词 | 无版本无更新 | 6 Agent 注册表 + 自更新管线（候选→门禁→激活→回滚） | 单测全链 |
+| 08-21 | 路由无记忆 | 无绩效档案 | usage_events/model_performance 回写 + 时间衰减 | 单测 |
 | 08-21 | CI backend 全红 | pytest 无 pythonpath 配置 | pytest.ini 增加 pythonpath/testpaths | 待 CI |
 | 08-21 | CI Playwright 全红 | E2E 无真实后端 | CI 拆分 e2e job + postgres/redis + uvicorn | 待 CI |
 | 08-21 | 生产查询失败空输出 | query_db 拒绝 COUNT + 无兜底 | 安全聚合 + fail-visible | 生产 E2E 通过 |

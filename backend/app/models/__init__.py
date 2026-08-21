@@ -5,6 +5,14 @@ from app.models.api_key import ApiKey
 from app.models.audit_log import AuditLog
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin, utcnow
 from app.models.conversation import Conversation
+from app.models.dispatch import (
+    AgentVersion,
+    Clarification,
+    ModelPerformance,
+    RoutingDecision,
+    SavingsReport,
+    UsageEvent,
+)
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.models.enums import (
@@ -32,11 +40,13 @@ from app.models.workflow_version import WorkflowVersion
 __all__ = [
     "Agent",
     "AgentStatus",
+    "AgentVersion",
     "AlertEvent",
     "AlertRule",
     "ApiKey",
     "AuditLog",
     "Base",
+    "Clarification",
     "Conversation",
     "Document",
     "DocumentChunk",
@@ -47,14 +57,18 @@ __all__ = [
     "ExecutionStatus",
     "InterventionLog",
     "ModelConfig",
+    "ModelPerformance",
     "Notification",
     "Organization",
+    "RoutingDecision",
+    "SavingsReport",
     "ShadowAuditRecord",
     "Skill",
     "TimestampMixin",
     "ToolCall",
     "ToolCallStatus",
     "UUIDPrimaryKeyMixin",
+    "UsageEvent",
     "User",
     "UserApiKey",
     "UserMemory",

@@ -49,11 +49,62 @@ jobs:
       - name: Test
         working-directory: frontend
         run: npm run test:run
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
+
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      OTEL_SDK_DISABLED: "true"
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/agenthub_ci
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET_KEY: ci-secret-key-with-at-least-32-characters
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: agenthub_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d agenthub_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Migrate database to head
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Start backend
+        working-directory: backend
+        run: |
+          nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/backend.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
+              echo "backend-ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend failed to start"; cat /tmp/backend.log; exit 1
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
       - name: Install Playwright browsers
         working-directory: frontend
         run: npx playwright install --with-deps chromium
@@ -90,6 +141,7 @@ jobs:
       OTEL_SDK_DISABLED: "true"
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/agenthub_ci
       REDIS_URL: redis://localhost:6379/0
+      AGENTHUB_OBSERVABILITY_DISABLED: "false"
       CI_P95_LATENCY_MS_LIMIT: "1500"
     services:
       postgres:
@@ -109,6 +161,11 @@ jobs:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+      mailhog:
+        image: mailhog/mailhog:latest
+        ports:
+          - 1025:1025
+          - 8025:8025
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -122,6 +179,26 @@ jobs:
       - name: Full backend suite (functional gate)
         working-directory: backend
         run: pytest -q
+      - name: Phase 0 benchmark harness (deterministic, no real model)
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/agenthub_benchmark_p0
+        run: |
+          python - <<'PY'
+          import asyncio
+          import asyncpg
+
+          async def main():
+              conn = await asyncpg.connect(
+                  "postgresql://postgres:postgres@localhost:5432/postgres"
+              )
+              await conn.execute("CREATE DATABASE agenthub_benchmark_p0")
+              await conn.close()
+
+          asyncio.run(main())
+          PY
+          alembic -x db_url="$DATABASE_URL" upgrade head
+          python -m pytest tests/benchmark/test_phase0_benchmark.py -q
       - name: Core latency gate
         working-directory: backend
         run: python ../scripts/ci_latency_gate.py

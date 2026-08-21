@@ -162,7 +162,7 @@ async def _publish_approval_event(
     interrupt_value: Any,
     result: dict[str, Any],
 ) -> None:
-    """在状态已提交后发射 approval_required（不领先持久化状态）。"""
+    """在状态已提交后发射 approval_required / clarification_required（不领先持久化状态）。"""
     payload = interrupt_value
     if isinstance(payload, dict):
         pending = (
@@ -172,6 +172,15 @@ async def _publish_approval_event(
         )
     else:
         pending = {}
+    if isinstance(payload, dict) and payload.get("type") == "clarification":
+        await publish_execution_event(
+            str(execution_id),
+            {
+                "event": "clarification_required",
+                "clarification": payload.get("clarification") or {},
+            },
+        )
+        return
     if pending.get("type") == "plan_approval":
         event = {
             "event": "approval_required",
@@ -522,6 +531,13 @@ async def run_execution(execution_id: uuid.UUID) -> None:
         "side_effect_failure": False,
         "approved_plan_hash": None,
         "approved_approval_id": None,
+        # —— 调度中心（二次装修新增）——
+        "complexity_report": {},
+        "routing_tier": "balanced",
+        "clarifications_asked": 0,
+        "clarification_request": None,
+        "clarification_answer": None,
+        "escalated_steps": {},
     }
     config = {"configurable": {"thread_id": str(execution_id)}, "recursion_limit": 100}
 

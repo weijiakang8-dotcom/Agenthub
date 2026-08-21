@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Send, Sparkles } from "lucide-react";
+import { HelpCircle, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { MouseGlow } from "@/components/effects/MouseGlow";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { api, getAccessToken, type ExecutionDetail } from "@/lib/api";
 import {
@@ -15,6 +22,12 @@ import {
 } from "@/lib/theme";
 
 type Message = { role: "user" | "assistant"; content: string };
+
+type ClarificationRequest = {
+  question: string;
+  options: string[];
+  clarification_id?: string | null;
+};
 
 export default function Chat() {
   const [searchParams] = useSearchParams();
@@ -28,8 +41,28 @@ export default function Chat() {
   const [activeModel, setActiveModel] = useState<string | null>(null);
   const [optimizing, setOptimizing] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
+  const [clarification, setClarification] = useState<ClarificationRequest | null>(null);
+  const [answeringClarification, setAnsweringClarification] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  async function answerClarification(answer: string) {
+    const current = clarification;
+    if (!current || !current.clarification_id) {
+      setClarification(null);
+      return;
+    }
+    setAnsweringClarification(true);
+    try {
+      await api.answerClarification(current.clarification_id, answer);
+      toast.success(`已按「${answer.slice(0, 30)}」继续执行`);
+    } catch (err) {
+      toast.error(String(err));
+    } finally {
+      setAnsweringClarification(false);
+      setClarification(null);
+    }
+  }
 
   useEffect(() => {
     const onChange = (event: Event) =>
@@ -148,6 +181,19 @@ export default function Chat() {
               clarificationSeen = true;
               assistant = data.message;
               updateAssistant(assistant);
+            }
+            if (data.event === "clarification_required") {
+              clarificationSeen = true;
+              const payload = data.clarification ?? {};
+              setClarification({
+                question: String(payload.question ?? "请确认你的意图："),
+                options: Array.isArray(payload.options)
+                  ? payload.options.map(String)
+                  : [],
+                clarification_id: payload.clarification_id ?? null,
+              });
+              const hint = `⏸ 任务暂停，等待你确认语义：${String(payload.question ?? "")}`;
+              updateAssistant(assistant ? `${assistant}\n\n${hint}` : hint);
             }
             if (
               data.event === "error" &&
@@ -389,6 +435,36 @@ export default function Chat() {
         </p>
         </div>
       </div>
+
+      <Dialog open={clarification !== null} onOpenChange={(open) => !open && !answeringClarification && setClarification(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HelpCircle className="h-5 w-5 text-primary" />
+              需要你确认一下语义
+            </DialogTitle>
+            <DialogDescription className="pt-1">
+              {clarification?.question}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            {(clarification?.options ?? []).map((option, index) => (
+              <Button
+                key={`${option}-${index}`}
+                variant="outline"
+                className="justify-start text-left"
+                disabled={answeringClarification}
+                onClick={() => answerClarification(option)}
+              >
+                {option}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            选择后任务从断点继续执行，选择会被记入审计（为什么走这条路，全程可查）。
+          </p>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

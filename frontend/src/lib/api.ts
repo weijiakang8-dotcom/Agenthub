@@ -165,6 +165,146 @@ export type Skill = {
   icon: string;
   organization_id: string | null;
   created_by: string | null;
+  source: "preset" | "user" | "auto";
+  version: number;
+  status: "active" | "proposed" | "retired";
+  runtime: "kernel" | "agent";
+  trigger: string;
+  model_tier_hints: Record<string, string> | null;
+  times_used: number;
+  created_at: string;
+};
+
+export type ComplexityReport = {
+  score: number;
+  level: "simple" | "complex";
+  source: string;
+  confidence: number;
+  factors: Array<{
+    factor: string;
+    weight: number;
+    contribution: number;
+    detail: string;
+  }>;
+};
+
+export type RoutingPreviewItem = {
+  step_id: string;
+  capability: string;
+  score: number;
+  level: string;
+  tier: string;
+  complexity: "simple" | "complex";
+  reason: string;
+  factors: Array<Record<string, unknown>>;
+  candidates: string[];
+};
+
+export type DispatchAnalysis = {
+  complexity: ComplexityReport;
+  tier: string;
+  skills: Array<{
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    score: number;
+    reason: string;
+    source: string;
+    version: number;
+    times_used: number;
+    plan_template: Record<string, unknown>;
+    model_tier_hints: Record<string, string> | null;
+  }>;
+  candidates: string[];
+  routing_preview: RoutingPreviewItem[];
+};
+
+export type RoutingDecisionItem = {
+  id: string;
+  execution_id: string | null;
+  step_id: string;
+  capability: string;
+  score: number;
+  tier: string;
+  complexity: string;
+  reason: string;
+  factors: Array<Record<string, unknown>>;
+  candidates: string[];
+  outcome: string | null;
+  model_used: string | null;
+  cost: number | null;
+  created_at: string;
+};
+
+export type ClarificationItem = {
+  id: string;
+  execution_id: string | null;
+  step_id: string;
+  question: string;
+  options: string[] | null;
+  answer: string | null;
+  status: string;
+  created_at: string;
+  answered_at: string | null;
+};
+
+export type SavingsSummary = {
+  period_start: string;
+  period_end: string;
+  baseline_cost: number;
+  actual_cost: number;
+  savings: number;
+  savings_rate: number;
+  total_tokens: number;
+  max_rate: number | null;
+  by_model: Array<{
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cost: number;
+    calls: number;
+  }>;
+};
+
+export type TokenDashboard = {
+  days: number;
+  models: Array<{
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cost: number;
+    calls: number;
+  }>;
+  total: { tokens: number; cost: number; calls: number };
+};
+
+export type AgentRosterItem = {
+  name: string;
+  role: string;
+  model_policy: Record<string, unknown>;
+  active_version: number | null;
+  active_system_prompt_preview: string;
+  default_prompt_preview: string;
+};
+
+export type AgentVersionItem = {
+  id: string;
+  name: string;
+  version: number;
+  status: string;
+  change_note: string;
+  metrics: Record<string, unknown> | null;
+  created_at: string;
+  applied_at: string | null;
+  system_prompt_preview: string;
+};
+
+export type GrowthProposal = {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
   created_at: string;
 };
 
@@ -552,6 +692,88 @@ export const api = {
       `/skills/${id}/execute`,
       { method: "POST", body: JSON.stringify({ input }) },
     ),
+  // —— 调度中心（二次装修新增）——
+  analyzeDispatch: (payload: {
+    input: string;
+    tier?: string;
+    plan?: Record<string, unknown> | null;
+  }) =>
+    request<DispatchAnalysis>("/dispatch/analyze", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  listRoutingDecisions: (executionId?: string, limit = 50) =>
+    request<RoutingDecisionItem[]>(
+      `/dispatch/decisions?limit=${limit}${executionId ? `&execution_id=${executionId}` : ""}`,
+    ),
+  listClarifications: (executionId?: string) =>
+    request<ClarificationItem[]>(
+      `/dispatch/clarifications${executionId ? `?execution_id=${executionId}` : ""}`,
+    ),
+  answerClarification: (id: string, answer: string) =>
+    request<{ clarification_id: string; execution_id: string | null; status: string }>(
+      `/dispatch/clarifications/${id}/answer`,
+      { method: "POST", body: JSON.stringify({ answer }) },
+    ),
+  matchSkills: (input: string) =>
+    request<DispatchAnalysis["skills"]>(`/skills/match?input=${encodeURIComponent(input)}`),
+  seedPresets: () =>
+    request<{ created: number; presets: string[] }>("/skills/seed-presets", {
+      method: "POST",
+    }),
+  adoptSkill: (id: string) =>
+    request<Skill>(`/skills/${id}/adopt`, { method: "POST" }),
+  markSkillUsed: (id: string) =>
+    request<Skill>(`/skills/${id}/use`, { method: "POST" }),
+  growthCandidates: () =>
+    request<{
+      proposals: GrowthProposal[];
+      patterns: Array<{ task_type: string; capability: string; calls: number }>;
+    }>("/skills/growth/candidates"),
+  growthRun: () =>
+    request<{
+      proposals: Array<{
+        id: string;
+        name: string;
+        description: string;
+        signature: string;
+        count: number;
+        success_rate: number;
+      }>;
+    }>("/skills/growth/run", { method: "POST" }),
+  growthAccept: (id: string) =>
+    request<Skill>(`/skills/growth/${id}/accept`, { method: "POST" }),
+  growthReject: (id: string) =>
+    request<Skill>(`/skills/growth/${id}/reject`, { method: "POST" }),
+  usageTokens: (days = 30) => request<TokenDashboard>(`/usage/tokens?days=${days}`),
+  usageSavings: () => request<SavingsSummary>("/usage/savings"),
+  agentRoster: () => request<AgentRosterItem[]>("/agent-center"),
+  agentVersions: (name: string) =>
+    request<AgentVersionItem[]>(`/agent-center/${name}/versions`),
+  agentUpdate: (name: string, payload: {
+    change_note: string;
+    examples?: string[];
+    metrics?: Record<string, unknown> | null;
+  }) =>
+    request<{
+      ok: boolean;
+      id: string;
+      name: string;
+      version: number;
+      status: string;
+      system_prompt: string;
+    }>(`/agent-center/${name}/update`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  agentActivate: (versionId: string) =>
+    request<Record<string, unknown>>(`/agent-center/versions/${versionId}/activate`, {
+      method: "POST",
+    }),
+  agentRollback: (name: string) =>
+    request<Record<string, unknown>>(`/agent-center/${name}/rollback`, {
+      method: "POST",
+    }),
   listDocuments: () => request<DocumentItem[]>("/documents"),
   createDocument: (payload: {
     name: string;

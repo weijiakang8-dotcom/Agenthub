@@ -64,6 +64,10 @@ celery_app.conf.beat_schedule = {
         "task": "agenthub.cleanup_expired_memories",
         "schedule": 3600.0,
     },
+    "propose-growth-skills": {
+        "task": "agenthub.propose_growth_skills",
+        "schedule": 21600.0,
+    },
 }
 
 
@@ -201,6 +205,31 @@ def cleanup_expired_memories_task() -> int:
     from app.memory.service import delete_expired_memories
 
     return asyncio.run(delete_expired_memories())
+
+
+@celery_app.task(name="agenthub.propose_growth_skills")
+def propose_growth_skills_task() -> int:
+    """自成长扫描：从使用数据提炼候选 Skill（每 6 小时，幂等）。"""
+    from sqlalchemy import select
+
+    from app.models import UsageEvent
+    from app.skills.growth import propose_growth_skills
+
+    async def _run() -> int:
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(UsageEvent.organization_id)
+                .where(UsageEvent.organization_id.isnot(None))
+                .distinct()
+            )
+            orgs = [str(row[0]) for row in result.all()]
+        total = 0
+        for org in orgs:
+            proposals = await propose_growth_skills(org)
+            total += len(proposals)
+        return total
+
+    return asyncio.run(_run())
 
 
 @celery_app.task(name="agenthub.evaluate_production_alerts")

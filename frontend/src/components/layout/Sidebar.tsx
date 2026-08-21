@@ -10,6 +10,9 @@ import {
   BookOpen,
   Wrench,
   Plus,
+  Gauge,
+  PiggyBank,
+  Bot,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -19,8 +22,11 @@ import { Hint } from "@/components/ui/hint";
 
 const items = [
   { to: "/chat", label: "新建对话", icon: Plus },
+  { to: "/dispatch", label: "调度中心", icon: Gauge },
   { to: "/history", label: "对话历史", icon: MessageSquare },
   { to: "/skills", label: "Skill 库", icon: Library },
+  { to: "/agents", label: "Agent 中心", icon: Bot },
+  { to: "/savings", label: "省钱账单", icon: PiggyBank },
   { to: "/tools", label: "工具", icon: Wrench },
   { to: "/executions", label: "执行记录", icon: ListChecks },
   { to: "/guide", label: "使用指南", icon: BookOpen },
@@ -51,8 +57,11 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
             key={to}
             label={collapsed ? label : `${label}：${({
               "/chat": "创建新的对话任务",
+              "/dispatch": "发布任务前的复杂度评分与路由方案",
               "/history": "查看历史对话",
-              "/skills": "浏览与执行确定性 Skill",
+              "/skills": "预设、自建与自成长 Skill 包",
+              "/agents": "自带 Agent 阵容与自更新版本",
+              "/savings": "动态路由省下的真金白银",
               "/tools": "查看当前运行时真实工具注册表",
               "/executions": "查看 Agent 执行记录与审计",
               "/guide": "查看使用指南",

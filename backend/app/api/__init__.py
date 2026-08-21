@@ -1,12 +1,14 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    agent_center,
     agents,
     alert_rules,
     alerts,
     audit_logs,
     auth,
     conversations,
+    dispatch,
     documents,
     executions,
     memories,
@@ -31,6 +33,7 @@ from app.api.routes import (
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(agents.router)
+api_router.include_router(agent_center.router)
 api_router.include_router(workflows.router)
 api_router.include_router(executions.router)
 api_router.include_router(tool_calls.router)
@@ -54,6 +57,7 @@ api_router.include_router(user_api_keys.router)
 api_router.include_router(usage.router)
 api_router.include_router(tasks.router)
 api_router.include_router(workflow_templates.router)
+api_router.include_router(dispatch.router)
 
 
 __all__ = ["api_router"]
