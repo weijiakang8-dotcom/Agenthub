@@ -33,6 +33,7 @@
 | 08-21 | OTel 空转/不生效 | .env 未声明字段不被 os.getenv 读取 | Settings.OTEL_SDK_DISABLED 字段 | 单测 + 生产验证 |
 | 08-21 | 工具不可发现 | 只有后端注册表 | GET /api/tools + 前端工具页 | Playwright 4/4 |
 | 08-21 | README 与现状不符 | 历史营销口径 | 重写为证据版 README | 文档审查 |
+| 08-21 | 备份/恢复无证据 | 无脚本/演练 | scripts/backup.sh + restore.sh；生产 drill 通过（70 行对账一致） | 生产演练 |
 
 ## 3. 已知 P0/P1（见基线 §23）
 

@@ -48,6 +48,12 @@
       "problem": "README overclaimed capabilities",
       "fix": "rewrote README to evidence-based claims",
       "regression": "manual review"
+    },
+    {
+      "id": "OPS-1",
+      "problem": "no backup/restore evidence",
+      "fix": "added scripts/backup.sh and scripts/restore.sh; production drill verified (70-row match)",
+      "regression": "production drill 2026-08-21"
     }
   ],
   "gate": "CI green -> production deploy -> real E2E -> GitHub==production -> README==reality"

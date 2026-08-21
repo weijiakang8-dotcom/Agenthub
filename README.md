@@ -115,6 +115,8 @@ BENCH_REAL_MODELS=1 PHASE1B_MODE=full python -m tests.benchmark.phase1.run_1b
 
 - 生产站：https://synplex.xyz（腾讯云 Ubuntu，Docker Compose）。
 - 当前真实部署路径：本地 commit → patch/scp → 服务器 `git am` → 重建容器 → 健康/E2E 验证。
+- 备份/恢复：`scripts/backup.sh`（pg_dump + gzip，保留 7 份）、`scripts/restore.sh`
+  （恢复指定目标库）；已在生产完成 dump→restore 演练（行数对账一致）。
 - GitHub Actions：`ci.yml`（修复已就绪，待 workflow 权限 token 推送）、`deploy.yml`
   （CI 成功后自动 SSH 部署）、`staging.yml`。
 - 可靠性契约、部署细节、生产状态见
