@@ -31,7 +31,13 @@ PLANNER_SYSTEM_PROMPT = (
     + ", ".join(CAPABILITIES)
     + "。side_effect 与 requires_approval 不允许输出，由能力目录静态决定。"
     "复合任务按 Gather（只读）→ Synthesize（analysis）→ Commit（副作用）→ "
-    "Verify 的顺序设计。简单任务只输出一个 answer 步骤，不要为了完整而堆步骤。"
+    "Verify 的顺序设计。简单任务只输出一个 answer 步骤，不要为了完整而堆步骤。\n"
+    "联网搜索边界：只有任务需要时效性或模型知识之外的外部事实时，才选择 "
+    "research 或 web_search 能力；如果上下文中已经提供了【联网搜索结果】，"
+    "直接把它当证据使用，不要重复添加 research/web_search 步骤，除非需要"
+    "多角度补充检索。内部业务数据用 query_db，知识库资料用 knowledge，"
+    "普通聊天用 answer；不要为私人或组织内部信息安排联网搜索。涉及 "
+    "send_email/execute 时，正文应基于已提供的搜索证据，禁止编造外部事实。"
 )
 
 
@@ -297,6 +303,7 @@ class Planner:
         organization_id: str | None,
         user_id: str | None,
         correlation_id: str | None = None,
+        context: str | None = None,
     ) -> dict[str, Any]:
         async with trace_span(
             correlation_id,
@@ -310,12 +317,13 @@ class Planner:
                     user_id=user_id,
                     complexity="complex",
                 )
+                messages = [SystemMessage(content=PLANNER_SYSTEM_PROMPT)]
+                if context:
+                    messages.append(SystemMessage(content=context))
+                messages.append(HumanMessage(content=user_input))
                 response = await self._gateway.invoke(
                     llms,
-                    [
-                        SystemMessage(content=PLANNER_SYSTEM_PROMPT),
-                        HumanMessage(content=user_input),
-                    ],
+                    messages,
                     task_type="plan",
                     organization_id=organization_id,
                     correlation_id=correlation_id,

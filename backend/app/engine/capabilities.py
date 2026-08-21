@@ -34,13 +34,21 @@ CAPABILITIES: dict[str, Capability] = {
         name="research",
         description="搜索网络获取信息",
         tools=(search_web,),
-        system_prompt="你是研究智能体，先检索网络再基于证据回答，注明关键来源。",
+        system_prompt=(
+            "你是研究智能体。如果上下文已提供【联网搜索结果】，直接基于这些"
+            "证据总结回答；否则使用 search_web 检索网络。回答注明关键来源"
+            "（标题与链接）；搜索失败时如实说明，并基于已有知识回答，不要编造结果。"
+        ),
     ),
     "web_search": Capability(
         name="web_search",
         description="只执行网络搜索",
         tools=(search_web,),
-        system_prompt="你是搜索智能体，检索网络并输出摘要。",
+        system_prompt=(
+            "你是搜索智能体。如果上下文已提供【联网搜索结果】，直接整理摘要；"
+            "否则使用 search_web 检索。输出摘要时保留来源（标题与链接），"
+            "搜索失败时如实说明，不编造结果。"
+        ),
     ),
     "knowledge": Capability(
         name="knowledge",
@@ -76,7 +84,11 @@ CAPABILITIES: dict[str, Capability] = {
         name="execute",
         description="执行需要数据库或邮件等副作用的能力",
         tools=(query_db, send_email),
-        system_prompt="你是执行智能体，谨慎使用工具完成用户指令；副作用操作需要审批。",
+        system_prompt=(
+            "你是执行智能体，谨慎使用工具完成用户指令；副作用操作需要审批。"
+            "涉及外部事实时以【联网搜索结果】为证据，不要编造；"
+            "内部业务数据以 query_db 结果为准。"
+        ),
         side_effect=True,
         requires_approval=True,
     ),
@@ -84,7 +96,11 @@ CAPABILITIES: dict[str, Capability] = {
         name="send_email",
         description="发送邮件（需要人工审批）",
         tools=(send_email,),
-        system_prompt="你是邮件智能体，发送前请确认收件人、主题与正文。",
+        system_prompt=(
+            "你是邮件智能体。发送前请确认收件人、主题与正文；正文涉及最新外部"
+            "信息时，必须依据【联网搜索结果】等已提供证据撰写，可标注来源；"
+            "不要编造外部事实、日期或数据。"
+        ),
         side_effect=True,
         requires_approval=True,
     ),

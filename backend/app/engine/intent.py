@@ -56,6 +56,7 @@ class IntentDecision(BaseModel):
     requires_approval: bool = False
     requires_data: bool = False
     needs_knowledge: bool = False
+    needs_web_search: bool = False
     memory_intent: str = "none"
     reference_target: str | None = None
     multi_goal: bool = False
@@ -66,7 +67,8 @@ INTENT_SYSTEM_PROMPT = (
     "你是 AgentHub 的意图路由器。只输出一个 JSON 对象，字段为："
     '{"category","complexity","confidence","reason","requires_tool",'
     '"requires_side_effect","requires_approval","requires_data",'
-    '"needs_knowledge","memory_intent","reference_target","multi_goal"}。\n'
+    '"needs_knowledge","needs_web_search","memory_intent","reference_target",'
+    '"multi_goal"}。\n'
     "category 只能是以下之一：\n"
     "CHAT：普通聊天、解释、闲聊；\n"
     "KNOWLEDGE：需要检索资料/知识库才能回答；\n"
@@ -76,7 +78,18 @@ INTENT_SYSTEM_PROMPT = (
     "complexity 只能是 simple 或 complex。confidence 是 0 到 1 的数字，"
     "reason 用一句话解释。\n"
     "布尔字段（requires_tool/requires_side_effect/requires_approval/"
-    "requires_data/needs_knowledge/multi_goal）只能输出 true/false；"
+    "requires_data/needs_knowledge/needs_web_search/multi_goal）只能输出 true/false；"
+    "needs_web_search 表示是否需要联网获取时效性或外部事实，规则如下：\n"
+    "true 的典型场景：新闻/事件/价格/汇率/股票/天气/政策/产品版本/赛事结果等"
+    "时效信息；用户明确要求“搜一下/查一下网上/最新”；需要验证链接或来源；"
+    "撰写邮件或报告需要最新外部信息。\n"
+    "false 的典型场景：纯闲聊问候；内部业务数据（应走数据库）；知识库资料；"
+    "用户私人或组织内部信息（绝不外发搜索）；纯数学/逻辑/代码问题；信息不足"
+    "需要澄清；没有把握时保持 false，不要为普通问题开启搜索。\n"
+    "简单的一次性查询（如“今天北京天气”）应保持 category=CHAT、"
+    "requires_tool=false、needs_web_search=true；需要多步研究/多次搜索的任务"
+    "才设 category=TASK、requires_tool=true。needs_web_search 本身不改变"
+    "category 与 runtime。"
     "memory_intent 只能是 none/save/recall/update/delete；"
     "reference_target 在存在需要解析的指代时填指代短语，否则为 null；"
     "multi_goal 在输入包含多个独立目标时为 true。\n"
@@ -167,6 +180,7 @@ def _extract_flags(data: dict[str, Any]) -> dict[str, Any]:
         "requires_approval": _as_bool(flags.get("requires_approval")),
         "requires_data": _as_bool(flags.get("requires_data")),
         "needs_knowledge": _as_bool(flags.get("needs_knowledge")),
+        "needs_web_search": _as_bool(flags.get("needs_web_search")),
         "memory_intent": str(flags.get("memory_intent") or "none"),
         "reference_target": (
             str(flags["reference_target"])
