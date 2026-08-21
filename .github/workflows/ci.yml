@@ -10,6 +10,35 @@ jobs:
     runs-on: ubuntu-latest
     env:
       OTEL_SDK_DISABLED: "true"
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/agenthub_ci
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET_KEY: ci-secret-key-with-at-least-32-characters
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      SMTP_FROM: ci@agenthub.local
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: agenthub_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d agenthub_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+      mailhog:
+        image: mailhog/mailhog:latest
+        ports:
+          - 1025:1025
+          - 8025:8025
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,6 +48,9 @@ jobs:
         run: pip install -r backend/requirements.txt
       - name: Install test dependency
         run: pip install pytest
+      - name: Migrate database to head
+        working-directory: backend
+        run: alembic upgrade head
       - name: Compile and import smoke test
         working-directory: backend
         run: |
