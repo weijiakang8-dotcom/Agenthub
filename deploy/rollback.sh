@@ -13,18 +13,20 @@ if [ -z "$target" ]; then
 fi
 
 current="$(git rev-parse HEAD)"
-git checkout "$target" || exit 1
-if ! $COMPOSE up -d --build backend worker frontend; then
+git checkout --force "$target" || exit 1
+if ! $COMPOSE up -d --build backend worker frontend embedding; then
   echo "rollback build failed; restoring $current"
-  git checkout "$current"
-  $COMPOSE up -d --build backend worker frontend
+  git checkout --force "$current"
+  $COMPOSE up -d --build backend worker frontend embedding
   exit 1
 fi
+$COMPOSE restart frontend
 sleep 10
 if ! bash scripts/core_health_gate.sh; then
   echo "rollback health failed; restoring $current"
-  git checkout "$current"
-  $COMPOSE up -d --build backend worker frontend
+  git checkout --force "$current"
+  $COMPOSE up -d --build backend worker frontend embedding
+  $COMPOSE restart frontend
   exit 1
 fi
 echo "ROLLBACK_OK to $(git rev-parse --short HEAD)"
