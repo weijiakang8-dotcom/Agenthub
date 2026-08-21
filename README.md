@@ -21,7 +21,9 @@
 - **Skill 系统**：8 个预设任务包 + 自动匹配 + **自成长**（同类任务 ≥3 次且成功率达标 → 自动打包候选，你采纳才生效）；
 - **多 Agent 体系**：自带 6 Agent（调度/规划/执行/验证/澄清/记账）+ 版本化自更新（候选 → 门禁 → 激活/回滚）；
 - **省钱账单**：实际成本 vs "全程最强模型"基线 + 逐模型 token 看板（生产冒烟实测省 90%：¥0.0018 vs ¥0.0182）；
-- **MCP 插件**：`POST /api/mcp` 把调度中心暴露为 MCP 工具集，Claude/Codex 等外部助手可直接调用。
+- **MCP 插件**：`POST /api/mcp` 把调度中心暴露为 MCP 工具集（`initialize` / `tools/list` / `tools/call`，
+  JSON-RPC 2.0 over HTTP，Bearer JWT 认证），Claude/Codex 等外部助手可直接把 AgentHub 当插件调用：
+  分析任务、匹配 Skill、查省钱账单、查健康状态。
 
 ### L3 INTEGRATION_VERIFIED（真实运行与测试证据）
 
