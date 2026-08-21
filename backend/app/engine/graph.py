@@ -94,6 +94,7 @@ class AgentState(TypedDict, total=False):
     node_outputs: dict[str, Any]
     revision_count: int
     revision_requested: bool
+    tool_failure_replan: bool
     complexity: str
     llm_usage: list[dict[str, Any]]
     plan_meta: dict[str, Any]
@@ -642,6 +643,10 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
             "pending_approval": pending,
             "budget_used": budget,
             "current_step": 0,
+            "tool_failure_replan": False,
+            "revision_requested": False,
+            "revision_count": int(state.get("revision_count", 0))
+            + (1 if state.get("tool_failure_replan") else 0),
         }
 
     await publish_execution_event(
@@ -653,6 +658,10 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
         "plan_meta": plan_meta,
         "budget_used": budget,
         "current_step": 0,
+        "tool_failure_replan": False,
+        "revision_requested": False,
+        "revision_count": int(state.get("revision_count", 0))
+        + (1 if state.get("tool_failure_replan") else 0),
     }
 
 
@@ -671,6 +680,8 @@ async def _route_step(state: AgentState) -> str:
         return END
     if state.get("pending_approval"):
         return "waiting_for_approval"
+    if state.get("tool_failure_replan") and int(state.get("revision_count", 0)) == 0:
+        return "plan"
     plan = state.get("plan") or []
     index = state.get("current_step", 0)
     if index >= len(plan):
@@ -971,6 +982,11 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
             final_response = streamed
             usage.append(_usage_of(streamed))
 
+        tool_failure_replan = bool(
+            executed_tool
+            and any(item.get("status") != "success" for item in tool_results)
+            and int(state.get("revision_count", 0)) == 0
+        )
         final_output = _final_output_or_fallback(
             _strip_raw_tool_call_text(getattr(final_response, "content", "") or ""),
             tool_results=tool_results if executed_tool else [],
@@ -1010,6 +1026,8 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
             "messages": new_messages,
             "current_step": index + 1,
             "final_output": final_output,
+            "tool_failure_replan": tool_failure_replan,
+            "revision_requested": tool_failure_replan,
             "node_outputs": {
                 **(state.get("node_outputs") or {}),
                 name: final_output,
