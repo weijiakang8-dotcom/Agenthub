@@ -1,104 +1,52 @@
 # AgentHub（对外品牌 synplex）
 
-> 一句话定位：**模型越多，越不会用。AgentHub 是你的动态调度中枢——接上你所有的模型 API，
-> 发布任务后由平台分析复杂度、为每一步动态选择最划算的模型（便宜模型失败自动升级强模型），
-> 用最少的 token 完成最复杂的任务；全程可观看、可审计、可澄清、可回滚，最后给你一张省钱账单。**
->
-> 架构事实：Chat 同步流式 / Agent 异步执行（LangGraph）/ Kernel 确定性内核 三 Runtime；
-> 审批冻结（T24）、幂等 claim、fail-closed、审计回放、配额闸门等可靠性层为生产级实现。
-> 本文档只描述有代码、测试或生产运行证据的能力；证据等级定义见
+> **模型越多，越不会用。AgentHub 是你的动态调度中枢**：接上你所有的模型 API，发布任务，
+> 它分析复杂度、为每一步自动选最便宜的模型，便宜模型失败自动升级强模型——用最少的 token
+> 完成最复杂的任务；执行全程可观看、可审计、可澄清、可回滚，最后给你一张省钱账单。
+> 一句话：**ChatGPT 是聊天，AgentHub 是调度。**
+
+生产站：https://synplex.xyz
+
+## 当前真实能力
+
+> 本文档只描述有代码、测试或生产运行证据的能力；证据等级见
 > [CURRENT_REALITY_BASELINE.md](docs/CURRENT_REALITY_BASELINE.md)。
 
-## 当前真实能力（以证据分级）
+### 动态调度中枢（核心，全部闭环）
 
-### 动态调度中枢（二次装修核心，全部闭环）
+- **复杂度评分器**：规则信号 + 历史统计 + 可选 LLM 法官三层混合，任务级/步骤级两级评分，因子可解释；
+- **路由策略引擎**：三档策略（省钱/均衡/质量）× 阈值 × 模型绩效修正 → 每步"便宜 or 强"决策；
+  **升级阶梯**（每步 ≤1 次、每任务 ≤4 次）；每次决策落 `routing_decisions` 审计表；
+- **澄清中断**：语义歧义/参数缺失 → 暂停弹选项 → 你选择 → 断点继续（全程留痕）；超限显式失败、零副作用；
+- **Skill 系统**：8 个预设任务包 + 自动匹配 + **自成长**（同类任务 ≥3 次且成功率达标 → 自动打包候选，你采纳才生效）；
+- **多 Agent 体系**：自带 6 Agent（调度/规划/执行/验证/澄清/记账）+ 版本化自更新（候选 → 门禁 → 激活/回滚）；
+- **省钱账单**：实际成本 vs "全程最强模型"基线 + 逐模型 token 看板（生产冒烟实测省 90%：¥0.0018 vs ¥0.0182）；
+- **MCP 插件**：`POST /api/mcp` 把调度中心暴露为 MCP 工具集，Claude/Codex 等外部助手可直接调用。
 
-- **复杂度评分器**（`app/core/complexity.py`）：规则信号 + 历史统计 + 可选 LLM 法官三层混合，
-  输出 0-1 评分与可解释因子；任务级与步骤级两级评分。
-- **路由策略引擎**（`app/core/routing.py`）：三档用户策略（省钱/均衡/质量）× 复杂度阈值 ×
-  历史绩效修正 → 每步"便宜 or 强"模型决策；**升级阶梯**：便宜模型工具失败自动升级强模型
-  重做该步（每步 ≤1 次、每任务 ≤4 次）；每次决策落 `routing_decisions` 表（可解释、可回放）。
-- **澄清中断**：意图歧义或副作用提案缺参数时，执行**暂停弹出语义选项**（澄清 Agent 生成
-  2-4 个互斥选项），用户选择后从断点继续（每次选择进审计）；最多 2 次，超限显式失败、零副作用。
-- **Skill 系统**：8 个预设任务包（研究/竞品/周报/数据问答/总结/翻译/通知/选题）；
-  任务文本自动匹配候选 Skill；**自成长**：同类任务出现 ≥3 次且成功率达标 → 自动打包为候选
-  Skill（用户采纳才生效），成功样本持续反哺每步模型档位提示。
-- **多 Agent 体系**：自带 6 个 Agent（调度/规划/执行/验证/澄清/记账），各司其职；
-  **自更新管线**：成功样本提炼 → 候选版本 → 门禁（结构 + 指标不劣于当前）→ 激活/回滚，
-  全程版本化、可审计。
-- **行为画像与模型绩效**（`app/core/profile.py`）：每次调用回写 `usage_events` /
-  `model_performance`（时间衰减），路由越用越准——"省钱且质量不降"由每周 golden 回归抽检保证。
-- **省钱账单与 token 看板**（`app/core/savings.py` + 前端页面）：实际成本 vs 全 pro 基线、
-  逐模型 token 消耗，生产冒烟实测省 90%（¥0.0018 vs ¥0.0182）。
+### L3 INTEGRATION_VERIFIED（真实运行与测试证据）
 
-### L3 INTEGRATION_VERIFIED（有真实运行与测试证据）
-
-- 认证：注册（邮箱验证码）、登录、刷新、找回密码、JWT、登录/全局限流、安全响应头。
-- 多租户：`organization_id` 贯穿业务表；`query_db` 强制注入租户谓词。
-- Chat：SSE 流式；Agent：Intent → Planner → LangGraph → 执行 → Verify。
-- 可靠性：Approval Freeze（T24，运行时 mismatch → 零副作用 → 审计 → abort）、
-  幂等 claim（`tool_calls` 唯一事实源）、IN_FLIGHT/UNKNOWN fail-closed、
-  副作用不重试、reconciliation 幂等、checkpoint/resume、DLQ、执行预算。
-- 工具（真实生产 Tool Registry，6 个）：
-
-| 工具 | Provider | 副作用 | 租户 | 说明 |
-|---|---|---|---|---|
-| `search_web` | Tavily（DDG 兜底） | 否 | 否 | 已生产 E2E |
-| `query_db` | 本库 PostgreSQL | 否 | 是 | 只读单表 + 安全聚合（COUNT/SUM/AVG/MIN/MAX） |
-| `search_knowledge` | 本库 RAG（pgvector） | 否 | 是 | 检索当前租户文档 |
-| `recall_memory` | 本库长期记忆 | 否 | 是（用户级） | 检索当前用户记忆 |
-| `recall_executions` | 本库 executions | 否 | 是（用户级） | 检索最近完成的历史执行 |
-| `send_email` | SMTP（Resend 兜底） | 是（需审批） | 否 | 已生产 E2E（审批后执行） |
-
-- 审计/观测：`audit_logs` + `tool_calls` + span 持久化；OTel→Jaeger、Prometheus 已打通
-  （2026-08-21 生产验证：Jaeger 可查到 `agenthub-backend`，Prometheus 有业务指标）。
-- RAG：文档 → 分块(800/100) → **Ollama nomic-embed-text 语义向量（768d）** →
-  pgvector 余弦检索 → top-k → 上下文注入；生产已重嵌入并验证检索命中。
-- 记忆：长期记忆（显式 save/update/delete + 检索），租户隔离。
-- 成本：模型价格配置 + 每次调用 usage/cost 记录 + 执行预算。
-- 租户预算：月度 token / 成本预算 + 并发模型调用闸门（Redis 原子硬阻断），
-  用量面板可查看（`GET /api/quotas`）。
-- 测试：后端 590 passed / 20 skipped（本地真实 DB）；前端 vitest 22 + Playwright E2E 3；
-  迁移全新库 0019 通过；Kernel 单测 102。
+- 认证：注册（邮箱验证码）、登录、刷新、找回密码、JWT、登录/全局限流、安全响应头；
+- 多租户：`organization_id` 贯穿业务表；`query_db` 强制注入租户谓词；
+- Chat：SSE 流式；Agent：Intent → 复杂度评分 → Planner → LangGraph 执行 → Verify；
+- 可靠性：Approval Freeze（T24，运行时 mismatch → 零副作用 → 审计 → abort）、幂等 claim
+  （副作用恰一次）、IN_FLIGHT/UNKNOWN fail-closed、reconciliation、checkpoint/resume、DLQ、预算闸门；
+- 审计/观测：`audit_logs` + `tool_calls` + span 持久化；OTel → Jaeger / Prometheus 生产有数据；
+- RAG：文档 → 分块 → Ollama nomic-embed-text（768d）→ pgvector 余弦检索 → top-k；
+- 记忆：长期记忆（显式 save/update/delete + 检索），租户隔离；
+- 成本：模型价格配置 + 每次调用 usage/cost 记录 + 租户预算（Redis 原子闸门）。
 
 ### L2 PARTIAL / L1 DECLARED
 
-- Kernel 确定性内核：代码与单测真实，但生产 `RUNTIME_MODE` 未启用。
-- 双供应商回退（OpenAI）：代码存在，开关默认关闭且密钥未充值 → 未验证。
-- RBAC：有 `role` 字段与接口依赖，但缺少细粒度策略证据（实际以 admin 为主）。
-- Workflow/DAG：有编辑器与 workflow 映射，执行仍为串行；并行/条件执行未实现。
-- 观测面板：Grafana/Jaeger/Prometheus 容器与数据管道已通，dashboard 成熟度未审计。
-- MCP：未实现（L0）。Prompt Injection 防线：设计冻结，未实现（L0）。
+- Kernel 确定性内核：代码与单测真实，生产 `RUNTIME_MODE` 未启用；
+- 双供应商回退（OpenAI）：代码存在，开关默认关闭且密钥未充值 → 未验证；
+- RBAC：admin/member/viewer + 路由依赖，细粒度策略证据有限；
+- Workflow/DAG：编辑器与映射存在，执行仍以串行为主。
 
-### 明确的“未实现/不宣称”
+### 明确的"未实现/不宣称"
 
-- Multi-Agent 目前是**角色提示词模拟**（同一串行图 + 不同 system prompt），
-  不是 Agent 间通信/并行/聚合/评审。
-- `send_sms / create_ticket / refund_order / ticket_assign / list_unpaid_tickets` 等
-  仅存在于 benchmark fixture，**不是生产工具**。
-- 自动回滚、自动部署、CI 全绿：当前尚未达成（CI workflow 修复已提交本地，待
-  workflow 权限 token 推送后验证）。
-
-## 技术栈
-
-- 后端：Python 3.11 / FastAPI / SQLAlchemy(asyncpg) / LangGraph / Celery / Redis。
-- 数据：PostgreSQL 16 + pgvector；Alembic 当前 head `0019`；Embedding：Ollama
-  （`nomic-embed-text`，内置 `embedding` 服务）。
-- 模型：DeepSeek（OpenAI 兼容端点）；Model Gateway 统一路由/重试/回退/成本。
-- 前端：React + Vite + TypeScript + Tailwind + Radix（深色/浅色双主题）。
-- 部署：Docker Compose（backend/worker/frontend/postgres/redis/mailhog + 监控栈）。
-
-## 架构
-
-```text
-Frontend (React) → API (FastAPI, JWT + 限流)
-  → Intent → Planner → LangGraph 执行图
-      → [search_preflight 按需联网] → Approval(冻结) → Tool Executor
-          → Tool Registry（4 个真实工具）→ Provider（Tavily/PostgreSQL/SMTP）
-      → Verify(fail-closed) → Audit/Trace → SSE → Frontend
-Reliability：Idempotency claim / IN_FLIGHT fail-closed / Reconciliation / Checkpoint-Resume / DLQ
-Observability：audit_logs spans + OTel(collector) → Jaeger / Prometheus / Grafana
-```
+- Multi-Agent 是**角色 + 调度分工**（同一执行图内各 Agent 各司其职），不是跨进程 Agent 消息总线；
+- `send_sms / create_ticket / refund_order` 等仅存在于 benchmark fixture，不是生产工具；
+- Prompt Injection 防线：设计冻结待评审，未实现。
 
 ## 快速开始（本地）
 
@@ -107,24 +55,52 @@ Observability：audit_logs spans + OTel(collector) → Jaeger / Prometheus / Gra
 ```bash
 git clone https://github.com/weijiakang8-dotcom/Agenthub.git
 cd Agenthub
-cp .env.example .env          # 填入 DEEPSEEK_API_KEY / TAVILY_API_KEY 等
+cp .env.example .env          # 填入 OPENAI_API_KEY（DeepSeek 兼容）/ TAVILY_API_KEY 等
 docker compose -f docker/docker-compose.yml up -d postgres redis mailhog embedding
-cd backend && ../.venv311/bin/python -m uvicorn app.main:app --port 8000
-cd frontend && npm install && npm run dev
+cd backend && ../.venv311/bin/python -m alembic upgrade head
+../.venv311/bin/python -m uvicorn app.main:app --port 8000   # 后端
+# 另开 worker（macOS 用 --pool=solo 避免 fork 崩溃；Linux 无需）：
+../.venv311/bin/python -m celery -A app.engine.tasks.celery_app worker --loglevel=warning --pool=solo
+cd ../frontend && npm install && npm run dev               # 前端 http://localhost:5173
 ```
 
-本地默认关闭 OTel（`.env` 中 `OTEL_SDK_DISABLED=true`）；
-接入监控栈时设为 `false`，并启动 `docker compose up -d otel-collector jaeger prometheus grafana`。
+登录后：左侧「调度中心」先分析任务 →「新建对话」发布 → 执行全程直播 →「省钱账单」看账。
+
+## 技术栈
+
+- 后端：Python 3.11 / FastAPI / SQLAlchemy(asyncpg) / LangGraph / Celery / Redis；
+- 数据：PostgreSQL 16 + pgvector；Alembic head `0020`；Embedding：Ollama `nomic-embed-text`；
+- 模型：DeepSeek（OpenAI 兼容端点）；Model Gateway 统一路由/重试/回退/成本；
+- 前端：React + Vite + TypeScript + Tailwind + Radix（深色/浅色双主题）；
+- 部署：Docker Compose（backend/worker/frontend/postgres/redis/mailhog/embedding + 监控栈）。
+
+## 架构
+
+```text
+Frontend (React) → API (FastAPI, JWT + 限流)
+  → Intent → 复杂度评分 → Skill 匹配 → Planner → LangGraph 执行图
+      → 每步路由决策（便宜/强 × 三档策略，失败自动升级）→ 澄清中断（歧义弹选项）
+      → 副作用审批冻结（T24）→ 幂等执行（恰一次）→ Verify(fail-closed)
+      → 审计/Trace → SSE → Frontend
+闭环：usage_events/model_performance 回写 → 路由越用越准 → 省钱账单（全 pro 基线对比）
+自成长：成功样本 → Skill 候选（采纳制）/ Agent 候选版本（门禁 + 回滚）
+```
+
+真实生产工具（6 个）：`search_web / query_db / search_knowledge / recall_memory /
+recall_executions / send_email`。能力目录：`backend/app/engine/capabilities.py`。
+可靠性层：Idempotency claim / IN_FLIGHT fail-closed / Reconciliation / Checkpoint-Resume / DLQ。
+观测：audit_logs spans + OTel(collector) → Jaeger / Prometheus / Grafana。
+详见 [docs/DISPATCH_CENTER.md](docs/DISPATCH_CENTER.md) 与 [docs/contracts](docs/contracts)。
 
 ## 测试
 
 ```bash
 cd backend
-../.venv311/bin/python -m pytest -q                    # 590 passed / 20 skipped（本地实测）
+../.venv311/bin/python -m pytest -q                 # 658 passed / 20 skipped
 ../.venv311/bin/python -m pytest -q tests/migration/test_migration_fresh_db.py
-cd frontend
+cd ../frontend
 npm run typecheck && npm run test:run && npm run lint && npm run build
-npm run test:e2e                                        # 需要本地后端已启动
+npm run test:e2e                                     # 需要本地后端已启动
 ```
 
 Benchmark（真实模型，需显式开启）：
@@ -135,31 +111,13 @@ BENCH_REAL_MODELS=1 python -m tests.benchmark.phase1.run_1a
 BENCH_REAL_MODELS=1 PHASE1B_MODE=full python -m tests.benchmark.phase1.run_1b
 ```
 
-历史报告：`backend/tests/benchmark/reports/`（Phase 0）与
-`backend/tests/benchmark/phase1/reports/`（Phase 1A/1B，416 runs）当前在本地生成、未入库。
-
 ## 生产部署
 
-- 生产站：https://synplex.xyz（腾讯云 Ubuntu，Docker Compose）。
-- 当前真实部署路径：本地 commit → patch/scp → 服务器 `git am` → 重建容器 → 健康/E2E 验证。
-- 备份/恢复：`scripts/backup.sh`（pg_dump + gzip，保留 7 份）、`scripts/restore.sh`
-  （恢复指定目标库）；已在生产完成 dump→restore 演练（行数对账一致）。
-- 部署/回滚：`deploy/production-deploy.sh`（fetch+reset → 构建 → 前端 DNS 刷新 →
-  健康门禁 → 失败自动回滚）；`deploy/rollback.sh`（回上一稳定 commit）。
-  已在生产完成 deploy → rollback → redeploy 真实演练。
-- GitHub Actions：`ci.yml`（修复已就绪，待 workflow 权限 token 推送）、`deploy.yml`
-  （CI 成功后自动 SSH 部署）、`staging.yml`。
-- 可靠性契约、部署细节、生产状态见
-  [docs/contracts](docs/contracts) 与
-  [CURRENT_REALITY_FINAL.md](docs/CURRENT_REALITY_FINAL.md)。
-
-## P0 路线（当前）
-
-1. CI 全绿并恢复自动部署（workflow 文件已改，待推送验证）。
-2. 观测管道（已完成生产验证：Jaeger/Prometheus 有数据）。
-3. 失败闭环（已完成：query_db 安全聚合 + 禁止空输出，生产 E2E 通过）。
-4. 工具生态（已完成第 4 个生产工具 `search_knowledge`；继续补齐真实业务工具）。
-5. RAG 语义化、Memory 分层、复杂编排、前端产品化、治理/配额/备份恢复。
+- 生产站：https://synplex.xyz（腾讯云 Ubuntu，Docker Compose）；
+- 部署/回滚：`deploy/production-deploy.sh`（fetch+reset → 构建 → 健康门禁 → 失败自动回滚）；
+  `deploy/rollback.sh`（回上一稳定 commit）；生产已完成 deploy → rollback → redeploy 真实演练；
+- 备份/恢复：`scripts/backup.sh`（pg_dump + gzip，保留 7 份）、`scripts/restore.sh`；
+- GitHub Actions：`ci.yml`（测试/迁移/Playwright）、`deploy.yml`（CI 成功后自动 SSH 部署）、`staging.yml`。
 
 ## License
 
