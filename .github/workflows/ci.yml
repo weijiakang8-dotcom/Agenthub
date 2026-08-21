@@ -16,7 +16,6 @@ jobs:
       SMTP_HOST: localhost
       SMTP_PORT: "1025"
       SMTP_FROM: ci@agenthub.local
-      EMBEDDING_PROVIDER: hash
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -213,7 +212,6 @@ jobs:
       SMTP_HOST: localhost
       SMTP_PORT: "1025"
       SMTP_FROM: ci@agenthub.local
-      EMBEDDING_PROVIDER: hash
       AGENTHUB_OBSERVABILITY_DISABLED: "false"
       CI_P95_LATENCY_MS_LIMIT: "1500"
     services:

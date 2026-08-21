@@ -6,11 +6,12 @@ import logging
 import uuid
 from typing import Any
 
+from sqlalchemy import delete, select, text
+
 from app.database import async_session_factory
 from app.models import Document, DocumentChunk
 from app.rag.chunking import split_text
 from app.rag.embedder import embed_text
-from sqlalchemy import delete, select, text
 
 logger = logging.getLogger(__name__)
 
