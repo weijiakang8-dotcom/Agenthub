@@ -5,7 +5,8 @@ test("unauthenticated landing page renders hero and CTAs", async ({ page }) => {
 
   await expect(page.getByText("让 Agent 不再是固定岗位")).toBeVisible();
   await expect(page.getByRole("button", { name: "登录" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "开始体验" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "注册" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "用户反馈" })).toBeVisible();
 });
 
 test("login button opens the authentication dialog", async ({ page }) => {
