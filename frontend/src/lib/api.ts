@@ -525,6 +525,15 @@ export const api = {
   listSkills: () => request<Skill[]>("/skills"),
   listTools: () => request<ToolSpec[]>("/tools"),
   getQuota: () => request<QuotaSummary>("/quotas"),
+  updateQuota: (payload: {
+    monthly_token_budget?: number;
+    monthly_cost_budget_cny?: number;
+    concurrent_llm_limit?: number;
+  }) =>
+    request<QuotaSummary>("/quotas", {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
   createSkill: (payload: {
     name: string;
     description: string;

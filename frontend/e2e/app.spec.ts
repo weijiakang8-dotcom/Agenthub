@@ -95,22 +95,24 @@ test("authenticated usage page shows tenant quota", async ({ page }) => {
       }),
     }),
   );
-  await page.route("**/api/quotas", (route) =>
-    route.fulfill({
+  await page.route("**/api/quotas", (route) => {
+    const body = {
+      organization_id: "org",
+      monthly_token_used: 300,
+      monthly_token_budget:
+        route.request().method() === "PUT" ? 2000 : 1000,
+      monthly_cost_used_cny: 0.5,
+      monthly_cost_budget_cny: 10,
+      concurrent_llm_calls: 1,
+      concurrent_llm_limit: 4,
+      month: "2026-08",
+    };
+    return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
-        organization_id: "org",
-        monthly_token_used: 300,
-        monthly_token_budget: 1000,
-        monthly_cost_used_cny: 0.5,
-        monthly_cost_budget_cny: 10,
-        concurrent_llm_calls: 1,
-        concurrent_llm_limit: 4,
-        month: "2026-08",
-      }),
-    }),
-  );
+      body: JSON.stringify(body),
+    });
+  });
 
   await page.goto("/settings");
   await page.getByRole("tab", { name: "用量" }).click();
@@ -118,6 +120,8 @@ test("authenticated usage page shows tenant quota", async ({ page }) => {
   await expect(page.getByText("预算与并发（2026-08）")).toBeVisible();
   await expect(page.getByText("本月 Tokens 预算")).toBeVisible();
   await expect(page.getByText(/300 \/ 1,?000/)).toBeVisible();
+  await page.getByRole("button", { name: "保存配额" }).click();
+  await expect(page.getByText("配额已更新")).toBeVisible();
 });
 
 test("failed execution can be re-launched with the original task prefilled", async ({

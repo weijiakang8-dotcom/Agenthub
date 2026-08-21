@@ -30,6 +30,9 @@ async def _cleanup(organization_id: str) -> None:
             quota.month_key(organization_id),
             quota.cost_key(organization_id),
             f"quota:concurrent:{organization_id}",
+            quota._limit_key(organization_id, "tokens"),
+            quota._limit_key(organization_id, "cost_milli"),
+            quota._limit_key(organization_id, "concurrent"),
         )
     finally:
         await client.aclose()
@@ -110,3 +113,18 @@ def test_gateway_blocks_when_concurrency_limit_reached(monkeypatch):
                 organization_id=_org(),
             )
         )
+
+
+def test_per_org_limit_override_takes_precedence(monkeypatch):
+    org = _org()
+    monkeypatch.setattr(quota.settings, "TENANT_MONTHLY_TOKEN_BUDGET", 1000)
+    try:
+        asyncio.run(quota.set_quota_limits(org, monthly_token_budget=50))
+        with pytest.raises(QuotaExceededError):
+            asyncio.run(quota.reserve_tokens(org, estimate=60))
+        usage = asyncio.run(quota_usage(org))
+        assert usage["monthly_token_budget"] == 50
+        assert usage["monthly_cost_budget_cny"] == 0.0
+        assert usage["concurrent_llm_limit"] == 0
+    finally:
+        asyncio.run(_cleanup(org))
