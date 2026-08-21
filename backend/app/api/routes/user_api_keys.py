@@ -24,6 +24,10 @@ class UserApiKeyUpdate(BaseModel):
     is_active: bool
 
 
+class UserApiKeyRotate(BaseModel):
+    api_key: str = Field(..., min_length=1)
+
+
 def _serialize(key: UserApiKey) -> dict:
     return {
         "id": str(key.id),
@@ -76,6 +80,25 @@ async def update_key(
     if key is None or key.user_id != user.id:
         raise HTTPException(status_code=404, detail="API key not found")
     key.is_active = payload.is_active
+    await session.commit()
+    await session.refresh(key)
+    return _serialize(key)
+
+
+@router.post("/{key_id}/rotate")
+async def rotate_key(
+    key_id: uuid.UUID,
+    payload: UserApiKeyRotate,
+    session: SessionDep,
+    user: CurrentUserDep,
+) -> dict:
+    """轮换密钥：立即失效旧 secret，替换为新的加密 secret（保持同一行）。"""
+    key = await session.get(UserApiKey, key_id)
+    if key is None or key.user_id != user.id:
+        raise HTTPException(status_code=404, detail="API key not found")
+    key.api_key_encrypted = encrypt_secret(payload.api_key)
+    key.api_key_hint = payload.api_key[-4:]
+    key.is_active = True
     await session.commit()
     await session.refresh(key)
     return _serialize(key)

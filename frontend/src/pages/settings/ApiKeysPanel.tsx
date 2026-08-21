@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { KeyRound, Plus, Trash2 } from "lucide-react";
+import { KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,18 @@ export default function ApiKeysPanel() {
     try {
       await api.deleteUserApiKey(id);
       toast.success("API Key 已删除");
+      await load();
+    } catch (err) {
+      toast.error(String(err));
+    }
+  }
+
+  async function rotate(id: string) {
+    const secret = window.prompt("请输入新的 API Key（旧密钥将立即失效）");
+    if (!secret || !secret.trim()) return;
+    try {
+      await api.rotateUserApiKey(id, secret.trim());
+      toast.success("API Key 已轮换");
       await load();
     } catch (err) {
       toast.error(String(err));
@@ -160,6 +172,14 @@ export default function ApiKeysPanel() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => rotate(key.id)}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    轮换
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
