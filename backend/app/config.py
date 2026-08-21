@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     TENANT_MONTHLY_TOKEN_BUDGET: int = 0
     TENANT_MONTHLY_COST_BUDGET_CNY: float = 0.0
     TENANT_MAX_CONCURRENT_LLM_CALLS: int = 0
+    # 记忆默认 TTL（天）；0 = 永不过期
+    MEMORY_DEFAULT_TTL_DAYS: int = 0
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""
