@@ -48,6 +48,7 @@
 | 08-21 | 记忆无生命周期 | 永不过期且无清理 | MEMORY_DEFAULT_TTL_DAYS + delete_expired_memories + 每小时 beat 任务；生产直调验证 | 605 passed |
 | 08-21 | 新鲜安装/密钥泄露无回归 | 未校验 env example 与序列化 | env example 加载测试 + compose config 校验 + UserRead/Model 序列化不泄露 + audit 脱敏测试 | 609 passed |
 | 08-21 | Trace 页无 span 时间线 | span 按 correlation_id 存储，端点只查 execution_id | spans API（execution_id OR correlation_id）+ 前端 Span 时间线；生产 chat trace 返回 intent/llm/memory/respond | Playwright 6/6 + 生产验证 |
+| 08-21 | API Key 无轮换 | 只能增删/启停 | POST /user-api-keys/{id}/rotate + 设置页「轮换」；所有权校验 + 解密断言；Playwright 7/7 | 610 passed |
 
 ## 3. 已知 P0/P1（见基线 §23）
 
