@@ -232,10 +232,13 @@ async def get_execution_trace(
     verify_status = next(
         (a for a in ("verify_unknown", "verify_error") if a in audit_actions), None
     )
+    trace_ids = [str(execution_id)]
+    if execution.correlation_id:
+        trace_ids.append(str(execution.correlation_id))
     span_result = await session.execute(
         select(AuditLog)
         .where(
-            AuditLog.resource_id == str(execution_id),
+            AuditLog.resource_id.in_(trace_ids),
             AuditLog.action.like("span:%"),
         )
         .order_by(AuditLog.created_at)
