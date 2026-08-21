@@ -45,6 +45,7 @@
 | 08-21 | 只读工具失败无恢复 | 失败后仅兜底文字 | tool_failure_replan：≤1 次安全 replan（带失败结果重规划），路由单测 + 全量回归 | 602 passed |
 | 08-21 | 工具成功但合成空文本 | 用户拿到通用兜底 | 成功兜底附结果预览；无工具步骤空输出透传上一步结果；生产 E2E 返回真实数据 | 生产验证 |
 | 08-21 | 失败后无重试入口 | 用户需手动重输任务 | ExecutionDetail「重新发起」→ /chat?draft=原任务；Playwright 6/6 | 生产部署验证 |
+| 08-21 | 记忆无生命周期 | 永不过期且无清理 | MEMORY_DEFAULT_TTL_DAYS + delete_expired_memories + 每小时 beat 任务；生产直调验证 | 605 passed |
 
 ## 3. 已知 P0/P1（见基线 §23）
 
