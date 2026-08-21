@@ -14,6 +14,7 @@ fi
 
 current="$(git rev-parse HEAD)"
 git checkout --force "$target" || exit 1
+git checkout -B main "$target"
 if ! $COMPOSE up -d --build backend worker frontend embedding; then
   echo "rollback build failed; restoring $current"
   git checkout --force "$current"

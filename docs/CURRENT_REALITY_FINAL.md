@@ -41,6 +41,7 @@
 | 08-21 | 跨租户 API 隔离缺回归 | 仅 query_db 单测 | integration test：executions/conversations/tool_calls 跨 org 404/空 | 全量 602 passed |
 | 08-21 | Phase 0 harness 未验证可复现 | 依赖专用 DB | 全新 DB 重跑 44 runs / 50.0% 一致，报告已更新 | pytest + report diff |
 | 08-21 | 记忆只对聊天生效 | Agent 任务无记忆/历史工具 | user_id ContextVar 透传 + recall_memory/recall_executions；生产直调验证 | 生产验证 |
+| 08-21 | 部署脚本缺闭环 | pull --ff-only 在分叉历史失败、nginx DNS 未刷新 | fetch+reset、embedding 服务、frontend restart、回滚目标=上一 origin/main；生产真实 deploy+rollback+redeploy 演练 | DEPLOY_OK / ROLLBACK_OK / health gate |
 
 ## 3. 已知 P0/P1（见基线 §23）
 
