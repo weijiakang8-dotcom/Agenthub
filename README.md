@@ -17,13 +17,15 @@
 - 可靠性：Approval Freeze（T24，运行时 mismatch → 零副作用 → 审计 → abort）、
   幂等 claim（`tool_calls` 唯一事实源）、IN_FLIGHT/UNKNOWN fail-closed、
   副作用不重试、reconciliation 幂等、checkpoint/resume、DLQ、执行预算。
-- 工具（真实生产 Tool Registry，4 个）：
+- 工具（真实生产 Tool Registry，6 个）：
 
 | 工具 | Provider | 副作用 | 租户 | 说明 |
 |---|---|---|---|---|
 | `search_web` | Tavily（DDG 兜底） | 否 | 否 | 已生产 E2E |
 | `query_db` | 本库 PostgreSQL | 否 | 是 | 只读单表 + 安全聚合（COUNT/SUM/AVG/MIN/MAX） |
 | `search_knowledge` | 本库 RAG（pgvector） | 否 | 是 | 检索当前租户文档 |
+| `recall_memory` | 本库长期记忆 | 否 | 是（用户级） | 检索当前用户记忆 |
+| `recall_executions` | 本库 executions | 否 | 是（用户级） | 检索最近完成的历史执行 |
 | `send_email` | SMTP（Resend 兜底） | 是（需审批） | 否 | 已生产 E2E（审批后执行） |
 
 - 审计/观测：`audit_logs` + `tool_calls` + span 持久化；OTel→Jaeger、Prometheus 已打通
