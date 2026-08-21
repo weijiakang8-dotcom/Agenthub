@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.engine.tools import query_db, search_web, send_email
+from app.engine.tools import query_db, search_knowledge, search_web, send_email
 
 
 @dataclass(frozen=True)
@@ -56,6 +56,16 @@ CAPABILITIES: dict[str, Capability] = {
         inject_knowledge=True,
         system_prompt="你是知识助手，优先依据提供的知识库资料回答，资料不足时明说。",
     ),
+    "search_knowledge": Capability(
+        name="search_knowledge",
+        description="检索当前租户知识库（RAG）",
+        tools=(search_knowledge,),
+        system_prompt=(
+            "你是知识库检索智能体。使用 search_knowledge 检索当前租户文档，"
+            "只依据返回的片段回答并标注文档来源；检索无结果时如实说明，"
+            "不要编造文档内容。"
+        ),
+    ),
     "query_db": Capability(
         name="query_db",
         description="查询 AgentHub 数据库（只读 SELECT）",
@@ -63,7 +73,8 @@ CAPABILITIES: dict[str, Capability] = {
         system_prompt=(
             "你是数据分析智能体。使用 query_db 执行单表只读 SELECT，"
             "服务端会自动按当前租户过滤数据。禁止写操作、JOIN、子查询、"
-            "函数括号、ORDER BY/GROUP BY、PRAGMA 等写法。"
+            "ORDER BY/GROUP BY、PRAGMA 等写法；统计查询允许 COUNT(*)/COUNT(列)/"
+            "SUM(列)/AVG(列)/MIN(列)/MAX(列)（仍为单表只读）。"
             "常用表与列：executions(status, user_input, final_output, "
             "error_message, created_at, updated_at)、"
             "tool_calls(tool_name, status, execution_id, created_at)、"
@@ -71,8 +82,9 @@ CAPABILITIES: dict[str, Capability] = {
             "documents(name, content)、agents(name, description, status)。"
             "状态取值为 pending/running/waiting_for_approval/completed/failed/"
             "rolled_back。示例查询：SELECT status, created_at FROM executions "
-            "LIMIT 10。查询失败时直接说明限制，不要尝试 sqlite_master 或 PRAGMA "
-            "等其它数据库的写法。"
+            "LIMIT 10；统计示例：SELECT COUNT(*) FROM executions。查询失败时直接"
+            "向用户说明失败原因与限制，不要尝试 sqlite_master 或 PRAGMA 等其它"
+            "数据库的写法。"
         ),
     ),
     "analysis": Capability(

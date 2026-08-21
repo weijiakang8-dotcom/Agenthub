@@ -3,7 +3,7 @@ from app.engine.tool_registry import get_tool, list_tools, unregister_tool
 
 def test_builtin_tools_registered():
     names = {tool["name"] for tool in list_tools()}
-    assert {"search_web", "query_db", "send_email"} <= names
+    assert {"search_web", "query_db", "search_knowledge", "send_email"} <= names
 
 
 def test_get_tool_returns_spec():

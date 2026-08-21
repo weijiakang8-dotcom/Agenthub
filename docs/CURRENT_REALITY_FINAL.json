@@ -1,0 +1,34 @@
+{
+  "name": "AgentHub CURRENT REALITY FINAL",
+  "status": "LIVING",
+  "last_updated": "2026-08-21",
+  "source_of_truth": "current code + current tests + current production evidence",
+  "inherits_from": "docs/CURRENT_REALITY_BASELINE.json",
+  "initial_reality": {
+    "positioning": "Agent Orchestration / Workflow Executor MVP",
+    "production_tools": ["search_web", "query_db", "send_email"],
+    "ci": "red",
+    "observability": "broken (jaeger 0 services, prometheus target down)",
+    "query_db_failure": "empty final output on rejected aggregate",
+    "rag_embedding": "hash (not semantic)",
+    "multi_agent": "role prompt simulation only",
+    "t24": "implementation matches contract"
+  },
+  "fixes": [
+    {
+      "id": "CI-1",
+      "problem": "backend CI import errors (No module named app)",
+      "root_cause": "missing pytest pythonpath/testpaths config",
+      "fix": "backend/pytest.ini: pythonpath=. testpaths=tests",
+      "regression": "pending CI run"
+    },
+    {
+      "id": "CI-2",
+      "problem": "Playwright E2E failed (ECONNREFUSED 127.0.0.1:8000)",
+      "root_cause": "E2E job had no backend",
+      "fix": "added dedicated e2e job with postgres/redis + uvicorn backend",
+      "regression": "pending CI run"
+    }
+  ],
+  "gate": "CI green -> production deploy -> real E2E -> GitHub==production -> README==reality"
+}

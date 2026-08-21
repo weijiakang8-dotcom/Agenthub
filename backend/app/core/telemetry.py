@@ -55,6 +55,11 @@ def setup_telemetry() -> None:
         return
     _initialized = True
 
+    disabled = os.getenv("OTEL_SDK_DISABLED", "").lower() in {"1", "true", "yes"}
+    if disabled:
+        logger.info("OpenTelemetry disabled by OTEL_SDK_DISABLED=true")
+        return
+
     otlp_endpoint = os.getenv(
         "OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318/v1/traces"
     )

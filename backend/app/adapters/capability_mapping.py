@@ -24,6 +24,12 @@ LEGACY_CAPABILITY_MAP: dict[str, LegacyCapabilityMapping] = {
         capabilities=["retrieve", "extract"],
         evidence_level="L2_SUPPORTED",
     ),
+    "search_knowledge": LegacyCapabilityMapping(
+        tool_name="search_knowledge",
+        classification="PURE",
+        capabilities=["retrieve"],
+        evidence_level="L2_SUPPORTED",
+    ),
     "query_db_internal": LegacyCapabilityMapping(
         tool_name="query_db_internal",
         classification="PURE",
@@ -75,6 +81,8 @@ def classify_legacy_tool(
     name = tool_name.strip().lower()
     if name == "search_web":
         return LEGACY_CAPABILITY_MAP["search_web"]
+    if name == "search_knowledge":
+        return LEGACY_CAPABILITY_MAP["search_knowledge"]
     if name == "query_db":
         if _is_query_db_external(input_params or {}):
             return LEGACY_CAPABILITY_MAP["query_db_external"]
