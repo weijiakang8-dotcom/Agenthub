@@ -8,8 +8,8 @@
 
 | 状态 | 数量 | 说明 |
 |---|---|---|
-| VERIFIED | 25 | 有本地测试 + 生产/真实运行证据 |
-| PARTIAL | 3 | 有实现但缺完整证据（渗透、并行编排、告警通道） |
+| VERIFIED | 26 | 有本地测试 + 生产/真实运行证据 |
+| PARTIAL | 2 | 有实现但缺完整证据（渗透、告警通道） |
 | BLOCKED | 1 | CI workflow 推送（缺 workflow-scope token） |
 | NOT_VERIFIED | 0 | — |
 
@@ -33,7 +33,7 @@
 | 14 | RAG 真正可用 | VERIFIED | Ollama 语义向量、重嵌入、生产检索命中 |
 | 15 | Memory 真正可用 | VERIFIED | recall 工具生产直调；TTL/清理任务 |
 | 16 | 多步骤执行 | VERIFIED | planner 多步计划 + 执行 |
-| 17 | 安全并行 | PARTIAL | 架构保留字段；未实现并行执行 |
+| 17 | 安全并行 | VERIFIED | 连续独立只读步骤并发（max 4）；生产时间戳证明两 query_db 步骤交错执行 |
 | 18 | 结果聚合 | VERIFIED | 多步 node_outputs + 最终输出透传 |
 | 19 | Verifier 可靠 | VERIFIED | ADR-005 fail-closed 测试 |
 | 20 | 用户始终得到明确结果 | VERIFIED | fail-visible + 结果预览 + 上一步透传；生产实测 |
@@ -58,7 +58,7 @@
 
 1. **CI workflow 推送**（BLOCKED）：需要 workflow-scope GitHub token。
 2. **安全渗透专项**（PARTIAL）：已有租户隔离/密钥/限流/注入基准测试，缺外部渗透演练。
-3. **安全并行执行**（PARTIAL）：架构字段保留，未实现。
+3. **安全并行执行**（VERIFIED，受限）：仅独立只读组并行；依赖/副作用步骤仍串行。
 4. **告警通道**（PARTIAL）：AlertEvent 落库正常，webhook/飞书 URL 未配置。
 5. **MCP 决策**（NOT_VERIFIED）：未实现，待产品裁决是否纳入。
 6. **记忆 TTL 产品默认值**（待裁决）：当前默认 0（永不过期）。
