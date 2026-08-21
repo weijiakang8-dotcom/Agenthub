@@ -250,14 +250,17 @@ export default function UserGuide() {
         badge="8 项能力"
       >
         <div className="grid gap-3 sm:grid-cols-2">
-          <CapabilityCard icon={Network} title="Dynamic Teaming">
-            根据任务目标动态组合最合适的 Agent，自动形成协作团队。
+          <CapabilityCard icon={Network} title="智能组队（Dynamic Teaming）">
+            任务自动拆解 → 调度/规划/执行/验证/澄清/记账 6 个 Agent 按需分工，
+            Skill 匹配为你选最合适的流程骨架。
           </CapabilityCard>
-          <CapabilityCard icon={RefreshCcw} title="Dynamic Role Switching">
-            Agent 根据上下文切换角色与能力，任务执行不中断。
+          <CapabilityCard icon={RefreshCcw} title="动态换岗（Dynamic Role Switching）">
+            意图路由 + 复杂度评分决定每步"谁来干"；执行中可弹选项澄清、断点恢复，
+            任务不中断。
           </CapabilityCard>
-          <CapabilityCard icon={Layers} title="Capability Reuse">
-            执行中沉淀的能力、经验与知识可以跨任务复用，系统越用越强。
+          <CapabilityCard icon={Layers} title="能力复用（Capability Reuse）">
+            自成长 Skill：同类任务做多了自动打包成候选技能；RAG 知识库 + 长期记忆 +
+            历史执行召回跨任务复用；模型绩效档案让路由越用越准。
           </CapabilityCard>
           <CapabilityCard icon={Workflow} title="Workflow">
             用节点和连线搭建可复用的任务流水线。

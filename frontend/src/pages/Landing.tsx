@@ -1,54 +1,94 @@
 import { useState } from "react";
-import {
-  ArrowRight,
-  Layers,
-  Network,
-  RefreshCw,
-  WandSparkles,
-} from "lucide-react";
+import { ArrowRight, MessageSquareHeart, WandSparkles } from "lucide-react";
 
 import { AuthModal } from "@/components/AuthModal";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { GalaxyBackground } from "@/components/effects/GalaxyBackground";
+import { StarField } from "@/components/effects/StarField";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 
-const features = [
+type Lang = "zh" | "en";
+
+const STRINGS: Record<
+  Lang,
   {
-    icon: Network,
-    title: "智能组队",
-    description:
-      "根据任务目标动态选择最合适的 Agent，让多个 Agent 自动形成协作团队。",
-    points: ["自动任务拆解", "多 Agent 协同", "动态能力匹配"],
+    login: string;
+    register: string;
+    feedback: string;
+    feedbackHint: string;
+    tagline1: string;
+    tagline2: string;
+  }
+> = {
+  zh: {
+    login: "登录",
+    register: "注册",
+    feedback: "用户反馈",
+    feedbackHint: "告诉我们你的想法",
+    tagline1: "让 Agent 不再是固定岗位，",
+    tagline2: "而成为可以动态组队、换岗和复用能力的智能执行单元。",
   },
-  {
-    icon: RefreshCw,
-    title: "动态换岗",
-    description:
-      "Agent 不再被固定角色限制，可根据任务上下文动态切换角色与能力。",
-    points: ["上下文驱动", "动态角色切换", "任务不中断"],
+  en: {
+    login: "Sign In",
+    register: "Sign Up",
+    feedback: "Feedback",
+    feedbackHint: "Tell us what you think",
+    tagline1: "Agents are no longer fixed roles —",
+    tagline2: "they team up, switch roles, and reuse capabilities dynamically.",
   },
-  {
-    icon: Layers,
-    title: "能力复用",
-    description:
-      "将 Agent 执行过程中沉淀的能力、经验与知识持续复用，让系统越用越强。",
-    points: ["能力沉淀", "知识复用", "跨任务复用"],
-  },
-];
+};
+
+const LANG_STORAGE_KEY = "agenthub.lang";
+
+function loadLang(): Lang {
+  try {
+    return localStorage.getItem(LANG_STORAGE_KEY) === "en" ? "en" : "zh";
+  } catch {
+    return "zh";
+  }
+}
 
 export default function Landing() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [lang, setLang] = useState<Lang>(() => loadLang());
+  const t = STRINGS[lang];
 
   const openAuth = (mode: "login" | "register") => {
     setAuthMode(mode);
     setAuthOpen(true);
   };
 
+  const toggleLang = () => {
+    setLang((current) => {
+      const next = current === "zh" ? "en" : "zh";
+      try {
+        localStorage.setItem(LANG_STORAGE_KEY, next);
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
   return (
     <div className="dark relative min-h-screen overflow-hidden bg-background text-foreground">
       <GalaxyBackground />
+
+      {/* 中英文切换 */}
+      <div className="absolute right-5 top-5 z-20">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleLang}
+          className="border-white/15 bg-white/5 backdrop-blur hover:bg-white/10"
+        >
+          {lang === "zh" ? "EN" : "中文"}
+        </Button>
+      </div>
 
       <main className="relative z-10 mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-6 text-center">
         <BrandLogo
@@ -63,58 +103,66 @@ export default function Landing() {
         <h1 className="sr-only">Synplex · AgentHub</h1>
         <p className="mt-4 max-w-2xl text-xl leading-relaxed text-white sm:text-2xl">
           <span className="bg-gradient-to-r from-white via-indigo-100 to-purple-200 bg-clip-text text-transparent">
-            让 Agent 不再是固定岗位，
+            {t.tagline1}
           </span>
           <br />
           <span className="bg-gradient-to-r from-white via-indigo-100 to-purple-200 bg-clip-text text-transparent">
-            而成为可以动态组队、换岗和复用能力的智能执行单元。
+            {t.tagline2}
           </span>
         </p>
 
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-          <Button size="lg" onClick={() => openAuth("login")}>
-            登录
-            <ArrowRight className="h-4 w-4" />
+        {/* 大按钮：登录 / 注册 */}
+        <div className="mt-12 flex flex-wrap items-center justify-center gap-6">
+          <Button
+            size="lg"
+            onClick={() => openAuth("login")}
+            className="h-14 px-12 text-lg shadow-lg shadow-primary/30 transition-transform duration-200 hover:scale-105"
+          >
+            {t.login}
+            <ArrowRight className="h-5 w-5" />
           </Button>
           <Button
             size="lg"
             variant="outline"
             onClick={() => openAuth("register")}
+            className="h-14 border-white/25 bg-white/5 px-12 text-lg text-white backdrop-blur transition-transform duration-200 hover:scale-105 hover:bg-white/10"
           >
-            开始体验
-            <WandSparkles className="h-4 w-4" />
+            {t.register}
+            <WandSparkles className="h-5 w-5" />
           </Button>
         </div>
-
-        <div className="mt-16 grid gap-4 text-left sm:grid-cols-3">
-          {features.map(({ icon: Icon, title, description, points }) => (
-            <div
-              key={title}
-              className="group rounded-xl border border-border/60 bg-card/40 p-5 backdrop-blur transition-all duration-300 ease-out hover:-translate-y-1 hover:border-primary/40 hover:bg-card/60 hover:shadow-lg hover:shadow-primary/10"
-            >
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-shadow duration-300 group-hover:shadow-[0_0_24px_rgba(139,92,246,0.28)]">
-                <Icon className="h-5 w-5" />
-              </span>
-              <p className="mt-4 text-base font-semibold text-foreground">
-                {title}
-              </p>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {description}
-              </p>
-              <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-                {points.map((point) => (
-                  <li key={point} className="flex items-center gap-1.5">
-                    <span className="h-1 w-1 rounded-full bg-primary/70" />
-                    {point}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
       </main>
+
+      {/* 右侧动态星空反馈按钮栏 */}
+      <div className="absolute right-0 top-1/2 z-20 -translate-y-1/2">
+        <button
+          type="button"
+          onClick={() => setFeedbackOpen(true)}
+          className="group relative block h-64 w-16 overflow-hidden rounded-l-2xl border border-l-2 border-white/15 bg-black/30 backdrop-blur transition-all duration-300 hover:w-20 hover:border-primary/50 hover:bg-black/40 hover:shadow-[0_0_36px_rgba(139,92,246,0.35)]"
+          title={t.feedback}
+        >
+          <StarField className="absolute inset-0 h-full w-full" />
+          <span className="relative z-10 flex h-full flex-col items-center justify-center gap-3">
+            <MessageSquareHeart className="h-5 w-5 text-white/90 transition-colors group-hover:text-primary" />
+            <span
+              className="text-sm font-medium tracking-widest text-white/90"
+              style={{ writingMode: "vertical-rl" }}
+            >
+              {t.feedback}
+            </span>
+            <span
+              className="hidden text-[10px] text-white/50 group-hover:block"
+              style={{ writingMode: "vertical-rl" }}
+            >
+              {t.feedbackHint}
+            </span>
+          </span>
+        </button>
+      </div>
+
       <Footer />
       <AuthModal open={authOpen} onOpenChange={setAuthOpen} mode={authMode} />
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </div>
   );
 }

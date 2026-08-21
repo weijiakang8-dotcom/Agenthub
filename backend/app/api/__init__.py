@@ -11,6 +11,7 @@ from app.api.routes import (
     dispatch,
     documents,
     executions,
+    feedback,
     memories,
     models,
     notifications,
@@ -37,6 +38,7 @@ api_router.include_router(agents.router)
 api_router.include_router(agent_center.router)
 api_router.include_router(workflows.router)
 api_router.include_router(executions.router)
+api_router.include_router(feedback.router)
 api_router.include_router(tool_calls.router)
 api_router.include_router(tools.router)
 api_router.include_router(alerts.router)
