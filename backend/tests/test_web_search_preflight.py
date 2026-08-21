@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 from app.engine import tools
 from app.engine.graph import (
     _final_output_or_fallback,
+    _parallel_group,
     _route_after_prepare,
     _route_step,
 )
@@ -140,3 +141,36 @@ def test_route_step_triggers_tool_failure_replan_once():
 
     state["tool_failure_replan"] = False
     assert asyncio.run(_route_step(state)) == "query_db"
+
+
+def test_parallel_group_detects_independent_read_only_steps():
+    plan = [
+        {"step_id": "s1", "capability": "query_db"},
+        {"step_id": "s2", "capability": "search_knowledge"},
+        {"step_id": "s3", "capability": "send_email", "side_effect": True},
+    ]
+    assert _parallel_group(plan, 0) == [0, 1]
+    assert _parallel_group(plan, 1) == []
+    assert _parallel_group(plan, 2) == []
+
+
+def test_parallel_group_respects_dependencies():
+    plan = [
+        {"step_id": "s1", "capability": "query_db"},
+        {"step_id": "s2", "capability": "analysis", "depends_on": ["s1"]},
+    ]
+    assert _parallel_group(plan, 0) == []
+
+
+def test_route_step_parallel_read_only_group():
+    state = {
+        "tool_failure_replan": False,
+        "revision_count": 0,
+        "plan": [
+            {"step_id": "s1", "capability": "query_db"},
+            {"step_id": "s2", "capability": "search_knowledge"},
+        ],
+        "current_step": 0,
+        "intent": {"category": "TASK"},
+    }
+    assert asyncio.run(_route_step(state)) == "parallel_read_only"

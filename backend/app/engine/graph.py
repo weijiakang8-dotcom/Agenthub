@@ -7,6 +7,7 @@ research/analyze/execute 主链。
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -62,6 +63,20 @@ from app.engine.tools import build_search_query, format_search_results
 from app.rag.retrieval import retrieve_chunks
 
 logger = logging.getLogger(__name__)
+
+READ_ONLY_PARALLEL_CAPABILITIES = frozenset(
+    {
+        "answer",
+        "analysis",
+        "knowledge",
+        "research",
+        "web_search",
+        "search_knowledge",
+        "recall",
+        "query_db",
+    }
+)
+MAX_PARALLEL_GROUP = 4
 
 
 class ProposalClarificationError(ProposalInvalidError):
@@ -678,6 +693,24 @@ def _step_capability(plan: list[dict[str, Any]], index: int) -> Capability:
     return CAPABILITIES.get(name, CAPABILITIES["answer"])
 
 
+def _parallel_group(plan: list[dict[str, Any]], index: int) -> list[int]:
+    """连续、互不依赖的只读步骤组成并行组（≥2 才并行）。"""
+    group: list[int] = []
+    for i in range(index, len(plan)):
+        if len(group) >= MAX_PARALLEL_GROUP:
+            break
+        step = plan[i] or {}
+        if bool(step.get("side_effect")) or bool(step.get("requires_approval")):
+            break
+        if step.get("depends_on"):
+            break
+        capability = CAPABILITIES.get(str(step.get("capability") or ""))
+        if capability is None or capability.name not in READ_ONLY_PARALLEL_CAPABILITIES:
+            break
+        group.append(i)
+    return group if len(group) >= 2 else []
+
+
 async def _route_step(state: AgentState) -> str:
     if (
         state.get("approval_rejected")
@@ -691,6 +724,8 @@ async def _route_step(state: AgentState) -> str:
         return "plan"
     plan = state.get("plan") or []
     index = state.get("current_step", 0)
+    if _parallel_group(plan, index):
+        return "parallel_read_only"
     if index >= len(plan):
         intent = state.get("intent") or {}
         category = str(intent.get("category") or "TASK")
@@ -1059,6 +1094,150 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
     return node
 
 
+async def _run_parallel_step(
+    state: AgentState, plan: list[dict[str, Any]], index: int
+) -> dict[str, Any]:
+    """并行组内的单个只读步骤：LLM → 只读工具 → 合成，返回该步结果。"""
+    execution_id = state.get("execution_id") or ""
+    organization_id = state.get("organization_id")
+    user_id = state.get("user_id")
+    complexity = state.get("complexity") or "simple"
+    name = str(plan[index].get("capability") or "answer")
+    capability = CAPABILITIES.get(name, CAPABILITIES["answer"])
+    messages: list[BaseMessage] = [SystemMessage(content=capability.system_prompt)]
+    messages.extend(state.get("messages") or [])
+    if not any(isinstance(message, HumanMessage) for message in messages):
+        messages.append(HumanMessage(content=state.get("user_input", "")))
+
+    llms = await _get_llms(organization_id, complexity=complexity, user_id=user_id)
+    tools = list(capability.tools)
+    bound_llms = [llm.bind_tools(tools) for llm in llms] if tools else llms
+    response = await _gateway.invoke(
+        bound_llms,
+        messages,
+        task_type=f"agent:{name}",
+        organization_id=organization_id,
+        correlation_id=execution_id or None,
+    )
+    usage = [_usage_of(response)]
+    new_messages: list[BaseMessage] = [*state.get("messages", []), response]
+    tool_results: list[dict] = []
+    executed_tool = False
+    for tool_call in getattr(response, "tool_calls", None) or []:
+        tool_name = tool_call.get("name", "")
+        tool_args = tool_call.get("args") or {}
+        if not tool_call.get("id"):
+            tool_call["id"] = f"call_{uuid.uuid4().hex}"
+        result = await tool_executor.execute_tool(
+            tool_name,
+            tool_args,
+            execution_id,
+            user_id=user_id,
+        )
+        tool_results.append(
+            {
+                "tool_name": tool_name,
+                "status": result.get("status"),
+                "error": result.get("error"),
+                "data_preview": str(result.get("data"))[:300],
+            }
+        )
+        new_messages.append(
+            ToolMessage(
+                content=json.dumps(result, ensure_ascii=False, default=str),
+                tool_call_id=tool_call["id"],
+            )
+        )
+        executed_tool = True
+
+    if executed_tool:
+        synthesis = await _stream_llm_text(
+            await _get_llms(organization_id, complexity=complexity, user_id=user_id),
+            [SystemMessage(content=capability.system_prompt), *new_messages],
+            execution_id,
+            name,
+        )
+        new_messages.append(synthesis)
+        final_output = _final_output_or_fallback(
+            _strip_raw_tool_call_text(getattr(synthesis, "content", "") or ""),
+            tool_results=tool_results,
+        )
+        usage.append(_usage_of(synthesis))
+    else:
+        final_output = _strip_raw_tool_call_text(getattr(response, "content", "") or "")
+        if not final_output.strip():
+            final_output = _final_output_or_fallback("", tool_results=[])
+
+    return {
+        "index": index,
+        "name": name,
+        "final_output": final_output,
+        "new_messages": new_messages,
+        "tool_results": tool_results,
+        "usage": usage,
+    }
+
+
+async def _parallel_read_only_node(state: AgentState) -> dict[str, Any]:
+    """只读并行节点：连续独立只读步骤并发执行（LLM + 只读工具）。"""
+    plan = state.get("plan") or []
+    start = int(state.get("current_step", 0))
+    group = _parallel_group(plan, start)
+    if not group:
+        return {"current_step": start}
+    execution_id = state.get("execution_id") or ""
+    base_count = len(state.get("messages") or [])
+    results = await asyncio.gather(
+        *[_run_parallel_step(state, plan, index) for index in group]
+    )
+    results.sort(key=lambda item: item["index"])
+
+    messages = list(state.get("messages") or [])
+    usage: list[dict] = []
+    node_outputs = dict(state.get("node_outputs") or {})
+    any_tool_failure = False
+    for result in results:
+        messages.extend(result["new_messages"][base_count:])
+        usage.extend(result["usage"])
+        node_outputs[str(result["index"])] = result["final_output"]
+        if any(item.get("status") != "success" for item in result["tool_results"]):
+            any_tool_failure = True
+        await publish_execution_event(
+            execution_id,
+            {
+                "event": "step",
+                "node": result["name"],
+                "step_index": result["index"],
+                "status": "completed",
+                "output": result["final_output"],
+            },
+        )
+
+    final_output = results[-1]["final_output"] if results else state.get("final_output")
+    tool_failure_replan = bool(
+        any_tool_failure and int(state.get("revision_count", 0)) == 0
+    )
+    token_total = sum(
+        int(item.get("input_tokens") or 0) + int(item.get("output_tokens") or 0)
+        for item in usage
+    )
+    budget = state.get("budget_used") or _new_budget_state()
+    return {
+        "messages": messages,
+        "current_step": group[-1] + 1,
+        "final_output": final_output,
+        "tool_failure_replan": tool_failure_replan,
+        "revision_requested": tool_failure_replan,
+        "node_outputs": node_outputs,
+        "llm_usage": [*state.get("llm_usage", []), *usage],
+        "budget_used": {
+            **budget,
+            "steps": int(budget.get("steps", 0)) + len(group),
+            "tokens": int(budget.get("tokens", 0)) + token_total,
+        },
+    }
+
+
 async def _verify_node(state: AgentState) -> dict[str, Any]:
     final_output = state.get("final_output") or ""
     budget = state.get("budget_used") or _new_budget_state()
@@ -1247,6 +1426,7 @@ def build_graph(checkpointer: Any = None, dag: dict[str, Any] | None = None) -> 
     graph.add_node("prepare", _prepare_node)
     graph.add_node("search_preflight", _search_preflight_node)
     graph.add_node("plan", _plan_node)
+    graph.add_node("parallel_read_only", _parallel_read_only_node)
     graph.add_node("verify", _verify_node)
     graph.add_node("waiting_for_approval", _waiting_for_approval_node)
     for name in CAPABILITIES:
@@ -1264,6 +1444,7 @@ def build_graph(checkpointer: Any = None, dag: dict[str, Any] | None = None) -> 
         _route_step,
         {
             **{name: name for name in CAPABILITIES},
+            "parallel_read_only": "parallel_read_only",
             "verify": "verify",
             "waiting_for_approval": "waiting_for_approval",
             END: END,
@@ -1275,6 +1456,7 @@ def build_graph(checkpointer: Any = None, dag: dict[str, Any] | None = None) -> 
             _route_step,
             {
                 **{candidate: candidate for candidate in CAPABILITIES},
+                "parallel_read_only": "parallel_read_only",
                 "verify": "verify",
                 "waiting_for_approval": "waiting_for_approval",
                 END: END,
@@ -1285,6 +1467,7 @@ def build_graph(checkpointer: Any = None, dag: dict[str, Any] | None = None) -> 
         _route_step,
         {
             **{candidate: candidate for candidate in CAPABILITIES},
+            "parallel_read_only": "parallel_read_only",
             "verify": "verify",
             END: END,
         },
