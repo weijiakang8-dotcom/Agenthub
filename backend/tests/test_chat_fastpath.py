@@ -87,6 +87,34 @@ def test_iter_chat_tokens_streams_and_falls_back():
     assert asyncio.run(collect()) == ["你", "好"]
 
 
+def test_iter_chat_tokens_passes_organization_id(monkeypatch):
+    class FakeGateway:
+        def __init__(self):
+            self.kwargs = None
+
+        async def stream(self, _llms, _messages, **kwargs):
+            self.kwargs = kwargs
+            yield "ok"
+
+    fake = FakeGateway()
+    monkeypatch.setattr(chat, "ModelGateway", lambda: fake)
+
+    async def collect():
+        return [
+            token
+            async for token in chat.iter_chat_tokens(
+                [object()],
+                [HumanMessage(content="hi")],
+                organization_id="org-1",
+                correlation_id="corr-1",
+            )
+        ]
+
+    assert asyncio.run(collect()) == ["ok"]
+    assert fake.kwargs["organization_id"] == "org-1"
+    assert fake.kwargs["correlation_id"] == "corr-1"
+
+
 def test_hash_embedding_provider_returns_normalized_vector(monkeypatch):
     monkeypatch.setattr(embedder.settings, "EMBEDDING_PROVIDER", "hash")
     monkeypatch.setattr(embedder.settings, "EMBEDDING_DIMENSION", 768)

@@ -552,7 +552,12 @@ async def _conversation_event_stream(
     chat_messages = [SystemMessage(content=system_prompt), *messages]
     parts: list[str] = []
     try:
-        async for token in iter_chat_tokens(llms, chat_messages):
+        async for token in iter_chat_tokens(
+            llms,
+            chat_messages,
+            organization_id=str(organization_id) if organization_id else None,
+            correlation_id=correlation_id,
+        ):
             parts.append(token)
             yield _sse(
                 {
