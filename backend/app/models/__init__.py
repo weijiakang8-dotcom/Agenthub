@@ -24,6 +24,7 @@ from app.models.enums import (
 from app.models.eval import EvalDataset, EvalRun
 from app.models.execution import Execution
 from app.models.execution_feedback import ExecutionFeedback
+from app.models.feedback import Feedback
 from app.models.intervention_log import InterventionLog
 from app.models.model_config import ModelConfig
 from app.models.notification import Notification
@@ -55,6 +56,7 @@ __all__ = [
     "Execution",
     "ExecutionFeedback",
     "ExecutionStatus",
+    "Feedback",
     "InterventionLog",
     "ModelConfig",
     "ModelPerformance",

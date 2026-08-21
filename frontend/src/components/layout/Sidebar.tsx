@@ -1,4 +1,5 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
   LogOut,
   MessageSquare,
@@ -12,11 +13,13 @@ import {
   Gauge,
   PiggyBank,
   Bot,
+  MessageSquareHeart,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { clearTokens } from "@/lib/api";
 import { BrandLogo } from "@/components/brand/BrandLogo";
+import { FeedbackDialog } from "@/components/FeedbackDialog";
 import { Hint } from "@/components/ui/hint";
 
 const items = [
@@ -35,6 +38,7 @@ const items = [
 export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const isItemActive = (to: string) =>
     location.pathname === to || location.pathname.startsWith(`${to}/`);
@@ -105,6 +109,20 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
             {!collapsed && "新手引导"}
           </button>
         </Hint>
+        <Hint label="告诉站主你的想法，直达他的邮箱">
+          <button
+            type="button"
+            title="用户反馈"
+            onClick={() => setFeedbackOpen(true)}
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground",
+              collapsed && "justify-center px-0",
+            )}
+          >
+            <MessageSquareHeart className="h-3.5 w-3.5" />
+            {!collapsed && "用户反馈"}
+          </button>
+        </Hint>
         <Hint label="退出当前账号">
           <button
             type="button"
@@ -125,6 +143,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           <p className="text-xs text-muted-foreground">v0.2.0 · MIT</p>
         )}
       </div>
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </div>
   );
 }
