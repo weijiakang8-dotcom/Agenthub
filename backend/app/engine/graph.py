@@ -58,6 +58,7 @@ from app.engine.planner import (
     normalize_plan,
     side_effect_step_ids,
 )
+from app.engine.tools import build_search_query, format_search_results
 from app.rag.retrieval import retrieve_chunks
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,7 @@ class AgentState(TypedDict, total=False):
     final_output: str | None
     plan: list[dict[str, Any]]
     intent: dict[str, Any]
+    web_search_context: str | None
     steps: list[dict[str, Any]]
     pending_approval: dict[str, Any] | None
     node_outputs: dict[str, Any]
@@ -219,6 +221,48 @@ async def _prepare_node(state: AgentState) -> dict[str, Any]:
     ):
         messages.insert(0, HumanMessage(content=state["user_input"]))
     return {"messages": messages}
+
+
+def _route_after_prepare(state: AgentState) -> str:
+    """常驻搜索预检：意图识别为需要联网时，先搜后规划/提案。"""
+    intent = state.get("intent") or {}
+    if bool(intent.get("needs_web_search")):
+        return "search_preflight"
+    return "plan"
+
+
+async def _search_preflight_node(state: AgentState) -> dict[str, Any]:
+    """只读搜索预检：在规划与提案冻结之前获取实时证据，失败不阻塞主流程。"""
+    execution_id = state.get("execution_id") or ""
+    query = build_search_query(state.get("user_input") or "")
+    await publish_execution_event(
+        execution_id,
+        {"event": "search", "status": "started", "query": query},
+    )
+    try:
+        result = await tool_executor.execute_tool(
+            "search_web", {"query": query}, execution_id
+        )
+    except Exception:
+        logger.warning("Preflight web search failed; continuing", exc_info=True)
+        result = {"status": "failed", "error": "search service error"}
+    if result.get("status") == "success":
+        context = format_search_results(result.get("data") or [])
+    else:
+        context = format_search_results(
+            None, error=str(result.get("error") or "search failed")
+        )
+    messages = list(state.get("messages") or [])
+    messages.append(SystemMessage(content=context))
+    await publish_execution_event(
+        execution_id,
+        {
+            "event": "search",
+            "status": "completed",
+            "ok": result.get("status") == "success",
+        },
+    )
+    return {"messages": messages, "web_search_context": context}
 
 
 async def _propose_side_effect_calls(
@@ -408,6 +452,7 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
             organization_id=state.get("organization_id"),
             user_id=state.get("user_id"),
             correlation_id=execution_id or None,
+            context=state.get("web_search_context"),
         )
         original = original_plan_meta.get("plan")
         new_plan = (
@@ -451,6 +496,7 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
             organization_id=state.get("organization_id"),
             user_id=state.get("user_id"),
             correlation_id=execution_id or None,
+            context=state.get("web_search_context"),
         )
     if is_plan_invalid(plan_result):
         reason = str(plan_result.get("reason") or "plan_invalid")
@@ -1132,6 +1178,7 @@ async def _waiting_for_approval_node(state: AgentState) -> dict[str, Any]:
 def build_graph(checkpointer: Any = None, dag: dict[str, Any] | None = None) -> Any:
     graph = StateGraph(AgentState)
     graph.add_node("prepare", _prepare_node)
+    graph.add_node("search_preflight", _search_preflight_node)
     graph.add_node("plan", _plan_node)
     graph.add_node("verify", _verify_node)
     graph.add_node("waiting_for_approval", _waiting_for_approval_node)
@@ -1139,7 +1186,12 @@ def build_graph(checkpointer: Any = None, dag: dict[str, Any] | None = None) -> 
         graph.add_node(name, make_capability_node(name))
 
     graph.add_edge(START, "prepare")
-    graph.add_edge("prepare", "plan")
+    graph.add_conditional_edges(
+        "prepare",
+        _route_after_prepare,
+        {"search_preflight": "search_preflight", "plan": "plan"},
+    )
+    graph.add_edge("search_preflight", "plan")
     graph.add_conditional_edges(
         "plan",
         _route_step,

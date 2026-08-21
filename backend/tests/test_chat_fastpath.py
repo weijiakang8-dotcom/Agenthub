@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import asyncio
 
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
 from app.engine import chat, intent
 from app.rag import embedder
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 
 def test_intent_router_parses_known_decision():

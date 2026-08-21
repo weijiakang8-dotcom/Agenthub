@@ -103,5 +103,26 @@
     "classifier": {"category": "CHAT", "complexity": "simple", "confidence": 0.95, "reason": "plain question"},
     "flags": {"requires_tool": false, "requires_side_effect": false, "requires_data": false, "needs_knowledge": false, "memory_intent": "none", "reference_target": null},
     "expected": {"category": "CHAT", "runtime": "chat", "risk": "LOW", "clarification": false, "fallback": false}
+  },
+  {
+    "id": "intent-016",
+    "input": "今天北京天气怎么样",
+    "classifier": {"category": "CHAT", "complexity": "simple", "confidence": 0.92, "reason": "current weather"},
+    "flags": {"requires_tool": false, "requires_side_effect": false, "requires_data": false, "needs_knowledge": false, "needs_web_search": true, "memory_intent": "none", "reference_target": null},
+    "expected": {"category": "CHAT", "runtime": "chat", "risk": "LOW", "clarification": false, "fallback": false}
+  },
+  {
+    "id": "intent-017",
+    "input": "帮我查一下最新的 GPT-5.1 发布动态，整理成邮件发给 test@example.com",
+    "classifier": {"category": "ACTION", "complexity": "complex", "confidence": 0.9, "reason": "email with fresh external info"},
+    "flags": {"requires_tool": true, "requires_side_effect": true, "requires_approval": true, "requires_data": false, "needs_knowledge": false, "needs_web_search": true, "memory_intent": "none", "reference_target": null},
+    "expected": {"category": "ACTION", "runtime": "agent", "risk": "SIDE_EFFECT", "clarification": false, "fallback": false}
+  },
+  {
+    "id": "intent-018",
+    "input": "把公司内部的销售数据整理成报告",
+    "classifier": {"category": "TASK", "complexity": "complex", "confidence": 0.9, "reason": "internal data only"},
+    "flags": {"requires_tool": true, "requires_side_effect": false, "requires_data": true, "needs_knowledge": false, "needs_web_search": false, "memory_intent": "none", "reference_target": null},
+    "expected": {"category": "TASK", "runtime": "agent", "risk": "HIGH", "clarification": false, "fallback": false}
   }
 ]

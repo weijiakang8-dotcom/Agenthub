@@ -16,6 +16,7 @@ from app.config import settings
 from app.core.billing import estimate_tokens, record_execution_usage
 from app.core.model_gateway import get_chat_models
 from app.database import async_session_factory
+from app.engine import tool_executor
 from app.engine.chat import (
     CHAT_SYSTEM_PROMPT,
     build_chat_messages,
@@ -27,6 +28,7 @@ from app.engine.intent import IntentDecision, IntentRouter, RuntimeKind
 from app.engine.observability import record_span
 from app.engine.runner import build_context_messages
 from app.engine.tasks import evaluate_execution_task, execute_workflow_task
+from app.engine.tools import build_search_query, format_search_results
 from app.memory.service import add_memory, retrieve_memories, summarize_text
 from app.models import Conversation, Execution, Workflow, utcnow
 from app.models.enums import ExecutionStatus
@@ -466,6 +468,39 @@ async def _conversation_event_stream(
             yield event
         return
 
+    search_context: str | None = None
+    if decision.needs_web_search:
+        query = build_search_query(user_input)
+        yield _sse(
+            {
+                "event": "search",
+                "execution_id": execution_id_str,
+                "status": "started",
+                "query": query,
+            }
+        )
+        try:
+            search_result = await tool_executor.execute_tool(
+                "search_web", {"query": query}, execution_id
+            )
+        except Exception:
+            logger.warning("Chat web search failed; continuing", exc_info=True)
+            search_result = {"status": "failed", "error": "search service error"}
+        if search_result.get("status") == "success":
+            search_context = format_search_results(search_result.get("data") or [])
+        else:
+            search_context = format_search_results(
+                None, error=str(search_result.get("error") or "search failed")
+            )
+        yield _sse(
+            {
+                "event": "search",
+                "execution_id": execution_id_str,
+                "status": "completed",
+                "ok": search_result.get("status") == "success",
+            }
+        )
+
     llms = await get_chat_models(
         organization_id=str(organization_id) if organization_id else None,
         complexity="simple",
@@ -509,6 +544,9 @@ async def _conversation_event_stream(
             system_prompt += (
                 f"\n\n【知识库资料，仅供参考】\n<context>\n{snippets}\n</context>"
             )
+
+    if search_context:
+        system_prompt += f"\n\n{search_context}"
 
     chat_messages = [SystemMessage(content=system_prompt), *messages]
     parts: list[str] = []

@@ -38,6 +38,76 @@ _QUERY_DB_MAX_ROWS = 100
 _SENT_EMAIL_HASHES: set[str] = set()
 _EMAIL_HASH_LOCK = threading.Lock()
 
+_SEARCH_PREFIXES = (
+    "帮我搜索一下",
+    "帮我搜一下",
+    "帮我查一下",
+    "帮我查一查",
+    "帮我查查",
+    "搜索一下",
+    "搜一下",
+    "查一下",
+    "查一查",
+    "查查",
+    "搜搜",
+    "帮我搜",
+    "帮我查",
+    "搜一搜",
+)
+_SEARCH_TRAILING = "，。！？!?;；:： "
+
+
+def build_search_query(user_input: str) -> str:
+    """从用户输入中提取搜索词：去掉常见祈使前缀与标点。
+
+    只做确定性裁剪，不调用模型；裁剪失败时原样返回，绝不返回空串。
+    """
+    text = (user_input or "").strip()
+    for prefix in _SEARCH_PREFIXES:
+        if text.startswith(prefix):
+            text = text[len(prefix) :].strip(_SEARCH_TRAILING)
+            break
+    return text or (user_input or "").strip()
+
+
+def format_search_results(
+    results: list[dict] | None,
+    *,
+    error: str | None = None,
+    max_results: int = 5,
+) -> str:
+    """把 search_web 结果格式化为注入 LLM 上下文的证据块。
+
+    成功时列出标题/来源/摘要；失败时诚实标注失败原因，并明确要求不得编造
+    搜索结果。长度有上限，防止搜索内容撑爆上下文。
+    """
+    if not results:
+        reason = error or "unknown"
+        return (
+            "【联网搜索（自动检索）】本次未能获取搜索结果："
+            f"{reason[:300]}。请明确告知用户联网检索未成功，"
+            "然后基于已有知识回答；不得编造搜索结果或来源。"
+        )
+    lines = ["【联网搜索结果（自动检索，仅供参考）】"]
+    for index, item in enumerate(results[:max_results], start=1):
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip() or "无标题"
+        url = str(item.get("url") or item.get("href") or "").strip()
+        snippet = str(
+            item.get("content") or item.get("snippet") or item.get("body") or ""
+        ).strip()
+        lines.append(f"{index}. {title}")
+        if url:
+            lines.append(f"   来源: {url}")
+        if snippet:
+            lines.append(f"   摘要: {snippet[:600]}")
+    lines.append(
+        "【使用要求】把以上结果当作参考证据回答；涉及外部事实时标注来源；"
+        "如果结果不足以回答，如实说明，不要编造。"
+    )
+    return "\n".join(lines)
+
 
 def _coerce_org_id(organization_id: Any) -> uuid.UUID | None:
     if organization_id is None:

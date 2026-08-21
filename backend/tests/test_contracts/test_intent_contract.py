@@ -4,9 +4,10 @@ import asyncio
 import json
 from pathlib import Path
 
+from langchain_core.messages import AIMessage
+
 from app.engine import intent
 from app.engine.intent import IntentCategory, IntentRouter, RuntimeKind
-from langchain_core.messages import AIMessage
 
 GOLDEN = json.loads(
     (Path(__file__).resolve().parents[1] / "golden" / "intent_golden.json").read_text(
@@ -179,6 +180,21 @@ def test_memory_intent_does_not_change_runtime():
         assert decision.category == IntentCategory.CHAT
         assert decision.runtime == RuntimeKind.CHAT
         assert decision.memory_intent == case["flags"]["memory_intent"]
+
+
+def test_needs_web_search_flag_is_preserved_without_changing_runtime():
+    # 简单时效性查询：CHAT 保持 CHAT，仅携带 needs_web_search=True
+    case = next(item for item in GOLDEN if item["id"] == "intent-016")
+    decision = _classify(case)
+    assert decision.category == IntentCategory.CHAT
+    assert decision.runtime == RuntimeKind.CHAT
+    assert decision.needs_web_search is True
+
+    # 内部业务数据：明确不联网
+    case = next(item for item in GOLDEN if item["id"] == "intent-018")
+    decision = _classify(case)
+    assert decision.category == IntentCategory.TASK
+    assert decision.needs_web_search is False
 
 
 def test_risk_is_computed_deterministically():
