@@ -7,9 +7,10 @@
   "initial_reality": {
     "positioning": "Agent Orchestration / Workflow Executor MVP",
     "production_tools": ["search_web", "query_db", "send_email"],
-    "ci": "red",
-    "observability": "broken (jaeger 0 services, prometheus target down)",
-    "query_db_failure": "empty final output on rejected aggregate",
+    "production_tools_now": ["search_web", "query_db", "search_knowledge", "send_email"],
+    "ci": "fixed locally; github push pending workflow-scoped token",
+    "observability": "verified live (jaeger service present, prometheus target up)",
+    "query_db_failure": "fixed (safe aggregates + fail-visible output), production E2E passed",
     "rag_embedding": "hash (not semantic)",
     "multi_agent": "role prompt simulation only",
     "t24": "implementation matches contract"
@@ -28,6 +29,25 @@
       "root_cause": "E2E job had no backend",
       "fix": "added dedicated e2e job with postgres/redis + uvicorn backend",
       "regression": "pending CI run"
+    },
+    {
+      "id": "OBS-1",
+      "problem": "OTEL_SDK_DISABLED in .env not honored by os.getenv",
+      "root_cause": "pydantic-settings does not export unknown env_file fields to process env",
+      "fix": "added Settings.OTEL_SDK_DISABLED and read it in setup_telemetry",
+      "regression": "unit tests + production Jaeger/Prometheus verification"
+    },
+    {
+      "id": "TOOL-1",
+      "problem": "tools not discoverable in product",
+      "fix": "GET /api/tools + frontend Tools page + sidebar entry",
+      "regression": "Playwright 4/4"
+    },
+    {
+      "id": "DOC-1",
+      "problem": "README overclaimed capabilities",
+      "fix": "rewrote README to evidence-based claims",
+      "regression": "manual review"
     }
   ],
   "gate": "CI green -> production deploy -> real E2E -> GitHub==production -> README==reality"

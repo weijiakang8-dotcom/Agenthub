@@ -55,7 +55,11 @@ def setup_telemetry() -> None:
         return
     _initialized = True
 
-    disabled = os.getenv("OTEL_SDK_DISABLED", "").lower() in {"1", "true", "yes"}
+    from app.config import settings as _settings
+
+    disabled = bool(_settings.OTEL_SDK_DISABLED) or os.getenv(
+        "OTEL_SDK_DISABLED", ""
+    ).lower() in {"1", "true", "yes"}
     if disabled:
         logger.info("OpenTelemetry disabled by OTEL_SDK_DISABLED=true")
         return
