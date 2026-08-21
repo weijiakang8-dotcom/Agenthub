@@ -40,3 +40,17 @@
 ## 4. 最终闸门
 
 CI 绿 → 生产部署 → 真实 E2E → GitHub=生产 → README=现实 → 才允许 COMPLETE。
+
+## 5. 最终一致性验证（2026-08-21）
+
+- 本地后端全量：592 passed / 20 skipped / 0 failed。
+- 本地前端：typecheck / vitest 22 / lint 0 err / build 通过；Playwright E2E 4/4。
+- 生产综合 E2E（临时租户，已清理）：
+  - 登录 ✅；GET /api/tools 返回 4 个真实工具 ✅；
+  - “有多少条执行记录” → query_db COUNT 成功并返回可见结果 ✅（exec a6c53b8a）；
+  - “今天上海天气” → search_web 成功、回答带来源 ✅（exec 129b3d56）；
+  - “AgentHub 动态整理成邮件” → 搜索预检 → 实时正文提案 → 审批拒绝 → 零发信 ✅（exec 3dbeb5bc）。
+- 观测：Jaeger 有 `agenthub-backend`；Prometheus `agenthub_llm_calls_24h` 实时增长。
+- 备份/恢复：生产 drill 行数对账一致，临时库已删。
+- 遗留 blocker：`.github/workflows/ci.yml` 已修复并本地等价验证，但推送 GitHub 需要
+  **workflow scope** 的 token（当前 token 无此权限）。
