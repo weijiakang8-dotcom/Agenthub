@@ -46,6 +46,7 @@
 | 08-21 | 工具成功但合成空文本 | 用户拿到通用兜底 | 成功兜底附结果预览；无工具步骤空输出透传上一步结果；生产 E2E 返回真实数据 | 生产验证 |
 | 08-21 | 失败后无重试入口 | 用户需手动重输任务 | ExecutionDetail「重新发起」→ /chat?draft=原任务；Playwright 6/6 | 生产部署验证 |
 | 08-21 | 记忆无生命周期 | 永不过期且无清理 | MEMORY_DEFAULT_TTL_DAYS + delete_expired_memories + 每小时 beat 任务；生产直调验证 | 605 passed |
+| 08-21 | 新鲜安装/密钥泄露无回归 | 未校验 env example 与序列化 | env example 加载测试 + compose config 校验 + UserRead/Model 序列化不泄露 + audit 脱敏测试 | 609 passed |
 
 ## 3. 已知 P0/P1（见基线 §23）
 
