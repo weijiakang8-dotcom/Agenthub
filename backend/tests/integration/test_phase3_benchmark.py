@@ -22,11 +22,12 @@ from types import SimpleNamespace
 
 import asyncpg
 import pytest
+from langchain_core.messages import AIMessage
+
 from app.api.routes import conversations
 from app.config import settings
 from app.engine.intent import IntentRouter
 from app.rag import retrieval, vector_store
-from langchain_core.messages import AIMessage
 
 ROOT = Path(__file__).resolve().parents[1] / "golden"
 
@@ -365,7 +366,7 @@ def test_e2e_golden_benchmark(monkeypatch):
             _calls.append(query)
             return []
 
-        async def fake_iter_tokens(_llms, _messages):
+        async def fake_iter_tokens(_llms, _messages, **_kwargs):
             yield "你"
             yield "好"
 
