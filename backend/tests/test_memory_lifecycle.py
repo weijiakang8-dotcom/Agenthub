@@ -66,6 +66,33 @@ async def _cleanup(conn: asyncpg.Connection, org_id: uuid.UUID, user_id: uuid.UU
     await conn.execute("DELETE FROM organizations WHERE id=$1", org_id)
 
 
+def _embedding_ready() -> bool:
+    """embedding 服务可用性：hash 提供者无需服务；ollama 需可达。"""
+    if settings.EMBEDDING_PROVIDER == "hash":
+        return True
+
+    async def check() -> bool:
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=1.5) as client:
+                response = await client.get(
+                    settings.EMBEDDING_BASE_URL.rstrip("/") + "/api/tags"
+                )
+                return response.status_code == 200
+        except Exception:  # noqa: BLE001
+            return False
+
+    return asyncio.run(check())
+
+
+embedding_required = pytest.mark.skipif(
+    not _embedding_ready(),
+    reason="requires an embedding service (or EMBEDDING_PROVIDER=hash)",
+)
+
+
+@embedding_required
 def test_add_memory_applies_default_ttl(monkeypatch):
     monkeypatch.setattr(settings, "MEMORY_DEFAULT_TTL_DAYS", 30)
 
@@ -88,6 +115,7 @@ def test_add_memory_applies_default_ttl(monkeypatch):
     asyncio.run(main())
 
 
+@embedding_required
 def test_delete_expired_memories_removes_only_expired(monkeypatch):
     monkeypatch.setattr(settings, "MEMORY_DEFAULT_TTL_DAYS", 0)
 
