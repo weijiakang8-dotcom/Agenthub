@@ -14,7 +14,7 @@
 | CI | 红（backend import path / Playwright 无后端） | 本地修复完成；GitHub 待 workflow token 推送 | pytest.ini + ci.yml（本地） |
 | Observability | Jaeger 0 服务 / Prometheus target down | ✅ Jaeger 有 agenthub-backend；Prometheus target up；collector 689 指标 | 生产验证 08-21 |
 | query_db 失败闭环 | 失败后空输出 | ✅ 安全聚合 + 禁止空输出；生产 E2E 成功 | 生产 E2E eff7b8ee |
-| RAG | hash embedding | 待升级 | EMBEDDING_PROVIDER=hash |
+| RAG | hash embedding | ✅ Ollama nomic-embed-text 语义向量（768d）已重嵌入 | 生产检索命中验证 |
 | Multi-Agent | 角色提示词模拟 | 待评估/补齐 | graph.py |
 | T24 | 实现=契约（显式 mismatch→abort） | 保持不动 | 61 tests passed |
 | Benchmark | Phase 0/1A/1B 报告存在（gitignored） | 待入库/生成机制 | reports/ |
@@ -34,6 +34,7 @@
 | 08-21 | 工具不可发现 | 只有后端注册表 | GET /api/tools + 前端工具页 | Playwright 4/4 |
 | 08-21 | README 与现状不符 | 历史营销口径 | 重写为证据版 README | 文档审查 |
 | 08-21 | 备份/恢复无证据 | 无脚本/演练 | scripts/backup.sh + restore.sh；生产 drill 通过（70 行对账一致） | 生产演练 |
+| 08-21 | RAG 非语义 | 生产 EMBEDDING_PROVIDER=hash | 内置 ollama embedding 服务 + 重嵌入 CLI；4 文档检索命中（score 0.65-0.80） | 生产验证 |
 
 ## 3. 已知 P0/P1（见基线 §23）
 
