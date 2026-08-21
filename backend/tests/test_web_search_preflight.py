@@ -111,9 +111,18 @@ def test_final_output_or_fallback_never_returns_blank_on_tool_failure():
 def test_final_output_or_fallback_handles_success_without_text():
     fallback = _final_output_or_fallback(
         "",
-        tool_results=[{"tool_name": "query_db", "status": "success", "error": None}],
+        tool_results=[
+            {
+                "tool_name": "query_db",
+                "status": "success",
+                "error": None,
+                "data_preview": "[{'count': 3}]",
+            }
+        ],
     )
     assert fallback.strip()
+    assert "已获取结果" in fallback
+    assert "count" in fallback
 
 
 def test_route_step_triggers_tool_failure_replan_once():

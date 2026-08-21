@@ -189,6 +189,13 @@ def _final_output_or_fallback(final_output: str, *, tool_results: list[dict]) ->
             + "；".join(errors)
             + "。请检查参数后重试，或补充必要信息。"
         )
+    previews = [
+        str(item.get("data_preview") or "")
+        for item in tool_results or []
+        if item.get("status") == "success" and item.get("data_preview")
+    ]
+    if previews:
+        return "已获取结果：" + "；".join(previews)[:500]
     return "任务已完成，但没有生成可展示的结果。"
 
 
@@ -923,6 +930,7 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
                         "tool_name": tool_name,
                         "status": result.get("status"),
                         "error": result.get("error"),
+                        "data_preview": str(result.get("data"))[:300],
                     }
                 )
                 if step.get("side_effect") and result.get("status") != "success":
