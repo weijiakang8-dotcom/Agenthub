@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import uuid
+from contextvars import ContextVar
 from typing import Any
 
 from sqlalchemy import select, update
@@ -21,6 +22,10 @@ from app.engine.observability import record_span
 from app.engine.tool_registry import get_tool
 from app.models import Execution, ToolCall, utcnow
 from app.models.enums import ToolCallStatus
+
+current_tool_user_id: ContextVar[str | None] = ContextVar(
+    "current_tool_user_id", default=None
+)
 
 
 def make_idempotency_key(
@@ -237,7 +242,8 @@ async def _invoke_with_retry(
     for attempt in range(TOOL_RETRY_POLICY.max_attempts):
         try:
             result = await asyncio.wait_for(
-                spec.handler(params, organization_id), timeout=spec.timeout
+                spec.handler(params, organization_id),
+                timeout=spec.timeout,
             )
             if not isinstance(result, dict):
                 result = {"status": "success", "data": result, "error": None}
@@ -266,7 +272,8 @@ async def _invoke_side_effect_once(
     """副作用工具单次调用：绝不重试；无法确认结果时返回 UNKNOWN。"""
     try:
         result = await asyncio.wait_for(
-            spec.handler(params, organization_id), timeout=spec.timeout
+            spec.handler(params, organization_id),
+            timeout=spec.timeout,
         )
         if not isinstance(result, dict):
             result = {"status": "success", "data": result, "error": None}
@@ -292,6 +299,8 @@ async def execute_tool(
     tool_name: str,
     params: dict[str, Any],
     execution_id: str | uuid.UUID,
+    *,
+    user_id: uuid.UUID | str | None = None,
 ) -> dict[str, Any]:
     """执行工具并写入完整审计记录。"""
     spec = get_tool(tool_name)
@@ -354,7 +363,11 @@ async def execute_tool(
             "params": params,
         },
     )
-    result = await _invoke_with_retry(tool_name, params, row.organization_id)
+    token = current_tool_user_id.set(str(user_id) if user_id else None)
+    try:
+        result = await _invoke_with_retry(tool_name, params, row.organization_id)
+    finally:
+        current_tool_user_id.reset(token)
     await record_span(
         trace_id=str(execution_id),
         name="tool",

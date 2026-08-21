@@ -30,6 +30,18 @@ LEGACY_CAPABILITY_MAP: dict[str, LegacyCapabilityMapping] = {
         capabilities=["retrieve"],
         evidence_level="L2_SUPPORTED",
     ),
+    "recall_memory": LegacyCapabilityMapping(
+        tool_name="recall_memory",
+        classification="PURE",
+        capabilities=["retrieve"],
+        evidence_level="L2_SUPPORTED",
+    ),
+    "recall_executions": LegacyCapabilityMapping(
+        tool_name="recall_executions",
+        classification="PURE",
+        capabilities=["retrieve"],
+        evidence_level="L2_SUPPORTED",
+    ),
     "query_db_internal": LegacyCapabilityMapping(
         tool_name="query_db_internal",
         classification="PURE",
@@ -83,6 +95,10 @@ def classify_legacy_tool(
         return LEGACY_CAPABILITY_MAP["search_web"]
     if name == "search_knowledge":
         return LEGACY_CAPABILITY_MAP["search_knowledge"]
+    if name == "recall_memory":
+        return LEGACY_CAPABILITY_MAP["recall_memory"]
+    if name == "recall_executions":
+        return LEGACY_CAPABILITY_MAP["recall_executions"]
     if name == "query_db":
         if _is_query_db_external(input_params or {}):
             return LEGACY_CAPABILITY_MAP["query_db_external"]

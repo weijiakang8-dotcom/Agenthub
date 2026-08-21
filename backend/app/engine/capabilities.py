@@ -9,7 +9,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.engine.tools import query_db, search_knowledge, search_web, send_email
+from app.engine.tools import (
+    query_db,
+    recall_executions,
+    recall_memory,
+    search_knowledge,
+    search_web,
+    send_email,
+)
 
 
 @dataclass(frozen=True)
@@ -64,6 +71,16 @@ CAPABILITIES: dict[str, Capability] = {
             "你是知识库检索智能体。使用 search_knowledge 检索当前租户文档，"
             "只依据返回的片段回答并标注文档来源；检索无结果时如实说明，"
             "不要编造文档内容。"
+        ),
+    ),
+    "recall": Capability(
+        name="recall",
+        description="检索用户长期记忆与历史执行记录",
+        tools=(recall_memory, recall_executions),
+        system_prompt=(
+            "你是记忆检索智能体。使用 recall_memory 检索用户长期记忆，"
+            "使用 recall_executions 检索最近完成的历史执行；只把检索结果当作"
+            "参考证据，检索无结果时如实说明，不要编造记忆或历史。"
         ),
     ),
     "query_db": Capability(

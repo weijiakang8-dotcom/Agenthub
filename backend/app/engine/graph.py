@@ -902,7 +902,10 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
                         "llm_usage": [*state.get("llm_usage", []), *usage],
                     }
                 result = await tool_executor.execute_tool(
-                    tool_name, tool_args, execution_id
+                    tool_name,
+                    tool_args,
+                    execution_id,
+                    user_id=state.get("user_id"),
                 )
                 tool_results.append(
                     {

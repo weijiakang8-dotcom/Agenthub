@@ -197,3 +197,84 @@ def test_search_knowledge_is_tenant_scoped(monkeypatch):
     assert result["status"] == "success"
     assert captured["org_id"] == ORG_A
     assert captured["query"] == "退款政策"
+
+
+def test_recall_memory_requires_tenant_user_and_query():
+    result = asyncio.run(tools.run_recall_memory("anything", None, user_id="u"))
+    assert result["status"] == "failed"
+    assert "tenant" in result["error"].lower()
+
+    result = asyncio.run(tools.run_recall_memory("anything", ORG_A, user_id=None))
+    assert result["status"] == "failed"
+    assert "user" in result["error"].lower()
+
+    result = asyncio.run(tools.run_recall_memory("", ORG_A, user_id="u"))
+    assert result["status"] == "failed"
+    assert "query" in result["error"].lower()
+
+
+def test_recall_memory_is_user_and_tenant_scoped(monkeypatch):
+    captured = {}
+
+    async def fake_retrieve(**kwargs):
+        captured.update(kwargs)
+        return [{"kind": "fact", "content": "用户偏好"}]
+
+    monkeypatch.setattr(
+        "app.memory.service.retrieve_memories",
+        fake_retrieve,
+    )
+    result = asyncio.run(tools.run_recall_memory("偏好", ORG_A, user_id=ORG_B, top_k=2))
+
+    assert result["status"] == "success"
+    assert captured["user_id"] == ORG_B
+    assert captured["organization_id"] == ORG_A
+    assert captured["query"] == "偏好"
+    assert captured["top_k"] == 2
+
+
+def test_recall_memory_reads_user_from_tool_context(monkeypatch):
+    captured = {}
+
+    async def fake_retrieve(**kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(
+        "app.memory.service.retrieve_memories",
+        fake_retrieve,
+    )
+    from app.engine.tool_executor import current_tool_user_id
+
+    token = current_tool_user_id.set(str(ORG_B))
+    try:
+        result = asyncio.run(tools.run_recall_memory("偏好", ORG_A))
+    finally:
+        current_tool_user_id.reset(token)
+
+    assert result["status"] == "success"
+    assert captured["user_id"] == ORG_B
+
+
+def test_recall_executions_requires_tenant(monkeypatch):
+    class FakeResult:
+        def scalars(self):
+            return SimpleNamespace(all=list)
+
+    class FakeSession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def execute(self, _stmt):
+            return FakeResult()
+
+    monkeypatch.setattr(
+        "app.database.async_session_factory",
+        lambda: FakeSession(),
+    )
+    result = asyncio.run(tools.run_recall_executions(None, user_id="u"))
+    assert result["status"] == "failed"
+    assert "tenant" in result["error"].lower()
