@@ -26,9 +26,25 @@ from langchain_core.messages import (
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
+from sqlalchemy import select
 
+from app.agents import get_prompt
 from app.core.circuit_breaker import llm_breaker
+from app.core.complexity import score_step, score_task
 from app.core.model_gateway import ModelGateway, get_chat_models
+from app.core.profile import (
+    record_usage_events,
+    stats_for,
+    update_model_performance,
+)
+from app.core.routing import (
+    DEFAULT_TIER,
+    allow_escalation,
+    build_route,
+    model_candidates,
+    persist_route,
+)
+from app.database import async_session_factory
 from app.engine import tool_executor
 from app.engine.approval import (
     ProposalInvalidError,
@@ -120,6 +136,13 @@ class AgentState(TypedDict, total=False):
     side_effect_failure: bool
     approved_plan_hash: str | None
     approved_approval_id: str | None
+    # —— 调度中心（二次装修新增）——
+    complexity_report: dict[str, Any]
+    routing_tier: str
+    clarifications_asked: int
+    clarification_request: dict[str, Any] | None
+    clarification_answer: str | None
+    escalated_steps: dict[str, int]
 
 
 _gateway = ModelGateway()
@@ -225,6 +248,141 @@ async def _get_llms(
         complexity=complexity,
         user_id=user_id,
     )
+
+
+MAX_CLARIFICATIONS = 2
+
+_FALLBACK_CLARIFICATION_OPTIONS = [
+    "补充更多信息后继续",
+    "按当前理解继续执行",
+    "换个说法重新描述任务",
+]
+
+
+async def _generate_clarification(state: AgentState, question: str) -> dict[str, Any]:
+    """澄清 Agent 生成候选语义选项；LLM 不可用时用兜底选项（绝不阻塞）。"""
+    execution_id = state.get("execution_id") or ""
+    prompt = await get_prompt("clarifier", state.get("organization_id"))
+    messages: list[BaseMessage] = [
+        SystemMessage(content=prompt),
+        HumanMessage(
+            content=(
+                f"用户输入：{state.get('user_input', '')}\n"
+                f"需要澄清的问题：{question}\n"
+                '请输出 JSON：{"question":"<一句话问题>",'
+                '"options":["选项1","选项2","选项3"]}'
+            )
+        ),
+    ]
+    try:
+        llms = await _get_llms(
+            state.get("organization_id"),
+            complexity="simple",
+            user_id=state.get("user_id"),
+        )
+        response = await _gateway.invoke(
+            llms,
+            messages,
+            task_type="clarify",
+            organization_id=state.get("organization_id"),
+            correlation_id=execution_id or None,
+        )
+        content = str(getattr(response, "content", "") or "")
+        data = _parse_clarification_json(content)
+        if isinstance(data, dict) and data.get("options"):
+            return {
+                "question": str(data.get("question") or question),
+                "options": [str(item) for item in data["options"]][:4],
+            }
+    except Exception:
+        logger.warning(
+            "clarifier generation failed; using fallback options", exc_info=True
+        )
+    return {"question": question, "options": _FALLBACK_CLARIFICATION_OPTIONS}
+
+
+def _parse_clarification_json(text: str) -> dict[str, Any] | None:
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            return None
+        try:
+            data = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return None
+    return data if isinstance(data, dict) else None
+
+
+async def _persist_clarification_question(
+    state: AgentState, payload: dict[str, Any]
+) -> str | None:
+    """持久化澄清问题，返回行 id（前端应答需要）。"""
+    try:
+        from app.models import Clarification
+
+        try:
+            execution_uuid = (
+                uuid.UUID(str(state.get("execution_id")))
+                if state.get("execution_id")
+                else None
+            )
+        except (ValueError, TypeError):
+            execution_uuid = None
+        try:
+            organization_uuid = (
+                uuid.UUID(str(state["organization_id"]))
+                if state.get("organization_id")
+                else None
+            )
+        except (ValueError, TypeError):
+            organization_uuid = None
+        async with async_session_factory() as session:
+            row = Clarification(
+                execution_id=execution_uuid,
+                step_id=str(payload.get("step_id") or ""),
+                question=str(payload.get("question") or ""),
+                options=list(payload.get("options") or []),
+                status="pending",
+                organization_id=organization_uuid,
+            )
+            session.add(row)
+            await session.commit()
+            await session.refresh(row)
+            return str(row.id)
+    except Exception:
+        logger.warning("persist clarification failed", exc_info=True)
+        return None
+
+
+async def _persist_clarification_answer(execution_id: str, answer: str) -> None:
+    try:
+        from app.models import Clarification
+        from app.models.base import utcnow
+
+        try:
+            execution_uuid = uuid.UUID(str(execution_id))
+        except (ValueError, TypeError):
+            return
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(Clarification)
+                .where(
+                    Clarification.execution_id == execution_uuid,
+                    Clarification.status == "pending",
+                )
+                .order_by(Clarification.created_at.desc())
+                .limit(1)
+            )
+            row = result.scalars().first()
+            if row is not None:
+                row.answer = answer or ""
+                row.status = "answered"
+                row.answered_at = utcnow()
+                await session.commit()
+    except Exception:
+        logger.warning("persist clarification answer failed", exc_info=True)
 
 
 async def _call_llm_with_fallback(
@@ -488,6 +646,15 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
     budget = state.get("budget_used") or _new_budget_state()
     plan_result: dict[str, Any] | None = None
 
+    context_parts: list[str] = []
+    if state.get("web_search_context"):
+        context_parts.append(str(state["web_search_context"]))
+    if state.get("clarification_answer"):
+        context_parts.append(
+            f"【用户澄清】用户刚才选择：{state['clarification_answer']}"
+        )
+    plan_context = "\n".join(context_parts) if context_parts else None
+
     if state.get("revision_requested"):
         # Replan 必须重过全部闸门：只读重排/降级、副作用集合不可变、≤1 次
         planner = Planner(gateway=_gateway)
@@ -496,7 +663,7 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
             organization_id=state.get("organization_id"),
             user_id=state.get("user_id"),
             correlation_id=execution_id or None,
-            context=state.get("web_search_context"),
+            context=plan_context,
         )
         original = original_plan_meta.get("plan")
         new_plan = (
@@ -540,7 +707,7 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
             organization_id=state.get("organization_id"),
             user_id=state.get("user_id"),
             correlation_id=execution_id or None,
-            context=state.get("web_search_context"),
+            context=plan_context,
         )
     if is_plan_invalid(plan_result):
         reason = str(plan_result.get("reason") or "plan_invalid")
@@ -556,6 +723,32 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
             details={"reason": reason},
         )
         raise PlanInvalidError(reason)
+
+    # —— 调度中心：任务级复杂度评分 + 路由预览（可解释、可审计）——
+    task_score = score_task(
+        state.get("user_input", ""),
+        intent=state.get("intent") or {},
+        plan=plan_result,
+    )
+    complexity_report = task_score.to_dict()
+    await publish_execution_event(
+        execution_id,
+        {"event": "complexity", "report": complexity_report},
+    )
+    routing_candidates = await model_candidates(state.get("organization_id"))
+    routing_preview = [
+        build_route(
+            step,
+            score_step(step, task_score.score),
+            tier=state.get("routing_tier") or DEFAULT_TIER,
+            candidates=routing_candidates,
+        ).to_dict()
+        for step in plan_result.get("steps") or []
+    ]
+    await publish_execution_event(
+        execution_id,
+        {"event": "routing", "preview": routing_preview},
+    )
 
     has_side_effects = any(
         bool(step.get("side_effect")) for step in plan_result.get("steps") or []
@@ -574,14 +767,19 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
                 user_id=state.get("user_id"),
                 details={"step_id": exc.step_id, "question": exc.text},
             )
-            await publish_execution_event(
-                execution_id,
-                {
-                    "event": "clarification",
-                    "execution_id": execution_id,
-                    "message": exc.text,
-                },
-            )
+            if int(state.get("clarifications_asked", 0)) < MAX_CLARIFICATIONS:
+                # 澄清中断：弹出选项让用户补充语义，选择后继续规划，不中断任务生命。
+                payload = await _generate_clarification(state, exc.text)
+                payload["step_id"] = exc.step_id
+                clarification_row_id = await _persist_clarification_question(
+                    state, payload
+                )
+                payload["clarification_id"] = clarification_row_id
+                await publish_execution_event(
+                    execution_id,
+                    {"event": "clarification_required", "clarification": payload},
+                )
+                return {"clarification_request": payload}
             raise PlanInvalidError(exc.text) from exc
         except ProposalInvalidError as exc:
             reason = str(exc)
@@ -615,6 +813,22 @@ async def _plan_node(state: AgentState) -> dict[str, Any]:
             details={"reason": reason},
         )
         raise PlanInvalidError(reason)
+
+    # —— 调度中心：意图歧义 → 澄清中断（最多 2 次，超限继续）——
+    if (state.get("intent") or {}).get("clarification") and int(
+        state.get("clarifications_asked", 0)
+    ) < MAX_CLARIFICATIONS:
+        payload = await _generate_clarification(
+            state, "你的描述有几种可能的理解，请选择最接近的一种："
+        )
+        payload["step_id"] = ""
+        clarification_row_id = await _persist_clarification_question(state, payload)
+        payload["clarification_id"] = clarification_row_id
+        await publish_execution_event(
+            execution_id,
+            {"event": "clarification_required", "clarification": payload},
+        )
+        return {"clarification_request": payload}
 
     plan = plan_result["steps"]
     plan_hash = compute_plan_hash(plan_result)
@@ -720,6 +934,8 @@ async def _route_step(state: AgentState) -> str:
         return END
     if state.get("pending_approval"):
         return "waiting_for_approval"
+    if state.get("clarification_request"):
+        return "clarification"
     if state.get("tool_failure_replan") and int(state.get("revision_count", 0)) == 0:
         return "plan"
     plan = state.get("plan") or []
@@ -828,7 +1044,37 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
         if not any(isinstance(message, HumanMessage) for message in messages):
             messages.append(HumanMessage(content=state.get("user_input", "")))
 
-        complexity = state.get("complexity") or "simple"
+        # —— 调度中心：步骤级路由决策（可解释、留痕、升级阶梯）——
+        plan = state.get("plan") or []
+        current_step = plan[index] if index < len(plan) else {}
+        task_score = float((state.get("complexity_report") or {}).get("score", 0.3))
+        tier = state.get("routing_tier") or DEFAULT_TIER
+        step_score = score_step(current_step, task_score)
+        route_stats = await stats_for(
+            state.get("organization_id"),
+            model=None,
+            task_type=f"agent:{name}",
+            bucket="simple",
+        )
+        route_candidates = await model_candidates(state.get("organization_id"))
+        choice = build_route(
+            current_step,
+            step_score,
+            tier=tier,
+            stats=route_stats,
+            candidates=route_candidates,
+        )
+        escalated = int((state.get("escalated_steps") or {}).get(str(index), 0))
+        if escalated > 0 or current_step.get("side_effect"):
+            # 升级后 / 副作用步骤：一律强模型（安全优先）
+            choice = build_route(
+                current_step,
+                step_score,
+                tier="quality",
+                stats=route_stats,
+                candidates=route_candidates,
+            )
+        complexity = choice.complexity
         llms = await _get_llms(
             state.get("organization_id"),
             complexity=complexity,
@@ -893,6 +1139,23 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
                         "capability": name,
                         "side_effect": True,
                     },
+                )
+                await persist_route(
+                    choice,
+                    execution_id=state.get("execution_id"),
+                    organization_id=state.get("organization_id"),
+                    outcome="success" if effect_ok else "failed",
+                    model_used=usage[0].get("model_used") if usage else None,
+                    cost=sum(float(item.get("cost") or 0) for item in usage),
+                )
+                await record_usage_events(
+                    usage,
+                    execution_id=state.get("execution_id"),
+                    organization_id=state.get("organization_id"),
+                    user_id=state.get("user_id"),
+                    task_type=f"agent:{name}",
+                    step_capability=name,
+                    complexity=complexity,
                 )
                 return {
                     "messages": state.get("messages") or [],
@@ -1004,6 +1267,60 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
                 )
                 executed_tool = True
 
+            # —— 调度中心：升级阶梯 ——
+            all_tools_failed = bool(
+                executed_tool
+                and tool_results
+                and all(item.get("status") != "success" for item in tool_results)
+            )
+            if (
+                all_tools_failed
+                and escalated == 0
+                and allow_escalation(
+                    state.get("escalated_steps"),
+                    step_id=str(index),
+                    task_escalations=sum(
+                        int(value)
+                        for value in (state.get("escalated_steps") or {}).values()
+                    ),
+                )
+            ):
+                await persist_route(
+                    choice,
+                    execution_id=state.get("execution_id"),
+                    organization_id=state.get("organization_id"),
+                    outcome="escalated",
+                    model_used=usage[0].get("model_used") if usage else None,
+                    cost=sum(float(item.get("cost") or 0) for item in usage),
+                )
+                await publish_execution_event(
+                    execution_id,
+                    {
+                        "event": "routing",
+                        "decision": choice.to_dict(),
+                        "outcome": "escalated",
+                        "reason": "cheap model tool failure; escalating to strong model",
+                    },
+                )
+                await record_usage_events(
+                    usage,
+                    execution_id=state.get("execution_id"),
+                    organization_id=state.get("organization_id"),
+                    user_id=state.get("user_id"),
+                    task_type=f"agent:{name}",
+                    step_capability=name,
+                    complexity=complexity,
+                )
+                return await node(
+                    {
+                        **state,
+                        "escalated_steps": {
+                            **(state.get("escalated_steps") or {}),
+                            str(index): 1,
+                        },
+                    }
+                )
+
             final_response = response
             if executed_tool:
                 synthesis = await _stream_llm_text(
@@ -1073,6 +1390,50 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
                 ),
             },
         )
+        # —— 调度中心：路由决策回填 + 用量/绩效闭环 ——
+        step_outcome = (
+            "success"
+            if not executed_tool
+            or all(item.get("status") == "success" for item in tool_results)
+            else "failed"
+        )
+        step_cost = sum(float(item.get("cost") or 0) for item in usage)
+        step_model = usage[0].get("model_used") if usage else None
+        await persist_route(
+            choice,
+            execution_id=state.get("execution_id"),
+            organization_id=state.get("organization_id"),
+            outcome=step_outcome,
+            model_used=step_model,
+            cost=step_cost,
+        )
+        await publish_execution_event(
+            execution_id,
+            {
+                "event": "routing",
+                "decision": choice.to_dict(),
+                "outcome": step_outcome,
+                "model_used": step_model,
+                "escalated": escalated > 0,
+            },
+        )
+        await record_usage_events(
+            usage,
+            execution_id=state.get("execution_id"),
+            organization_id=state.get("organization_id"),
+            user_id=state.get("user_id"),
+            task_type=f"agent:{name}",
+            step_capability=name,
+            complexity=complexity,
+        )
+        await update_model_performance(
+            organization_id=state.get("organization_id"),
+            model=step_model,
+            task_type=f"agent:{name}",
+            bucket=complexity,
+            success=step_outcome == "success",
+            cost=step_cost,
+        )
         return {
             "messages": new_messages,
             "current_step": index + 1,
@@ -1108,6 +1469,25 @@ async def _run_parallel_step(
     messages.extend(state.get("messages") or [])
     if not any(isinstance(message, HumanMessage) for message in messages):
         messages.append(HumanMessage(content=state.get("user_input", "")))
+
+    # —— 调度中心：并行只读步骤同样走路由决策（留痕 + 用量闭环）——
+    task_score = float((state.get("complexity_report") or {}).get("score", 0.3))
+    tier = state.get("routing_tier") or DEFAULT_TIER
+    route_stats = await stats_for(
+        organization_id,
+        model=None,
+        task_type=f"agent:{name}",
+        bucket="simple",
+    )
+    route_candidates = await model_candidates(organization_id)
+    choice = build_route(
+        plan[index] if index < len(plan) else {},
+        score_step(plan[index] if index < len(plan) else {}, task_score),
+        tier=tier,
+        stats=route_stats,
+        candidates=route_candidates,
+    )
+    complexity = choice.complexity
 
     llms = await _get_llms(organization_id, complexity=complexity, user_id=user_id)
     tools = list(capability.tools)
@@ -1167,6 +1547,41 @@ async def _run_parallel_step(
         final_output = _strip_raw_tool_call_text(getattr(response, "content", "") or "")
         if not final_output.strip():
             final_output = _final_output_or_fallback("", tool_results=[])
+
+    # —— 调度中心：并行步的路由/用量闭环 ——
+    step_outcome = (
+        "success"
+        if not executed_tool
+        or all(item.get("status") == "success" for item in tool_results)
+        else "failed"
+    )
+    step_model = usage[0].get("model_used") if usage else None
+    step_cost = sum(float(item.get("cost") or 0) for item in usage)
+    await persist_route(
+        choice,
+        execution_id=execution_id or None,
+        organization_id=organization_id,
+        outcome=step_outcome,
+        model_used=step_model,
+        cost=step_cost,
+    )
+    await record_usage_events(
+        usage,
+        execution_id=execution_id or None,
+        organization_id=organization_id,
+        user_id=user_id,
+        task_type=f"agent:{name}",
+        step_capability=name,
+        complexity=complexity,
+    )
+    await update_model_performance(
+        organization_id=organization_id,
+        model=step_model,
+        task_type=f"agent:{name}",
+        bucket=complexity,
+        success=step_outcome == "success",
+        cost=step_cost,
+    )
 
     return {
         "index": index,
@@ -1275,13 +1690,13 @@ async def _verify_node(state: AgentState) -> dict[str, Any]:
             complexity="simple",
             user_id=state.get("user_id"),
         )
+        verifier_prompt = await get_prompt("verifier", state.get("organization_id"))
         response = await _gateway.invoke(
             llms,
             [
                 HumanMessage(
                     content=(
-                        "你是质量审查员。检查下面的 Agent 输出是否完整满足用户输入。"
-                        "只允许输出 PASS 或 FAIL 两个单词，不要输出任何其他内容。\n"
+                        f"{verifier_prompt}\n"
                         f"用户输入：{state.get('user_input', '')}\n"
                         f"Agent 输出：{final_output}"
                     )
@@ -1297,6 +1712,16 @@ async def _verify_node(state: AgentState) -> dict[str, Any]:
         # Fail-closed（ADR-005）：异常/超时 = ERROR，不 replan、不算 PASS。
         result_state = "ERROR"
         error_reason = f"{type(exc).__name__}: {str(exc)[:200]}"
+
+    await record_usage_events(
+        usage,
+        execution_id=state.get("execution_id"),
+        organization_id=state.get("organization_id"),
+        user_id=state.get("user_id"),
+        task_type="verify",
+        step_capability="verify",
+        complexity="simple",
+    )
 
     passed = result_state == "PASS"
     revision_requested = (not passed) and state.get("revision_count", 0) == 0
@@ -1353,6 +1778,23 @@ def classify_verify_output(text: str | None) -> str:
     if normalized == "FAIL":
         return "FAIL"
     return "UNKNOWN"
+
+
+async def _clarification_node(state: AgentState) -> dict[str, Any]:
+    """澄清中断：弹出语义选项，等用户选择后继续，绝不擅自猜测。"""
+    request = state.get("clarification_request") or {}
+    decision = interrupt({"type": "clarification", "clarification": request})
+    answer = ""
+    if isinstance(decision, dict):
+        answer = str(decision.get("answer") or decision.get("selected") or "")
+    elif isinstance(decision, str):
+        answer = decision
+    await _persist_clarification_answer(str(state.get("execution_id") or ""), answer)
+    return {
+        "clarification_request": None,
+        "clarification_answer": answer,
+        "clarifications_asked": int(state.get("clarifications_asked", 0)) + 1,
+    }
 
 
 async def _waiting_for_approval_node(state: AgentState) -> dict[str, Any]:
@@ -1426,6 +1868,7 @@ def build_graph(checkpointer: Any = None, dag: dict[str, Any] | None = None) -> 
     graph.add_node("prepare", _prepare_node)
     graph.add_node("search_preflight", _search_preflight_node)
     graph.add_node("plan", _plan_node)
+    graph.add_node("clarification", _clarification_node)
     graph.add_node("parallel_read_only", _parallel_read_only_node)
     graph.add_node("verify", _verify_node)
     graph.add_node("waiting_for_approval", _waiting_for_approval_node)
@@ -1444,18 +1887,21 @@ def build_graph(checkpointer: Any = None, dag: dict[str, Any] | None = None) -> 
         _route_step,
         {
             **{name: name for name in CAPABILITIES},
+            "clarification": "clarification",
             "parallel_read_only": "parallel_read_only",
             "verify": "verify",
             "waiting_for_approval": "waiting_for_approval",
             END: END,
         },
     )
+    graph.add_edge("clarification", "plan")
     for name in CAPABILITIES:
         graph.add_conditional_edges(
             name,
             _route_step,
             {
                 **{candidate: candidate for candidate in CAPABILITIES},
+                "clarification": "clarification",
                 "parallel_read_only": "parallel_read_only",
                 "verify": "verify",
                 "waiting_for_approval": "waiting_for_approval",
@@ -1467,6 +1913,7 @@ def build_graph(checkpointer: Any = None, dag: dict[str, Any] | None = None) -> 
         _route_step,
         {
             **{candidate: candidate for candidate in CAPABILITIES},
+            "clarification": "clarification",
             "parallel_read_only": "parallel_read_only",
             "verify": "verify",
             END: END,

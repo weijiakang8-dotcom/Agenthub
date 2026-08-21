@@ -13,8 +13,11 @@ import WorkflowEditor from "@/pages/WorkflowEditor";
 import Alerts from "@/pages/Alerts";
 import AlertRules from "@/pages/AlertRules";
 import Chat from "@/pages/Chat";
+import Dispatch from "@/pages/Dispatch";
 import History from "@/pages/History";
 import Skills from "@/pages/Skills";
+import Agents from "@/pages/Agents";
+import Savings from "@/pages/Savings";
 import Tools from "@/pages/Tools";
 import Landing from "@/pages/Landing";
 import UserGuide from "@/pages/UserGuide";
@@ -45,6 +48,14 @@ export default function App() {
           }
         />
         <Route
+          path="/dispatch"
+          element={
+            <RequireAuth>
+              <Dispatch />
+            </RequireAuth>
+          }
+        />
+        <Route
           path="/history"
           element={
             <RequireAuth>
@@ -57,6 +68,22 @@ export default function App() {
           element={
             <RequireAuth>
               <Skills />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/agents"
+          element={
+            <RequireAuth>
+              <Agents />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/savings"
+          element={
+            <RequireAuth>
+              <Savings />
             </RequireAuth>
           }
         />

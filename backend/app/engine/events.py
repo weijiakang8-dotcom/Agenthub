@@ -22,6 +22,10 @@ EVENT_COMPLETED = "execution_completed"
 EVENT_FAILED = "execution_failed"
 EVENT_WAITING = "waiting_for_approval"
 EVENT_DONE = "done"
+# 调度中心（二次装修新增）
+EVENT_COMPLEXITY = "complexity"
+EVENT_ROUTING = "routing"
+EVENT_CLARIFICATION_REQUIRED = "clarification_required"
 
 
 def build_event(
@@ -43,10 +47,13 @@ def build_event(
 
 __all__ = [
     "EVENT_APPROVAL_REQUIRED",
+    "EVENT_CLARIFICATION_REQUIRED",
     "EVENT_COMPLETED",
+    "EVENT_COMPLEXITY",
     "EVENT_DONE",
     "EVENT_ERROR",
     "EVENT_FAILED",
+    "EVENT_ROUTING",
     "EVENT_STATUS",
     "EVENT_STEP",
     "EVENT_TOKEN",

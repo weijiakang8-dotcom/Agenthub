@@ -98,8 +98,18 @@ def test_plan_node_surfaces_clarification_event_and_audit(monkeypatch):
     async def fake_publish(execution_id, payload):
         events.append(payload)
 
+    async def fake_model_candidates(organization_id=None):
+        return ["deepseek-v4-flash", "deepseek-v4-pro"]
+
+    async def fake_persist_clarification(state, payload):
+        return None
+
     monkeypatch.setattr(graph_module, "audit_execution_event", fake_audit)
     monkeypatch.setattr(graph_module, "publish_execution_event", fake_publish)
+    monkeypatch.setattr(graph_module, "model_candidates", fake_model_candidates)
+    monkeypatch.setattr(
+        graph_module, "_persist_clarification_question", fake_persist_clarification
+    )
 
     state = _state()
     state["plan"] = _side_effect_plan()["steps"]
@@ -110,11 +120,23 @@ def test_plan_node_surfaces_clarification_event_and_audit(monkeypatch):
     state["node_outputs"] = {}
     state["revision_count"] = 0
     state["revision_requested"] = False
+    state["clarifications_asked"] = 0
+    state["clarification_answer"] = None
+    state["complexity_report"] = {}
+    state["routing_tier"] = "balanced"
+    state["escalated_steps"] = {}
+    state["web_search_context"] = None
 
-    with pytest.raises(graph_module.PlanInvalidError):
-        asyncio.run(graph_module._plan_node(state))
+    # 新契约（二次装修）：澄清不再让任务失败，而是产生 clarification_request，
+    # 由澄清中断节点弹选项给用户，选择后继续规划（零副作用不变）。
+    result = asyncio.run(graph_module._plan_node(state))
 
     assert any(a["action"] == "proposal_clarification" for a in audits)
-    clarification = [e for e in events if e.get("event") == "clarification"]
-    assert clarification
-    assert clarification[0]["message"] == "请补充收件人邮箱地址。"
+    request = result.get("clarification_request") or {}
+    assert request.get("question")
+    assert len(request.get("options") or []) >= 2
+    clarification_events = [
+        e for e in events if e.get("event") == "clarification_required"
+    ]
+    assert clarification_events
+    assert clarification_events[0]["clarification"]["question"]

@@ -46,3 +46,32 @@ async def usage(session: SessionDep, user: CurrentUserDep) -> dict:
         "today_tokens": int(today_tokens or 0),
         "today_cost": float(today_cost or 0),
     }
+
+
+@router.get("/tokens")
+async def tokens(
+    user: CurrentUserDep,
+    days: int = 30,
+) -> dict:
+    """token 看板：按模型聚合近 N 天消耗（调度中心数据源）。"""
+    from app.core.savings import token_dashboard
+
+    return await token_dashboard(
+        str(user.organization_id) if user.organization_id else None,
+        days=max(1, min(days, 365)),
+    )
+
+
+@router.get("/savings")
+async def savings(user: CurrentUserDep) -> dict:
+    """省钱账单：实际成本 vs 全 pro 基线（逐期可查，不伪造数字）。"""
+    from app.core.savings import compute_savings, latest_savings
+
+    latest = await latest_savings(
+        str(user.organization_id) if user.organization_id else None
+    )
+    if latest is not None:
+        return latest
+    return await compute_savings(
+        str(user.organization_id) if user.organization_id else None
+    )
