@@ -35,6 +35,9 @@
 | 08-21 | README 与现状不符 | 历史营销口径 | 重写为证据版 README | 文档审查 |
 | 08-21 | 备份/恢复无证据 | 无脚本/演练 | scripts/backup.sh + restore.sh；生产 drill 通过（70 行对账一致） | 生产演练 |
 | 08-21 | RAG 非语义 | 生产 EMBEDDING_PROVIDER=hash | 内置 ollama embedding 服务 + 重嵌入 CLI；4 文档检索命中（score 0.65-0.80） | 生产验证 |
+| 08-21 | 租户预算/并发缺失 | 无配额/backpressure | Redis 原子 token/cost 预算 + 并发闸门；/api/quotas + 前端用量卡；生产硬阻断验证（budget=50 被阻止，恢复 0 后正常） | 生产验证 |
+| 08-21 | 备份无定时 | 仅手动脚本 | install-backup-cron.sh 已装到生产 crontab（每日 03:00） | crontab -l |
+| 08-21 | benchmark 证据未入库 | 报告目录 gitignore | 报告已版本化（Phase 0/1A/1B + evaluation） | git log |
 
 ## 3. 已知 P0/P1（见基线 §23）
 

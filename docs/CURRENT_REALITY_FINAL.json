@@ -54,6 +54,30 @@
       "problem": "no backup/restore evidence",
       "fix": "added scripts/backup.sh and scripts/restore.sh; production drill verified (70-row match)",
       "regression": "production drill 2026-08-21"
+    },
+    {
+      "id": "RAG-1",
+      "problem": "production RAG used hash embeddings",
+      "fix": "built-in ollama embedding service (nomic-embed-text 768d) + reembed CLI; verified retrieval",
+      "regression": "production retrieval scores 0.65-0.80"
+    },
+    {
+      "id": "COST-1",
+      "problem": "no tenant budget/backpressure",
+      "fix": "Redis atomic token/cost budget + concurrent LLM gate; GET /api/quotas + usage panel",
+      "regression": "production hard-block test (budget=50) + restore; unit tests"
+    },
+    {
+      "id": "OPS-2",
+      "problem": "backup not scheduled",
+      "fix": "scripts/install-backup-cron.sh installed on production (daily 03:00)",
+      "regression": "crontab -l"
+    },
+    {
+      "id": "EVIDENCE-1",
+      "problem": "benchmark reports gitignored",
+      "fix": "versioned Phase 0/1A/1B + evaluation reports",
+      "regression": "git log"
     }
   ],
   "gate": "CI green -> production deploy -> real E2E -> GitHub==production -> README==reality"
