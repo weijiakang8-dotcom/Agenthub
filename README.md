@@ -28,8 +28,8 @@
 
 - 审计/观测：`audit_logs` + `tool_calls` + span 持久化；OTel→Jaeger、Prometheus 已打通
   （2026-08-21 生产验证：Jaeger 可查到 `agenthub-backend`，Prometheus 有业务指标）。
-- RAG：文档 → 分块(800/100) → 向量（当前生产为哈希 embedding）→ pgvector 余弦检索
-  → top-k → 上下文注入。是“最小可用 RAG”，不是语义检索级 RAG。
+- RAG：文档 → 分块(800/100) → **Ollama nomic-embed-text 语义向量（768d）** →
+  pgvector 余弦检索 → top-k → 上下文注入；生产已重嵌入并验证检索命中。
 - 记忆：长期记忆（显式 save/update/delete + 检索），租户隔离。
 - 成本：模型价格配置 + 每次调用 usage/cost 记录 + 执行预算。
 - 测试：后端 590 passed / 20 skipped（本地真实 DB）；前端 vitest 22 + Playwright E2E 3；
@@ -56,7 +56,8 @@
 ## 技术栈
 
 - 后端：Python 3.11 / FastAPI / SQLAlchemy(asyncpg) / LangGraph / Celery / Redis。
-- 数据：PostgreSQL 16 + pgvector；Alembic 当前 head `0019`。
+- 数据：PostgreSQL 16 + pgvector；Alembic 当前 head `0019`；Embedding：Ollama
+  （`nomic-embed-text`，内置 `embedding` 服务）。
 - 模型：DeepSeek（OpenAI 兼容端点）；Model Gateway 统一路由/重试/回退/成本。
 - 前端：React + Vite + TypeScript + Tailwind + Radix（深色/浅色双主题）。
 - 部署：Docker Compose（backend/worker/frontend/postgres/redis/mailhog + 监控栈）。
@@ -81,7 +82,7 @@ Observability：audit_logs spans + OTel(collector) → Jaeger / Prometheus / Gra
 git clone https://github.com/weijiakang8-dotcom/Agenthub.git
 cd Agenthub
 cp .env.example .env          # 填入 DEEPSEEK_API_KEY / TAVILY_API_KEY 等
-docker compose -f docker/docker-compose.yml up -d postgres redis mailhog
+docker compose -f docker/docker-compose.yml up -d postgres redis mailhog embedding
 cd backend && ../.venv311/bin/python -m uvicorn app.main:app --port 8000
 cd frontend && npm install && npm run dev
 ```
