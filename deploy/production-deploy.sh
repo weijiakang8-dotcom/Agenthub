@@ -10,6 +10,7 @@ if ! git fetch origin main || ! git reset --hard origin/main; then
   echo "DEPLOY_ABORT: sync to origin/main failed; nothing changed"
   exit 1
 fi
+git checkout -B main origin/main
 
 # 回滚目标 = 上一个 GitHub main 提交（patch 时代码分叉时也能正确回退）
 previous="$(git rev-parse 'origin/main@{1}' 2>/dev/null || git rev-parse HEAD~1)"
