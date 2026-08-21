@@ -6,12 +6,13 @@ cd "$(dirname "$0")/.." || exit 1
 COMPOSE="docker compose -f docker/docker-compose.yml"
 STABLE_FILE="deploy/.last-good-commit"
 
-previous="$(git rev-parse HEAD)"
 if ! git fetch origin main || ! git reset --hard origin/main; then
   echo "DEPLOY_ABORT: sync to origin/main failed; nothing changed"
   exit 1
 fi
 
+# 回滚目标 = 上一个 GitHub main 提交（patch 时代码分叉时也能正确回退）
+previous="$(git rev-parse 'origin/main@{1}' 2>/dev/null || git rev-parse HEAD~1)"
 echo "$previous" > "$STABLE_FILE"
 
 if ! $COMPOSE up -d --build backend worker frontend embedding; then
