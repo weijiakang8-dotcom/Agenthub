@@ -71,6 +71,16 @@ export type Trace = {
     params?: Record<string, unknown>;
     params_canonical?: string;
   }> | null;
+  spans?: Array<{
+    span: string;
+    status: string;
+    latency_ms?: number | null;
+    model?: string | null;
+    tokens?: number | null;
+    cost?: number | null;
+    error?: string | null;
+    recorded_at?: string | null;
+  }>;
 };
 
 export type BenchmarkReport = {

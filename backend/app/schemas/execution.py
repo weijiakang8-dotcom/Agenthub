@@ -59,6 +59,18 @@ class ExecutionTrace(BaseModel):
     verify_status: str | None = None
     approval_mismatch_count: int = 0
     side_effect_proposals: list | None = None
+    spans: list["SpanSummary"] = Field(default_factory=list)
+
+
+class SpanSummary(BaseModel):
+    span: str
+    status: str
+    latency_ms: float | None = None
+    model: str | None = None
+    tokens: int | None = None
+    cost: float | None = None
+    error: str | None = None
+    recorded_at: str | None = None
 
 
 class ExecutionAccepted(BaseModel):

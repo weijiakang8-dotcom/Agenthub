@@ -27,6 +27,7 @@ from app.schemas.execution import (
     ExecutionResume,
     ExecutionTrace,
     FeedbackCreate,
+    SpanSummary,
 )
 from app.schemas.tool_call import ToolCallRead, ToolCallSummary
 
@@ -231,6 +232,29 @@ async def get_execution_trace(
     verify_status = next(
         (a for a in ("verify_unknown", "verify_error") if a in audit_actions), None
     )
+    span_result = await session.execute(
+        select(AuditLog)
+        .where(
+            AuditLog.resource_id == str(execution_id),
+            AuditLog.action.like("span:%"),
+        )
+        .order_by(AuditLog.created_at)
+    )
+    spans = []
+    for audit in span_result.scalars().all():
+        details = audit.details or {}
+        spans.append(
+            SpanSummary(
+                span=str(audit.action).removeprefix("span:"),
+                status=str(details.get("status") or "ok"),
+                latency_ms=details.get("latency_ms"),
+                model=details.get("model"),
+                tokens=details.get("tokens"),
+                cost=details.get("cost"),
+                error=details.get("error"),
+                recorded_at=audit.created_at.isoformat() if audit.created_at else None,
+            )
+        )
     plan = execution.plan or {}
     return ExecutionTrace(
         current_step_index=execution.current_step_index,
@@ -242,6 +266,7 @@ async def get_execution_trace(
         verify_status=verify_status,
         approval_mismatch_count=audit_actions.count("approval_mismatch"),
         side_effect_proposals=plan.get("side_effect_proposals"),
+        spans=spans,
     )
 
 
