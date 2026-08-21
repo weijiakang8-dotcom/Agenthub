@@ -523,6 +523,19 @@ export default function ExecutionDetail() {
               {data.error_message}
             </p>
           ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-3"
+            onClick={() =>
+              navigate(
+                `/chat?draft=${encodeURIComponent(data.user_input || "")}`,
+              )
+            }
+          >
+            <RotateCcw className="h-4 w-4" />
+            重新发起
+          </Button>
         </div>
       )}
 

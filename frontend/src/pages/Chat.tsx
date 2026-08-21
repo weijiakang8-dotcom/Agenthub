@@ -20,7 +20,7 @@ export default function Chat() {
   const [searchParams] = useSearchParams();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(() => searchParams.get("draft") ?? "");
   const [sending, setSending] = useState(false);
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [details, setDetails] = useState<ExecutionDetail | null>(null);
