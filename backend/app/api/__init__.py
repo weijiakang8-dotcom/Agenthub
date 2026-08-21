@@ -30,6 +30,7 @@ from app.api.routes import (
 from app.api.routes import (
     eval as eval_routes,
 )
+from app.mcp import server as mcp_routes
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(agents.router)
@@ -58,6 +59,7 @@ api_router.include_router(usage.router)
 api_router.include_router(tasks.router)
 api_router.include_router(workflow_templates.router)
 api_router.include_router(dispatch.router)
+api_router.include_router(mcp_routes.router)
 
 
 __all__ = ["api_router"]
