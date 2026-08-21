@@ -435,6 +435,46 @@ export default function ExecutionDetail() {
               <p className="text-xs text-muted-foreground">暂无工具调用记录</p>
             )}
           </div>
+
+          {trace?.spans?.length ? (
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">
+                Span 时间线
+              </p>
+              {trace.spans.map((span, index) => (
+                <div
+                  key={index}
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/60 px-3 py-1.5 text-xs"
+                >
+                  <span
+                    className={cn(
+                      "h-2 w-2 rounded-full",
+                      span.status === "ok"
+                        ? "bg-agent-completed"
+                        : "bg-agent-failed",
+                    )}
+                  />
+                  <span className="font-medium">{span.span}</span>
+                  {span.latency_ms != null ? (
+                    <span className="text-muted-foreground">
+                      {span.latency_ms}ms
+                    </span>
+                  ) : null}
+                  {span.model ? (
+                    <span className="text-muted-foreground">{span.model}</span>
+                  ) : null}
+                  {span.tokens != null ? (
+                    <span className="text-muted-foreground">
+                      {span.tokens} tok
+                    </span>
+                  ) : null}
+                  {span.error ? (
+                    <span className="text-agent-failed">{span.error}</span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

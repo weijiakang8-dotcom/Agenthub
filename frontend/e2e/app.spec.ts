@@ -165,6 +165,11 @@ test("failed execution can be re-launched with the original task prefilled", asy
         verify_status: null,
         model_used: [],
         side_effect_proposals: [],
+        spans: [
+          { span: "intent", status: "ok", latency_ms: 120, model: "deepseek", tokens: 10 },
+          { span: "plan", status: "ok", latency_ms: 80, model: "deepseek", tokens: 8 },
+          { span: "verify", status: "error", latency_ms: 5, error: "UNKNOWN" },
+        ],
       }),
     }),
   );
@@ -201,6 +206,9 @@ test("failed execution can be re-launched with the original task prefilled", asy
 
   await expect(page.getByText("执行失败")).toBeVisible();
   await expect(page.getByText("approval_mismatch: params mismatch")).toBeVisible();
+  await expect(page.getByText("Span 时间线")).toBeVisible();
+  await expect(page.getByText("intent")).toBeVisible();
+  await expect(page.getByText("UNKNOWN")).toBeVisible();
   await page.getByRole("button", { name: "重新发起" }).click();
 
   await expect(page).toHaveURL(/\/chat\?draft=/);
