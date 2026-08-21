@@ -51,6 +51,7 @@
 | 08-21 | API Key 无轮换 | 只能增删/启停 | POST /user-api-keys/{id}/rotate + 设置页「轮换」；所有权校验 + 解密断言；Playwright 7/7 | 610 passed |
 | 08-21 | SLO 告警无回归 | 阈值/冷却幂等未锁定 | 阈值单测 + mismatch→AlertEvent 落库一次 + 冷却抑制；生产直调 0 新事件、beat 调度确认、历史事件存在 | 612 passed |
 | 08-21 | 配额不可管理 | 仅 env 全局只读 | Redis per-org 覆盖 + PUT /api/quotas（admin）+ 用量页编辑；生产 set 123→GET 123→reset 验证 | 614 passed + Playwright 7/7 |
+| 08-21 | 防爆破缺真实回归 | 仅 mock 测试 | 真实 Redis 固定窗口测试 + 登录 5×401→429 集成测试；生产实测 401×5→429 | 616 passed |
 
 ## 3. 已知 P0/P1（见基线 §23）
 
