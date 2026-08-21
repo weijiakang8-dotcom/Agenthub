@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type UsageSummary } from "@/lib/api";
+import { api, type QuotaSummary, type UsageSummary } from "@/lib/api";
 
 const emptyUsage: UsageSummary = {
   total_executions: 0,
@@ -18,15 +18,41 @@ const emptyUsage: UsageSummary = {
 
 export default function UsagePanel() {
   const [usage, setUsage] = useState<UsageSummary>(emptyUsage);
+  const [quota, setQuota] = useState<QuotaSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api
       .getUsage()
       .then(setUsage)
+      .then(() => api.getQuota())
+      .then(setQuota)
       .catch((err) => toast.error(String(err)))
       .finally(() => setLoading(false));
   }, []);
+
+  const quotaRows = quota
+    ? [
+        [
+          "本月 Tokens 预算",
+          quota.monthly_token_budget > 0
+            ? `${quota.monthly_token_used.toLocaleString()} / ${quota.monthly_token_budget.toLocaleString()}`
+            : `${quota.monthly_token_used.toLocaleString()}（未限制）`,
+        ],
+        [
+          "本月成本预算",
+          quota.monthly_cost_budget_cny > 0
+            ? `¥${(quota.monthly_cost_used_cny ?? 0).toFixed(4)} / ¥${quota.monthly_cost_budget_cny.toFixed(2)}`
+            : `¥${(quota.monthly_cost_used_cny ?? 0).toFixed(4)}（未限制）`,
+        ],
+        [
+          "并发模型调用",
+          quota.concurrent_llm_limit > 0
+            ? `${quota.concurrent_llm_calls} / ${quota.concurrent_llm_limit}`
+            : `${quota.concurrent_llm_calls}（未限制）`,
+        ],
+      ]
+    : [];
 
   const stats = [
     {
@@ -97,6 +123,29 @@ export default function UsagePanel() {
           </div>
         </CardContent>
       </Card>
+
+      {quota && (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="type-h3">
+              预算与并发（{quota.month}）
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y">
+              {quotaRows.map(([label, value]) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between py-3"
+                >
+                  <span className="text-sm text-muted-foreground">{label}</span>
+                  <span className="text-sm font-medium">{value}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

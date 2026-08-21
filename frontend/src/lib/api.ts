@@ -166,6 +166,17 @@ export type ToolSpec = {
   requires_approval: boolean;
 };
 
+export type QuotaSummary = {
+  organization_id: string | null;
+  monthly_token_used: number;
+  monthly_token_budget: number;
+  monthly_cost_used_cny: number | null;
+  monthly_cost_budget_cny: number;
+  concurrent_llm_calls: number;
+  concurrent_llm_limit: number;
+  month: string;
+};
+
 export type ExecutionFeedback = {
   id: string;
   execution_id: string;
@@ -498,6 +509,7 @@ export const api = {
     request<void>(`/user-api-keys/${id}`, { method: "DELETE" }),
   listSkills: () => request<Skill[]>("/skills"),
   listTools: () => request<ToolSpec[]>("/tools"),
+  getQuota: () => request<QuotaSummary>("/quotas"),
   createSkill: (payload: {
     name: string;
     description: string;
