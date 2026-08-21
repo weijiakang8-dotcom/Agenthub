@@ -6,10 +6,11 @@ import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
+from langchain_core.messages import AIMessage
+
 from app.api.routes import conversations
 from app.engine.intent import IntentRouter
 from app.rag import retrieval
-from langchain_core.messages import AIMessage
 
 ROOT = Path(__file__).resolve().parents[1] / "golden"
 
@@ -230,7 +231,7 @@ def test_e2e_golden_runtime_behavior(monkeypatch):
             _calls.append(query)
             return []
 
-        async def fake_iter_tokens(_llms, _messages):
+        async def fake_iter_tokens(_llms, _messages, **_kwargs):
             yield "你"
             yield "好"
 

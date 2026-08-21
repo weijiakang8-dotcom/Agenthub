@@ -38,6 +38,8 @@
 | 08-21 | 租户预算/并发缺失 | 无配额/backpressure | Redis 原子 token/cost 预算 + 并发闸门；/api/quotas + 前端用量卡；生产硬阻断验证（budget=50 被阻止，恢复 0 后正常） | 生产验证 |
 | 08-21 | 备份无定时 | 仅手动脚本 | install-backup-cron.sh 已装到生产 crontab（每日 03:00） | crontab -l |
 | 08-21 | benchmark 证据未入库 | 报告目录 gitignore | 报告已版本化（Phase 0/1A/1B + evaluation） | git log |
+| 08-21 | 跨租户 API 隔离缺回归 | 仅 query_db 单测 | integration test：executions/conversations/tool_calls 跨 org 404/空 | 全量 602 passed |
+| 08-21 | Phase 0 harness 未验证可复现 | 依赖专用 DB | 全新 DB 重跑 44 runs / 50.0% 一致，报告已更新 | pytest + report diff |
 
 ## 3. 已知 P0/P1（见基线 §23）
 
