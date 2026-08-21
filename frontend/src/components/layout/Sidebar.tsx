@@ -1,5 +1,4 @@
-import { NavLink } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LogOut,
   MessageSquare,
@@ -35,6 +34,10 @@ const items = [
 
 export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isItemActive = (to: string) =>
+    location.pathname === to || location.pathname.startsWith(`${to}/`);
 
   return (
     <div className="glass flex h-full flex-col border-r border-border/60">
@@ -72,13 +75,11 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
             <NavLink
               to={to}
               title={label}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium leading-none text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground",
-                  isActive && "bg-primary/15 text-primary",
-                  collapsed ? "justify-center px-0" : "justify-start",
-                )
-              }
+              className={cn(
+                "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium leading-none text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground",
+                isItemActive(to) && "bg-primary/15 text-primary",
+                collapsed ? "justify-center px-0" : "justify-start",
+              )}
             >
               <Icon className="h-4 w-4 shrink-0" />
               {!collapsed && <span className="truncate">{label}</span>}
