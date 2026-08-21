@@ -16,6 +16,7 @@ jobs:
       SMTP_HOST: localhost
       SMTP_PORT: "1025"
       SMTP_FROM: ci@agenthub.local
+      EMBEDDING_PROVIDER: hash
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -51,6 +52,41 @@ jobs:
       - name: Migrate database to head
         working-directory: backend
         run: alembic upgrade head
+      - name: Seed model configs
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import asyncio
+          from sqlalchemy import select
+          from app.database import async_session_factory
+          from app.models import ModelConfig
+
+          async def main():
+              async with async_session_factory() as session:
+                  existing = list((await session.execute(
+                      select(ModelConfig).where(ModelConfig.organization_id.is_(None))
+                  )).scalars().all())
+                  if existing:
+                      print(f"model configs already present: {len(existing)}")
+                      return
+                  session.add_all([
+                      ModelConfig(
+                          name="deepseek-v4-flash", provider="deepseek",
+                          base_url="https://api.deepseek.com/v1", api_key="ci-placeholder",
+                          model="deepseek-v4-flash", max_tokens=4096,
+                          cost_per_1k_tokens=0.001, is_active=True, is_default=True,
+                      ),
+                      ModelConfig(
+                          name="deepseek-v4-pro", provider="deepseek",
+                          base_url="https://api.deepseek.com/v1", api_key="ci-placeholder",
+                          model="deepseek-v4-pro", max_tokens=8192,
+                          cost_per_1k_tokens=0.002, is_active=True, is_default=False,
+                      ),
+                  ])
+                  await session.commit()
+
+          asyncio.run(main())
+          PY
       - name: Compile and import smoke test
         working-directory: backend
         run: |
@@ -173,6 +209,11 @@ jobs:
       OTEL_SDK_DISABLED: "true"
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/agenthub_ci
       REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET_KEY: ci-secret-key-with-at-least-32-characters
+      SMTP_HOST: localhost
+      SMTP_PORT: "1025"
+      SMTP_FROM: ci@agenthub.local
+      EMBEDDING_PROVIDER: hash
       AGENTHUB_OBSERVABILITY_DISABLED: "false"
       CI_P95_LATENCY_MS_LIMIT: "1500"
     services:
@@ -208,6 +249,41 @@ jobs:
       - name: Migrate to head
         working-directory: backend
         run: alembic upgrade head
+      - name: Seed model configs
+        working-directory: backend
+        run: |
+          python - <<'PY'
+          import asyncio
+          from sqlalchemy import select
+          from app.database import async_session_factory
+          from app.models import ModelConfig
+
+          async def main():
+              async with async_session_factory() as session:
+                  existing = list((await session.execute(
+                      select(ModelConfig).where(ModelConfig.organization_id.is_(None))
+                  )).scalars().all())
+                  if existing:
+                      print(f"model configs already present: {len(existing)}")
+                      return
+                  session.add_all([
+                      ModelConfig(
+                          name="deepseek-v4-flash", provider="deepseek",
+                          base_url="https://api.deepseek.com/v1", api_key="ci-placeholder",
+                          model="deepseek-v4-flash", max_tokens=4096,
+                          cost_per_1k_tokens=0.001, is_active=True, is_default=True,
+                      ),
+                      ModelConfig(
+                          name="deepseek-v4-pro", provider="deepseek",
+                          base_url="https://api.deepseek.com/v1", api_key="ci-placeholder",
+                          model="deepseek-v4-pro", max_tokens=8192,
+                          cost_per_1k_tokens=0.002, is_active=True, is_default=False,
+                      ),
+                  ])
+                  await session.commit()
+
+          asyncio.run(main())
+          PY
       - name: Full backend suite (functional gate)
         working-directory: backend
         run: pytest -q

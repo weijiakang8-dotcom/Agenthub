@@ -907,11 +907,28 @@ def _step_capability(plan: list[dict[str, Any]], index: int) -> Capability:
     return CAPABILITIES.get(name, CAPABILITIES["answer"])
 
 
-def _parallel_group(plan: list[dict[str, Any]], index: int) -> list[int]:
-    """连续、互不依赖的只读步骤组成并行组（≥2 才并行）。"""
+def _parallel_group(
+    plan: list[dict[str, Any]],
+    index: int,
+    budget: dict[str, Any] | None = None,
+) -> list[int]:
+    """连续、互不依赖的只读步骤组成并行组（≥2 才并行）。
+
+    budget 存在时按剩余步数预算截断：并行不得绕过预算闸门
+    （截断后不足 2 步退回串行路径，由能力节点执行预算硬/软终止）。
+    """
+    allowed: int | None = None
+    if budget is not None:
+        steps_used = int(budget.get("steps", 0))
+        max_steps = int(budget.get("max_steps", 6))
+        allowed = max(0, max_steps - steps_used)
+        if allowed <= 0:
+            return []
     group: list[int] = []
     for i in range(index, len(plan)):
         if len(group) >= MAX_PARALLEL_GROUP:
+            break
+        if allowed is not None and len(group) >= allowed:
             break
         step = plan[i] or {}
         if bool(step.get("side_effect")) or bool(step.get("requires_approval")):
@@ -940,7 +957,7 @@ async def _route_step(state: AgentState) -> str:
         return "plan"
     plan = state.get("plan") or []
     index = state.get("current_step", 0)
-    if _parallel_group(plan, index):
+    if _parallel_group(plan, index, budget=state.get("budget_used")):
         return "parallel_read_only"
     if index >= len(plan):
         intent = state.get("intent") or {}
@@ -1462,6 +1479,7 @@ async def _run_parallel_step(
     execution_id = state.get("execution_id") or ""
     organization_id = state.get("organization_id")
     user_id = state.get("user_id")
+    step_start = time.perf_counter()
     complexity = state.get("complexity") or "simple"
     name = str(plan[index].get("capability") or "answer")
     capability = CAPABILITIES.get(name, CAPABILITIES["answer"])
@@ -1583,6 +1601,24 @@ async def _run_parallel_step(
         cost=step_cost,
     )
 
+    await record_span(
+        trace_id=execution_id or None,
+        name="step",
+        start=step_start,
+        end=time.perf_counter(),
+        status="ok" if step_outcome == "success" else "error",
+        tokens=sum(
+            int(item.get("input_tokens") or 0) + int(item.get("output_tokens") or 0)
+            for item in usage
+        ),
+        details={
+            "step_id": index,
+            "capability": name,
+            "side_effect": False,
+            "parallel": True,
+        },
+    )
+
     return {
         "index": index,
         "name": name,
@@ -1597,10 +1633,41 @@ async def _parallel_read_only_node(state: AgentState) -> dict[str, Any]:
     """只读并行节点：连续独立只读步骤并发执行（LLM + 只读工具）。"""
     plan = state.get("plan") or []
     start = int(state.get("current_step", 0))
-    group = _parallel_group(plan, start)
+    execution_id = state.get("execution_id") or ""
+
+    # —— 预算闸门（与串行能力节点一致）：只读超限优雅终止，并行不得绕过 ——
+    budget = state.get("budget_used") or _new_budget_state()
+    budget_reason = _budget_exceeded(budget)
+    if budget_reason is not None:
+        plan_meta = state.get("plan_meta") or {}
+        hard = bool(plan_meta.get("side_effect_set"))
+        await audit_execution_event(
+            execution_id=execution_id,
+            action="budget_exceeded",
+            organization_id=state.get("organization_id"),
+            user_id=state.get("user_id"),
+            details={"reason": budget_reason, "hard": hard},
+        )
+        await publish_execution_event(
+            execution_id,
+            {
+                "event": "error",
+                "error_type": "budget_exceeded",
+                "message": budget_reason,
+                "hard": hard,
+            },
+        )
+        return {
+            "budget_exceeded": True,
+            "hard_stop": hard,
+            "current_step": len(plan),
+            "final_output": state.get("final_output")
+            or f"budget_exceeded: {budget_reason}",
+        }
+
+    group = _parallel_group(plan, start, budget=budget)
     if not group:
         return {"current_step": start}
-    execution_id = state.get("execution_id") or ""
     base_count = len(state.get("messages") or [])
     results = await asyncio.gather(
         *[_run_parallel_step(state, plan, index) for index in group]
@@ -1636,7 +1703,6 @@ async def _parallel_read_only_node(state: AgentState) -> dict[str, Any]:
         int(item.get("input_tokens") or 0) + int(item.get("output_tokens") or 0)
         for item in usage
     )
-    budget = state.get("budget_used") or _new_budget_state()
     return {
         "messages": messages,
         "current_step": group[-1] + 1,
