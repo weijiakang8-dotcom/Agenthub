@@ -47,6 +47,80 @@ def _concurrent_limit() -> int:
     return max(0, int(settings.TENANT_MAX_CONCURRENT_LLM_CALLS or 0))
 
 
+def _limit_key(organization_id: str, kind: str) -> str:
+    return f"quota:limit:{organization_id}:{kind}"
+
+
+async def _read_override(
+    client: aioredis.Redis, organization_id: str, kind: str
+) -> int | None:
+    raw = await client.get(_limit_key(organization_id, kind))
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+async def _effective_token_limit(
+    client: aioredis.Redis, organization_id: str | None
+) -> int:
+    if not organization_id:
+        return _monthly_token_limit()
+    override = await _read_override(client, organization_id, "tokens")
+    return max(0, override if override is not None else _monthly_token_limit())
+
+
+async def _effective_cost_limit_cny(
+    client: aioredis.Redis, organization_id: str | None
+) -> float:
+    if not organization_id:
+        return _monthly_cost_limit_cny()
+    override = await _read_override(client, organization_id, "cost_milli")
+    if override is None:
+        return _monthly_cost_limit_cny()
+    return max(0.0, override / 1000.0)
+
+
+async def _effective_concurrent_limit(
+    client: aioredis.Redis, organization_id: str | None
+) -> int:
+    if not organization_id:
+        return _concurrent_limit()
+    override = await _read_override(client, organization_id, "concurrent")
+    return max(0, override if override is not None else _concurrent_limit())
+
+
+async def set_quota_limits(
+    organization_id: str,
+    *,
+    monthly_token_budget: int | None = None,
+    monthly_cost_budget_cny: float | None = None,
+    concurrent_llm_limit: int | None = None,
+) -> None:
+    """为租户写入 Redis 配额覆盖（0 = 不限制；不传 = 保持现值）。"""
+    client = _redis()
+    try:
+        if monthly_token_budget is not None:
+            await client.set(
+                _limit_key(organization_id, "tokens"),
+                max(0, int(monthly_token_budget)),
+            )
+        if monthly_cost_budget_cny is not None:
+            await client.set(
+                _limit_key(organization_id, "cost_milli"),
+                max(0, int(float(monthly_cost_budget_cny) * 1000)),
+            )
+        if concurrent_llm_limit is not None:
+            await client.set(
+                _limit_key(organization_id, "concurrent"),
+                max(0, int(concurrent_llm_limit)),
+            )
+    finally:
+        await client.aclose()
+
+
 _INCR_IF_WITHIN = """
 local current = tonumber(redis.call('GET', KEYS[1]) or '0')
 local delta = tonumber(ARGV[1])
@@ -78,11 +152,13 @@ async def _usage(client: aioredis.Redis, key: str) -> int:
 
 async def check_token_budget(organization_id: str | None) -> None:
     """调用前检查：不预占，仅保证已用额度未超限。"""
-    limit = _monthly_token_limit()
-    if not organization_id or limit <= 0:
+    if not organization_id:
         return
     client = _redis()
     try:
+        limit = await _effective_token_limit(client, organization_id)
+        if limit <= 0:
+            return
         used = await _usage(client, month_key(organization_id))
     finally:
         await client.aclose()
@@ -98,11 +174,13 @@ async def reserve_tokens(
     estimate: int,
 ) -> None:
     """原子预占：估算（输入估算 + 输出上限）超出预算时硬阻断。"""
-    limit = _monthly_token_limit()
-    if not organization_id or limit <= 0 or estimate <= 0:
+    if not organization_id or estimate <= 0:
         return
     client = _redis()
     try:
+        limit = await _effective_token_limit(client, organization_id)
+        if limit <= 0:
+            return
         key = month_key(organization_id)
         result = await _incr_if_within(client, key, estimate, limit, 31 * 86400)
         if result < 0:
@@ -120,11 +198,13 @@ async def reserve_cost(
     estimate_cny: float,
 ) -> None:
     """原子预占成本（毫元粒度）；超出月度成本预算时硬阻断。"""
-    limit_cny = _monthly_cost_limit_cny()
-    if not organization_id or limit_cny <= 0 or estimate_cny <= 0:
+    if not organization_id or estimate_cny <= 0:
         return
     client = _redis()
     try:
+        limit_cny = await _effective_cost_limit_cny(client, organization_id)
+        if limit_cny <= 0:
+            return
         key = cost_key(organization_id)
         limit_milli = int(limit_cny * 1000)
         result = await _incr_if_within(
@@ -146,11 +226,13 @@ async def settle_cost(
     estimate_cny: float,
     actual_cny: float,
 ) -> None:
-    limit_cny = _monthly_cost_limit_cny()
-    if not organization_id or limit_cny <= 0:
+    if not organization_id:
         return
     client = _redis()
     try:
+        limit_cny = await _effective_cost_limit_cny(client, organization_id)
+        if limit_cny <= 0:
+            return
         key = cost_key(organization_id)
         delta = int(actual_cny * 1000) - int(estimate_cny * 1000)
         if delta != 0:
@@ -167,11 +249,13 @@ async def settle_tokens(
     actual: int,
 ) -> None:
     """结算：按真实用量修正预占（多退少补，可负）。"""
-    limit = _monthly_token_limit()
-    if not organization_id or limit <= 0:
+    if not organization_id:
         return
     client = _redis()
     try:
+        limit = await _effective_token_limit(client, organization_id)
+        if limit <= 0:
+            return
         key = month_key(organization_id)
         delta = max(0, actual) - max(0, estimate)
         if delta != 0:
@@ -183,11 +267,13 @@ async def settle_tokens(
 
 async def acquire_llm_slot(organization_id: str | None) -> bool:
     """并发闸门：占一个模型调用槽位；超限返回 False（调用方转为错误）。"""
-    limit = _concurrent_limit()
-    if not organization_id or limit <= 0:
+    if not organization_id:
         return True
     client = _redis()
     try:
+        limit = await _effective_concurrent_limit(client, organization_id)
+        if limit <= 0:
+            return True
         key = f"quota:concurrent:{organization_id}"
         result = await _incr_if_within(client, key, 1, limit, 300)
         return result >= 0
@@ -226,16 +312,31 @@ async def quota_usage(organization_id: str | None) -> dict[str, Any]:
             if organization_id
             else 0
         )
+        token_limit = (
+            await _effective_token_limit(client, organization_id)
+            if organization_id
+            else _monthly_token_limit()
+        )
+        cost_limit_cny = (
+            await _effective_cost_limit_cny(client, organization_id)
+            if organization_id
+            else _monthly_cost_limit_cny()
+        )
+        concurrent_limit = (
+            await _effective_concurrent_limit(client, organization_id)
+            if organization_id
+            else _concurrent_limit()
+        )
     finally:
         await client.aclose()
     return {
         "organization_id": organization_id,
         "monthly_token_used": tokens,
-        "monthly_token_budget": _monthly_token_limit(),
+        "monthly_token_budget": token_limit,
         "monthly_cost_used_cny": cost_cny,
-        "monthly_cost_budget_cny": _monthly_cost_limit_cny(),
+        "monthly_cost_budget_cny": cost_limit_cny,
         "concurrent_llm_calls": concurrent,
-        "concurrent_llm_limit": _concurrent_limit(),
+        "concurrent_llm_limit": concurrent_limit,
         "month": datetime.now(timezone.utc).strftime("%Y-%m"),
     }
 
@@ -260,6 +361,7 @@ __all__ = [
     "release_llm_slot",
     "reserve_cost",
     "reserve_tokens",
+    "set_quota_limits",
     "settle_cost",
     "settle_tokens",
 ]

@@ -3,6 +3,9 @@ import { Activity, BarChart3, Coins, Cpu } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type QuotaSummary, type UsageSummary } from "@/lib/api";
 
@@ -19,6 +22,9 @@ const emptyUsage: UsageSummary = {
 export default function UsagePanel() {
   const [usage, setUsage] = useState<UsageSummary>(emptyUsage);
   const [quota, setQuota] = useState<QuotaSummary | null>(null);
+  const [tokenBudget, setTokenBudget] = useState("");
+  const [costBudget, setCostBudget] = useState("");
+  const [concurrentLimit, setConcurrentLimit] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,10 +32,29 @@ export default function UsagePanel() {
       .getUsage()
       .then(setUsage)
       .then(() => api.getQuota())
-      .then(setQuota)
+      .then((q) => {
+        setQuota(q);
+        setTokenBudget(String(q.monthly_token_budget));
+        setCostBudget(String(q.monthly_cost_budget_cny));
+        setConcurrentLimit(String(q.concurrent_llm_limit));
+      })
       .catch((err) => toast.error(String(err)))
       .finally(() => setLoading(false));
   }, []);
+
+  async function saveQuota() {
+    try {
+      const updated = await api.updateQuota({
+        monthly_token_budget: Number(tokenBudget) || 0,
+        monthly_cost_budget_cny: Number(costBudget) || 0,
+        concurrent_llm_limit: Number(concurrentLimit) || 0,
+      });
+      setQuota(updated);
+      toast.success("配额已更新");
+    } catch (err) {
+      toast.error(String(err));
+    }
+  }
 
   const quotaRows = quota
     ? [
@@ -143,6 +168,39 @@ export default function UsagePanel() {
                 </div>
               ))}
             </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Token 预算</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={tokenBudget}
+                  onChange={(e) => setTokenBudget(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">成本预算（¥）</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={costBudget}
+                  onChange={(e) => setCostBudget(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">并发模型调用</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={concurrentLimit}
+                  onChange={(e) => setConcurrentLimit(e.target.value)}
+                />
+              </div>
+            </div>
+            <Button size="sm" className="mt-4" onClick={saveQuota}>
+              保存配额
+            </Button>
           </CardContent>
         </Card>
       )}
