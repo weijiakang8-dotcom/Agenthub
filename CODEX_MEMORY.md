@@ -186,3 +186,20 @@ Prompt Injection 防线：设计稿冻结待评审，**禁止做任何代码实�
 - `frontend/src/pages/Chat.tsx`：聊天 SSE 与审批按钮
 - `docs/` 与根目录 ADR/ARCHITECTURE 文档：契约原文
 - 上一轮的完整自测结论（功能清单/短板/使用教程）就在会话历史里，可对照本文件 §9/§10
+
+## 15. 产品化使命进行中（2026-08-21）
+
+- 用户已授权“接管 AgentHub 并对最终成品负责”：可自主设计/实现/测试/部署/更新 GitHub，
+  唯一硬约束是 Agent Production Runtime 定位；不可为了堆功能而堆功能。
+- 已落地并生产验证：
+  1. 常驻联网搜索（Tavily）+ 搜索预检（commit f7a0966）
+  2. CI/pytest 路径修复 + Playwright 真实后端 job（ci.yml 已改，**待 workflow scope
+     token 推送**；本地等价验证全绿）
+  3. 观测管道打通（Settings.OTEL_SDK_DISABLED 字段；Jaeger 有 agenthub-backend、
+     Prometheus target up、collector 有业务指标）
+  4. query_db 安全聚合（COUNT/SUM/AVG/MIN/MAX）+ 工具失败不再空输出（生产 E2E 通过）
+  5. 第 4 个生产工具 search_knowledge（租户 RAG）+ GET /api/tools + 前端工具页
+  6. README 重写为证据版；备份/恢复脚本 + 生产 drill 通过
+- 当前 GitHub main：5d7c05e；服务器为等价 patch 应用内容（78a7010f + ci.yml 工作区改动）。
+- 待办：workflow scope token（推送 ci.yml）、RAG 语义 embedding、Memory 分层、
+  复杂编排/并行、租户配额/backpressure、安全渗透、备份定时化、自动部署恢复。
