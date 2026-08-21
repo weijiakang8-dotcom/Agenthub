@@ -58,6 +58,10 @@ services:
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_FROM: ${SMTP_FROM:-agenthub@local}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      EMBEDDING_BASE_URL: http://embedding:11434
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text:latest}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
       HF_ENDPOINT: https://hf-mirror.com
@@ -68,6 +72,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      embedding:
+        condition: service_started
     ports:
       - "127.0.0.1:8000:8000"
     networks:
@@ -114,6 +120,10 @@ services:
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_FROM: ${SMTP_FROM:-agenthub@local}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      EMBEDDING_BASE_URL: http://embedding:11434
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text:latest}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-768}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
       OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
       HF_ENDPOINT: https://hf-mirror.com
@@ -124,6 +134,19 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      embedding:
+        condition: service_started
+    networks:
+      - agenthub-network
+
+  embedding:
+    image: ollama/ollama:latest
+    container_name: agenthub-embedding
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
     networks:
       - agenthub-network
 
@@ -187,6 +210,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  ollama_data:
   prometheus_data:
   grafana_data:
 
