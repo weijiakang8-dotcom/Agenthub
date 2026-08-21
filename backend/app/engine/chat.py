@@ -49,9 +49,18 @@ def build_chat_messages(
 async def iter_chat_tokens(
     llms: list,
     messages: list[BaseMessage],
+    *,
+    organization_id: str | None = None,
+    correlation_id: str | None = None,
 ) -> AsyncIterator[str]:
     gateway = ModelGateway()
-    async for token in gateway.stream(llms, messages, task_type="chat"):
+    async for token in gateway.stream(
+        llms,
+        messages,
+        task_type="chat",
+        organization_id=organization_id,
+        correlation_id=correlation_id,
+    ):
         yield token
 
 
