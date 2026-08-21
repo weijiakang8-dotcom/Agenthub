@@ -495,6 +495,27 @@ async def run_execution(execution_id: uuid.UUID) -> None:
             )
             return
         plan_for_state = normalized_plan["steps"]
+    elif execution.plan:
+        # 技能插件模式：对话流注入的 Skill 计划骨架（goal/risk/steps）
+        skill_plan = normalize_plan(execution.plan)
+        if is_plan_invalid(skill_plan):
+            await _update_status(
+                execution_id,
+                ExecutionStatus.FAILED,
+                error_message=(
+                    f"plan_invalid: {skill_plan.get('reason') or 'skill plan invalid'}"
+                ),
+            )
+            await publish_execution_event(
+                str(execution_id),
+                {
+                    "event": "execution_failed",
+                    "error": f"plan_invalid: {skill_plan.get('reason')}",
+                    "error_type": "plan_invalid",
+                },
+            )
+            return
+        plan_for_state = skill_plan["steps"]
 
     initial_state = {
         "messages": _build_initial_messages(

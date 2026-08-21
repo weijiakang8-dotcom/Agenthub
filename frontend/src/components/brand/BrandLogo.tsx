@@ -1,4 +1,11 @@
+import { useEffect, useState } from "react";
+
 import { cn } from "@/lib/utils";
+import {
+  getStoredTheme,
+  THEME_CHANGED_EVENT,
+  type Theme,
+} from "@/lib/theme";
 
 type BrandLogoProps = {
   className?: string;
@@ -31,6 +38,18 @@ const wordmarkImageSize = {
   xl: "h-9 sm:h-10",
 };
 
+/** 主题感知 Logo：白天黑标、黑夜白标（bright 强制白标，用于 Landing 暗色场景）。 */
+function useThemeAwareLogo(): Theme {
+  const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
+  useEffect(() => {
+    const onChange = (event: Event) =>
+      setTheme((event as CustomEvent<Theme>).detail);
+    window.addEventListener(THEME_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, onChange);
+  }, []);
+  return theme;
+}
+
 export function BrandLogo({
   className,
   showWordmark = true,
@@ -40,6 +59,13 @@ export function BrandLogo({
   wordmark = "AgentHub",
   wordmarkImage = false,
 }: BrandLogoProps) {
+  const theme = useThemeAwareLogo();
+  const markSrc = bright
+    ? "/brand/logo-mark-light.png"
+    : theme === "dark"
+      ? "/brand/logo-mark-light.png"
+      : "/brand/logo-mark-dark.png";
+
   return (
     <span
       className={cn(
@@ -51,11 +77,10 @@ export function BrandLogo({
       )}
     >
       <img
-        src="/brand/logo-mark.png"
-        srcSet="/brand/logo-mark@2x.png 2x"
+        src={markSrc}
         alt={wordmark}
         className={cn(
-          "object-contain",
+          "object-contain transition-opacity duration-200",
           markSize[size],
           bright && "brand-mark-bright",
         )}

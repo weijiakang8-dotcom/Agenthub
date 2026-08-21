@@ -31,7 +31,7 @@ from app.engine.runner import build_context_messages
 from app.engine.tasks import evaluate_execution_task, execute_workflow_task
 from app.engine.tools import build_search_query, format_search_results
 from app.memory.service import add_memory, retrieve_memories, summarize_text
-from app.models import Conversation, Execution, Workflow, utcnow
+from app.models import Conversation, Execution, Skill, Workflow, utcnow
 from app.models.enums import ExecutionStatus
 from app.rag.retrieval import retrieve_documents
 
@@ -51,6 +51,9 @@ class ConversationCreate(BaseModel):
 
 class MessageRequest(BaseModel):
     content: str
+    # 聊天模式：chat=纯聊天（不走任务流程）/ agent=多 Agent 协作（默认）/ skills=技能插件
+    mode: str = "agent"
+    skill_id: str | None = None
 
 
 def _serialize(conversation: Conversation) -> dict:
@@ -220,6 +223,8 @@ async def stream_conversation(
             user.organization_id,
             user.id,
             summary,
+            mode=payload.mode,
+            skill_id=payload.skill_id,
         ),
         media_type="text/event-stream",
     )
@@ -400,8 +405,15 @@ async def _conversation_event_stream(
     organization_id: uuid.UUID | None,
     user_id: uuid.UUID | None,
     summary: str | None,
+    *,
+    mode: str = "agent",
+    skill_id: str | None = None,
 ):
-    """Chat 主链路：先分类，任务型走 Agent 队列，其余直接流式回答。"""
+    """Chat 主链路：先分类，任务型走 Agent 队列，其余直接流式回答。
+
+    mode=chat：强制纯聊天（ChatGPT 式，不进入任务流程）；
+    mode=skills：按选定 Skill 的骨架执行（注入 plan + 记录使用）。
+    """
     execution_id_str = str(execution_id)
     yield _sse(
         {
@@ -409,6 +421,7 @@ async def _conversation_event_stream(
             "execution_id": execution_id_str,
             "status": ExecutionStatus.PENDING.value,
             "final_output": None,
+            "mode": mode,
         }
     )
 
@@ -444,7 +457,26 @@ async def _conversation_event_stream(
                 "Explicit memory write failed; continuing chat", exc_info=True
             )
 
-    if decision.runtime == RuntimeKind.AGENT:
+    if decision.runtime == RuntimeKind.AGENT and mode != "chat":
+        # skills 模式：注入选定 Skill 的计划骨架 + 记录使用
+        if mode == "skills" and skill_id:
+            try:
+                skill_uuid = uuid.UUID(skill_id)
+            except ValueError:
+                skill_uuid = None
+            if skill_uuid is not None:
+                async with async_session_factory() as session:
+                    skill = await session.get(Skill, skill_uuid)
+                    if skill is not None and (
+                        skill.organization_id is None
+                        or skill.organization_id == organization_id
+                    ):
+                        execution = await session.get(Execution, execution_id)
+                        if execution is not None:
+                            execution.plan = skill.plan_template
+                        skill.times_used += 1
+                        skill.last_used_at = utcnow()
+                        await session.commit()
         try:
             execute_workflow_task.delay(execution_id_str)
         except Exception as exc:

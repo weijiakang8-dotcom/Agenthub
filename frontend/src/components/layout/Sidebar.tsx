@@ -74,14 +74,14 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
               title={label}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground",
+                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium leading-none text-muted-foreground transition-all duration-200 hover:bg-secondary hover:text-foreground",
                   isActive && "bg-primary/15 text-primary",
-                  collapsed ? "justify-center px-0" : "justify-between",
+                  collapsed ? "justify-center px-0" : "justify-start",
                 )
               }
             >
-              {!collapsed && label}
               <Icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span className="truncate">{label}</span>}
             </NavLink>
           </Hint>
         ))}
