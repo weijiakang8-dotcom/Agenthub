@@ -14,6 +14,7 @@ from app.api.routes import (
     notifications,
     organizations,
     prompts,
+    quotas,
     shadow_audit,
     skills,
     tasks,
@@ -46,6 +47,7 @@ api_router.include_router(memories.router)
 api_router.include_router(notifications.router)
 api_router.include_router(organizations.router)
 api_router.include_router(prompts.router)
+api_router.include_router(quotas.router)
 api_router.include_router(shadow_audit.router)
 api_router.include_router(skills.router)
 api_router.include_router(user_api_keys.router)

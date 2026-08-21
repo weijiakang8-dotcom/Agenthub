@@ -21,6 +21,7 @@ test("authenticated chat page can render a new conversation", async ({
 }) => {
   await page.addInitScript(() => {
     localStorage.setItem("agenthub.access_token", "playwright-e2e-token");
+    localStorage.setItem("agenthub.onboarded", "1");
   });
   await page.route("**/api/conversations", async (route) => {
     if (route.request().method() === "POST") {
@@ -72,4 +73,49 @@ test("authenticated tools page renders the real tool registry", async ({
   await expect(page.getByText("工具注册表")).toBeVisible();
   await expect(page.getByText("query_db")).toBeVisible();
   await expect(page.getByText("必填参数：sql")).toBeVisible();
+});
+
+test("authenticated usage page shows tenant quota", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("agenthub.access_token", "playwright-e2e-token");
+    localStorage.setItem("agenthub.onboarded", "1");
+  });
+  await page.route("**/api/usage", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        total_executions: 1,
+        total_input_tokens: 100,
+        total_output_tokens: 50,
+        total_tokens: 150,
+        total_cost: 0.01,
+        today_tokens: 150,
+        today_cost: 0.01,
+      }),
+    }),
+  );
+  await page.route("**/api/quotas", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        organization_id: "org",
+        monthly_token_used: 300,
+        monthly_token_budget: 1000,
+        monthly_cost_used_cny: 0.5,
+        monthly_cost_budget_cny: 10,
+        concurrent_llm_calls: 1,
+        concurrent_llm_limit: 4,
+        month: "2026-08",
+      }),
+    }),
+  );
+
+  await page.goto("/settings");
+  await page.getByRole("tab", { name: "用量" }).click();
+
+  await expect(page.getByText("预算与并发（2026-08）")).toBeVisible();
+  await expect(page.getByText("本月 Tokens 预算")).toBeVisible();
+  await expect(page.getByText(/300 \/ 1,?000/)).toBeVisible();
 });

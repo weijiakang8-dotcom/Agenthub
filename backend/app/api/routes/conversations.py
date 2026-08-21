@@ -15,6 +15,7 @@ from app.api.deps import CurrentUserDep, SessionDep
 from app.config import settings
 from app.core.billing import estimate_tokens, record_execution_usage
 from app.core.model_gateway import get_chat_models
+from app.core.quota import QuotaExceededError
 from app.database import async_session_factory
 from app.engine import tool_executor
 from app.engine.chat import (
@@ -578,6 +579,29 @@ async def _conversation_event_stream(
                 "execution_id": execution_id_str,
                 "status": ExecutionStatus.COMPLETED.value,
                 "final_output": final_output,
+            }
+        )
+    except QuotaExceededError as exc:
+        message = str(exc)
+        await _finalize_chat_execution(
+            execution_id,
+            conversation_id,
+            None,
+            error=message,
+        )
+        yield _sse(
+            {
+                "event": "error",
+                "execution_id": execution_id_str,
+                "message": message,
+            }
+        )
+        yield _sse(
+            {
+                "event": "done",
+                "execution_id": execution_id_str,
+                "status": ExecutionStatus.FAILED.value,
+                "error_message": message,
             }
         )
     except Exception as exc:

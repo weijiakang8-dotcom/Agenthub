@@ -25,6 +25,16 @@ from app.core.failure import (
     classify_error,
     should_retry,
 )
+from app.core.quota import (
+    QuotaExceededError,
+    acquire_llm_slot,
+    estimate_tokens_for_messages,
+    release_llm_slot,
+    reserve_cost,
+    reserve_tokens,
+    settle_cost,
+    settle_tokens,
+)
 from app.core.security import decrypt_secret
 from app.database import async_session_factory
 from app.engine.observability import record_span
@@ -293,7 +303,29 @@ class ModelGateway:
                 continue
             for attempt in range(LLM_RETRY_POLICY.max_attempts):
                 start = time.perf_counter()
+                slot_acquired = False
+                estimate = 0
+                estimate_cost_cny = 0.0
                 try:
+                    if organization_id:
+                        if not await acquire_llm_slot(organization_id):
+                            raise QuotaExceededError(
+                                "当前租户并发模型调用已达上限，请稍后再试。"
+                            )
+                        slot_acquired = True
+                        estimate = estimate_tokens_for_messages(messages) + int(
+                            getattr(llm, "max_tokens", None) or 4096
+                        )
+                        await reserve_tokens(organization_id, estimate=estimate)
+                        rate = await self._rate_for_model(
+                            self._model_name(llm), organization_id
+                        )
+                        if rate is not None:
+                            estimate_cost_cny = estimate / 1000.0 * rate
+                            await reserve_cost(
+                                organization_id,
+                                estimate_cny=estimate_cost_cny,
+                            )
                     response = await llm.ainvoke(messages)
                     latency = time.perf_counter() - start
                     input_tokens, output_tokens = self._usage(response)
@@ -303,6 +335,17 @@ class ModelGateway:
                         input_tokens,
                         output_tokens,
                     )
+                    if slot_acquired:
+                        await settle_tokens(
+                            organization_id,
+                            estimate=estimate,
+                            actual=input_tokens + output_tokens,
+                        )
+                        await settle_cost(
+                            organization_id,
+                            estimate_cny=estimate_cost_cny,
+                            actual_cny=cost or 0.0,
+                        )
                     llm_breaker.record_success()
                     self._attach_metadata(
                         response,
@@ -343,8 +386,17 @@ class ModelGateway:
                             "streaming": False,
                         },
                     )
+                    if slot_acquired:
+                        await release_llm_slot(organization_id)
                     return response
+                except QuotaExceededError:
+                    if slot_acquired:
+                        await release_llm_slot(organization_id)
+                    raise
                 except Exception as exc:  # noqa: BLE001
+                    if slot_acquired:
+                        await release_llm_slot(organization_id)
+                        slot_acquired = False
                     llm_breaker.record_failure()
                     last_error = exc
                     category = classify_error(exc)
@@ -377,6 +429,8 @@ class ModelGateway:
                         break
                     if attempt + 1 < LLM_RETRY_POLICY.max_attempts:
                         await asyncio.sleep(LLM_RETRY_POLICY.delay(attempt))
+                if slot_acquired:
+                    await release_llm_slot(organization_id)
         raise last_error or RuntimeError("AI 服务暂时不可用，请稍后再试")
 
     async def stream(
@@ -395,7 +449,31 @@ class ModelGateway:
                 continue
             parts: list[str] = []
             start = time.perf_counter()
+            slot_acquired = False
+            estimate = 0
+            estimate_cost_cny = 0.0
+            input_estimate = 0
             try:
+                if organization_id:
+                    if not await acquire_llm_slot(organization_id):
+                        raise QuotaExceededError(
+                            "当前租户并发模型调用已达上限，请稍后再试。"
+                        )
+                    slot_acquired = True
+                    input_estimate = estimate_tokens_for_messages(messages)
+                    estimate = input_estimate + int(
+                        getattr(llm, "max_tokens", None) or 4096
+                    )
+                    await reserve_tokens(organization_id, estimate=estimate)
+                    rate = await self._rate_for_model(
+                        self._model_name(llm), organization_id
+                    )
+                    if rate is not None:
+                        estimate_cost_cny = estimate / 1000.0 * rate
+                        await reserve_cost(
+                            organization_id,
+                            estimate_cny=estimate_cost_cny,
+                        )
                 async for chunk in llm.astream(messages):
                     text = getattr(chunk, "content", None)
                     if isinstance(text, str) and text:
@@ -407,6 +485,17 @@ class ModelGateway:
                 cost = await self._cost_for(
                     self._model_name(llm), organization_id, 0, stream_tokens
                 )
+                if slot_acquired:
+                    await settle_tokens(
+                        organization_id,
+                        estimate=estimate,
+                        actual=input_estimate + stream_tokens,
+                    )
+                    await settle_cost(
+                        organization_id,
+                        estimate_cny=estimate_cost_cny,
+                        actual_cny=cost or 0.0,
+                    )
                 self._record(
                     task_type=task_type,
                     model=self._model_name(llm),
@@ -434,8 +523,17 @@ class ModelGateway:
                         "streaming": True,
                     },
                 )
+                if slot_acquired:
+                    await release_llm_slot(organization_id)
                 return
+            except QuotaExceededError:
+                if slot_acquired:
+                    await release_llm_slot(organization_id)
+                raise
             except Exception as exc:  # noqa: BLE001
+                if slot_acquired:
+                    await release_llm_slot(organization_id)
+                    slot_acquired = False
                 llm_breaker.record_failure()
                 last_error = exc
                 category = classify_error(exc)

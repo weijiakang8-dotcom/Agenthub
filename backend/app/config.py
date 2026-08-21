@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     OPENAI_FALLBACK_MODEL: str = "gpt-4o-mini"
     OTEL_SDK_DISABLED: bool = False
     TAVILY_API_KEY: str = ""
+    # 租户预算（0 = 不限制）：月度 token / 月度成本（CNY）/ 并发模型调用数
+    TENANT_MONTHLY_TOKEN_BUDGET: int = 0
+    TENANT_MONTHLY_COST_BUDGET_CNY: float = 0.0
+    TENANT_MAX_CONCURRENT_LLM_CALLS: int = 0
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""

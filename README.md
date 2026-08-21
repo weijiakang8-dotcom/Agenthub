@@ -32,6 +32,8 @@
   pgvector 余弦检索 → top-k → 上下文注入；生产已重嵌入并验证检索命中。
 - 记忆：长期记忆（显式 save/update/delete + 检索），租户隔离。
 - 成本：模型价格配置 + 每次调用 usage/cost 记录 + 执行预算。
+- 租户预算：月度 token / 成本预算 + 并发模型调用闸门（Redis 原子硬阻断），
+  用量面板可查看（`GET /api/quotas`）。
 - 测试：后端 590 passed / 20 skipped（本地真实 DB）；前端 vitest 22 + Playwright E2E 3；
   迁移全新库 0019 通过；Kernel 单测 102。
 
