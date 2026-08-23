@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' customprotocol: asset:; connect-src 'self' https://synplex.xyz wss://synplex.xyz; img-src 'self' asset: http://asset.localhost blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:"
+      "csp": "default-src 'self' customprotocol: asset:; connect-src 'self' https://synplex.xyz wss://synplex.xyz; img-src 'self' asset: http://asset.localhost blob: data:; media-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:"
     }
   },
   "bundle": {

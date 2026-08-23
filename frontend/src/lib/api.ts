@@ -649,6 +649,20 @@ export const api = {
       { method: "POST" },
     ),
   listUserApiKeys: () => request<UserApiKey[]>("/user-api-keys"),
+  discoverUserModels: (payload: { base_url: string; api_key: string }) =>
+    request<{ base_url: string; models: string[] }>(
+      "/user-api-keys/discover-models",
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+  testUserModelConnection: (payload: {
+    base_url: string;
+    api_key: string;
+    model: string;
+  }) =>
+    request<{ ok: boolean; model: string; preview: string }>(
+      "/user-api-keys/test-connection",
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
   createUserApiKey: (payload: {
     provider: string;
     model: string;
