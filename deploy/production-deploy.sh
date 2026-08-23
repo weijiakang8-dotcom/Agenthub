@@ -4,6 +4,8 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
 COMPOSE="docker compose -f docker/docker-compose.yml"
+# 4C/4G 生产机并行构建 backend/frontend 会触发长时间资源饥饿；串行构建换稳定性。
+export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
 STABLE_FILE="deploy/.last-good-commit"
 
 if ! git fetch origin main || ! git reset --hard origin/main; then
