@@ -36,7 +36,10 @@ export type Execution = {
     task_id?: string;
     capability_id?: string;
   }> | null;
-  token_usage: Record<string, { input_tokens: number; output_tokens: number }> | null;
+  token_usage: Record<
+    string,
+    { input_tokens: number; output_tokens: number }
+  > | null;
   model_used: string[] | null;
 };
 
@@ -60,7 +63,10 @@ export type Trace = {
   status: ExecutionStatus;
   tool_calls: ToolCall[];
   cost?: number | null;
-  token_usage?: Record<string, { input_tokens: number; output_tokens: number }> | null;
+  token_usage?: Record<
+    string,
+    { input_tokens: number; output_tokens: number }
+  > | null;
   model_used?: string[] | null;
   verify_status?: string | null;
   approval_mismatch_count?: number;
@@ -391,8 +397,7 @@ export type Intervention = {
 };
 
 const CONFIGURED_API_BASE = import.meta.env.VITE_API_BASE_URL as
-  | string
-  | undefined;
+  string | undefined;
 export const API_BASE = (CONFIGURED_API_BASE || "/api").replace(/\/$/, "");
 
 export function apiUrl(path: string): string {
@@ -400,7 +405,6 @@ export function apiUrl(path: string): string {
   return `${API_BASE}${normalized}`;
 }
 
-const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY as string | undefined;
 const ACCESS_TOKEN_KEY = "agenthub.access_token";
 const REFRESH_TOKEN_KEY = "agenthub.refresh_token";
 const AUTH_PUBLIC_PATHS = new Set([
@@ -494,7 +498,6 @@ async function performRequest(
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(ADMIN_API_KEY ? { "X-API-Key": ADMIN_API_KEY } : {}),
     },
     ...init,
   });
@@ -734,12 +737,18 @@ export const api = {
       `/dispatch/clarifications${executionId ? `?execution_id=${executionId}` : ""}`,
     ),
   answerClarification: (id: string, answer: string) =>
-    request<{ clarification_id: string; execution_id: string | null; status: string }>(
-      `/dispatch/clarifications/${id}/answer`,
-      { method: "POST", body: JSON.stringify({ answer }) },
-    ),
+    request<{
+      clarification_id: string;
+      execution_id: string | null;
+      status: string;
+    }>(`/dispatch/clarifications/${id}/answer`, {
+      method: "POST",
+      body: JSON.stringify({ answer }),
+    }),
   matchSkills: (input: string) =>
-    request<DispatchAnalysis["skills"]>(`/skills/match?input=${encodeURIComponent(input)}`),
+    request<DispatchAnalysis["skills"]>(
+      `/skills/match?input=${encodeURIComponent(input)}`,
+    ),
   seedPresets: () =>
     request<{ created: number; presets: string[] }>("/skills/seed-presets", {
       method: "POST",
@@ -768,16 +777,20 @@ export const api = {
     request<Skill>(`/skills/growth/${id}/accept`, { method: "POST" }),
   growthReject: (id: string) =>
     request<Skill>(`/skills/growth/${id}/reject`, { method: "POST" }),
-  usageTokens: (days = 30) => request<TokenDashboard>(`/usage/tokens?days=${days}`),
+  usageTokens: (days = 30) =>
+    request<TokenDashboard>(`/usage/tokens?days=${days}`),
   usageSavings: () => request<SavingsSummary>("/usage/savings"),
   agentRoster: () => request<AgentRosterItem[]>("/agent-center"),
   agentVersions: (name: string) =>
     request<AgentVersionItem[]>(`/agent-center/${name}/versions`),
-  agentUpdate: (name: string, payload: {
-    change_note: string;
-    examples?: string[];
-    metrics?: Record<string, unknown> | null;
-  }) =>
+  agentUpdate: (
+    name: string,
+    payload: {
+      change_note: string;
+      examples?: string[];
+      metrics?: Record<string, unknown> | null;
+    },
+  ) =>
     request<{
       ok: boolean;
       id: string;
@@ -790,9 +803,12 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   agentActivate: (versionId: string) =>
-    request<Record<string, unknown>>(`/agent-center/versions/${versionId}/activate`, {
-      method: "POST",
-    }),
+    request<Record<string, unknown>>(
+      `/agent-center/versions/${versionId}/activate`,
+      {
+        method: "POST",
+      },
+    ),
   agentRollback: (name: string) =>
     request<Record<string, unknown>>(`/agent-center/${name}/rollback`, {
       method: "POST",
@@ -815,7 +831,6 @@ export const api = {
       method: "POST",
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(ADMIN_API_KEY ? { "X-API-Key": ADMIN_API_KEY } : {}),
       },
       body: form,
     }).then((res) => {

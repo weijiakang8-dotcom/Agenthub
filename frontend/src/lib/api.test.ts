@@ -59,6 +59,8 @@ describe("api client", () => {
         }),
       }),
     );
+    const request = fetchMock.mock.calls[0]?.[1];
+    expect(new Headers(request?.headers).has("X-API-Key")).toBe(false);
   });
 
   it("turns backend detail into a useful error", async () => {

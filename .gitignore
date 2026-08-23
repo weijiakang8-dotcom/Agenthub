@@ -15,10 +15,10 @@ build/
 dist/
 
 # ===== 环境变量（不提交真实密钥） =====
-.env
-.env.local
-.env.production
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
 
 # ===== Node / 前端 =====
 node_modules/
