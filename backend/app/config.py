@@ -73,8 +73,8 @@ class Settings(BaseSettings):
     BENCHMARK_REPORT_PATH: str = (
         "backend/tests/benchmark/phase1/reports/evaluation_report.json"
     )
-    # 用户反馈收件邮箱（仅站主可见）：反馈提交后即时邮件通知
-    FEEDBACK_NOTIFY_EMAIL: str = "1164980418@qq.com"
+    # 可选的用户反馈通知邮箱；未配置时反馈仍会落库。
+    FEEDBACK_NOTIFY_EMAIL: str = ""
 
     @field_validator("RUNTIME_MODE")
     @classmethod

@@ -61,6 +61,9 @@ def test_submit_feedback_stores_and_emails(monkeypatch):
         return None
 
     monkeypatch.setattr(feedback_module, "send_email", fake_send_email)
+    monkeypatch.setattr(
+        feedback_module.settings, "FEEDBACK_NOTIFY_EMAIL", "owner@example.com"
+    )
     monkeypatch.setattr(FakeSession, "commit", fake_commit)
     # 提交路径使用 async_session_factory（真实 DB），直接真实落库
     client = _client(monkeypatch)
@@ -74,7 +77,7 @@ def test_submit_feedback_stores_and_emails(monkeypatch):
     assert data["notified"] is True
 
     assert len(sent) == 1
-    assert sent[0]["to"] == "1164980418@qq.com"
+    assert sent[0]["to"] == "owner@example.com"
     assert "【AgentHub 用户反馈】" in sent[0]["subject"]
     assert "界面很高级！" in sent[0]["text"]
     assert "user@example.com" in sent[0]["text"]

@@ -1,7 +1,7 @@
 {
   "experiment": "P0-2_EVALUATION",
   "contract": "SAFE_CONTAINED_METRICS_CONTRACT v1",
-  "source": "/Users/weijiakang/agenthub/backend/tests/benchmark/phase1/reports/phase1b_report.json",
+  "source": "backend/tests/benchmark/phase1/reports/phase1b_report.json",
   "generated_at": "2026-08-20T09:04:02.360655+00:00",
   "runs": 416,
   "metrics_per_arm": {

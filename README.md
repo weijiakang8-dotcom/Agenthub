@@ -9,8 +9,9 @@
 
 ## 当前真实能力
 
-> 本文档只描述有代码、测试或生产运行证据的能力；证据等级见
-> [CURRENT_REALITY_BASELINE.md](docs/CURRENT_REALITY_BASELINE.md)。
+> 本文档只描述有代码、测试或运行证据的能力。实现边界见
+> [ARCHITECTURE.md](ARCHITECTURE.md)、[FEATURES.md](docs/FEATURES.md) 与
+> [PROJECT_BOUNDARIES.md](docs/PROJECT_BOUNDARIES.md)。
 
 ### 动态调度中枢（核心，全部闭环）
 
@@ -52,18 +53,37 @@
 
 ## 快速开始（本地）
 
-前置：Docker Desktop。
+前置：Python 3.11+、Node.js 20+、Docker Desktop。
 
 ```bash
 git clone https://github.com/weijiakang8-dotcom/Agenthub.git
 cd Agenthub
-cp .env.example .env          # 填入 OPENAI_API_KEY（DeepSeek 兼容）/ TAVILY_API_KEY 等
+python3.11 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r backend/requirements.txt
+cp .env.example .env          # 填入所需模型和工具凭据
 docker compose -f docker/docker-compose.yml up -d postgres redis mailhog embedding
-cd backend && ../.venv311/bin/python -m alembic upgrade head
-../.venv311/bin/python -m uvicorn app.main:app --port 8000   # 后端
-# 另开 worker（macOS 用 --pool=solo 避免 fork 崩溃；Linux 无需）：
-../.venv311/bin/python -m celery -A app.engine.tasks.celery_app worker --loglevel=warning --pool=solo
-cd ../frontend && npm install && npm run dev               # 前端 http://localhost:5173
+cd backend
+python -m alembic upgrade head
+python -m uvicorn app.main:app --port 8000
+```
+
+另开终端启动 worker：
+
+```bash
+cd Agenthub
+. .venv/bin/activate
+cd backend
+python -m celery -A app.engine.tasks.celery_app worker --loglevel=warning --pool=solo
+```
+
+另开终端启动前端：
+
+```bash
+cd Agenthub/frontend
+npm ci
+npm run dev                    # http://localhost:5173
 ```
 
 登录后：左侧「调度中心」先分析任务 →「新建对话」发布 → 执行全程直播 →「省钱账单」看账。
@@ -109,10 +129,12 @@ recall_executions / send_email`。能力目录：`backend/app/engine/capabilitie
 ## 测试
 
 ```bash
+. .venv/bin/activate
 cd backend
-../.venv311/bin/python -m pytest -q                 # 658 passed / 20 skipped
-../.venv311/bin/python -m pytest -q tests/migration/test_migration_fresh_db.py
+python -m pytest -q
+python -m pytest -q tests/migration/test_migration_fresh_db.py
 cd ../frontend
+npm ci
 npm run typecheck && npm run test:run && npm run lint && npm run build
 npm run test:e2e                                     # 需要本地后端已启动
 ```
@@ -129,7 +151,7 @@ BENCH_REAL_MODELS=1 PHASE1B_MODE=full python -m tests.benchmark.phase1.run_1b
 
 - 生产站：https://synplex.xyz（腾讯云 Ubuntu，Docker Compose）；
 - 部署/回滚：`deploy/production-deploy.sh`（fetch+reset → 构建 → 健康门禁 → 失败自动回滚）；
-  `deploy/rollback.sh`（回上一稳定 commit）；生产已完成 deploy → rollback → redeploy 真实演练；
+  `deploy/rollback.sh`（回上一稳定 commit）；
 - 备份/恢复：`scripts/backup.sh`（pg_dump + gzip，保留 7 份）、`scripts/restore.sh`；
 - GitHub Actions：`ci.yml`（测试/迁移/Playwright）、`deploy.yml`（CI 成功后自动 SSH 部署）、`staging.yml`。
 

@@ -14,7 +14,9 @@ test("login button opens the authentication dialog", async ({ page }) => {
   await page.getByRole("button", { name: "登录" }).click();
 
   await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "登录 AgentHub" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "登录 AgentHub" }),
+  ).toBeVisible();
 });
 
 test("authenticated chat page can render a new conversation", async ({
@@ -100,8 +102,7 @@ test("authenticated usage page shows tenant quota", async ({ page }) => {
     const body = {
       organization_id: "org",
       monthly_token_used: 300,
-      monthly_token_budget:
-        route.request().method() === "PUT" ? 2000 : 1000,
+      monthly_token_budget: route.request().method() === "PUT" ? 2000 : 1000,
       monthly_cost_used_cny: 0.5,
       monthly_cost_budget_cny: 10,
       concurrent_llm_calls: 1,
@@ -171,8 +172,20 @@ test("failed execution can be re-launched with the original task prefilled", asy
         model_used: [],
         side_effect_proposals: [],
         spans: [
-          { span: "intent", status: "ok", latency_ms: 120, model: "deepseek", tokens: 10 },
-          { span: "plan", status: "ok", latency_ms: 80, model: "deepseek", tokens: 8 },
+          {
+            span: "intent",
+            status: "ok",
+            latency_ms: 120,
+            model: "deepseek",
+            tokens: 10,
+          },
+          {
+            span: "plan",
+            status: "ok",
+            latency_ms: 80,
+            model: "deepseek",
+            tokens: 8,
+          },
           { span: "verify", status: "error", latency_ms: 5, error: "UNKNOWN" },
         ],
       }),
@@ -210,16 +223,18 @@ test("failed execution can be re-launched with the original task prefilled", asy
   await page.goto("/executions/exec-failed-1");
 
   await expect(page.getByText("执行失败")).toBeVisible();
-  await expect(page.getByText("approval_mismatch: params mismatch")).toBeVisible();
+  await expect(
+    page.getByText("approval_mismatch: params mismatch"),
+  ).toBeVisible();
   await expect(page.getByText("Span 时间线")).toBeVisible();
   await expect(page.getByText("intent")).toBeVisible();
   await expect(page.getByText("UNKNOWN")).toBeVisible();
   await page.getByRole("button", { name: "重新发起" }).click();
 
   await expect(page).toHaveURL(/\/chat\?draft=/);
-  await expect(
-    page.getByPlaceholder("输入消息，Enter 发送"),
-  ).toHaveValue("发一封测试邮件");
+  await expect(page.getByPlaceholder("输入消息，Enter 发送")).toHaveValue(
+    "发一封测试邮件",
+  );
 });
 
 test("api key can be rotated from settings", async ({ page }) => {
@@ -243,9 +258,7 @@ test("api key can be rotated from settings", async ({ page }) => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify([
-          rotated
-            ? { ...original, api_key_masked: "****9999" }
-            : original,
+          rotated ? { ...original, api_key_masked: "****9999" } : original,
         ]),
       });
     }
@@ -289,7 +302,7 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
     id: "key-user-provider",
     provider: "openai-compatible",
     model: "gpt-5.6-sol",
-    base_url: "http://158.94.173.197:8080/v1",
+    base_url: "https://llm.example.com/v1",
     api_key_masked: "****55a9",
     is_active: true,
     created_at: "2026-08-23T00:00:00Z",
@@ -302,7 +315,7 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        base_url: "http://158.94.173.197:8080/v1",
+        base_url: "https://llm.example.com/v1",
         models: [
           "gpt-5.4",
           "gpt-5.5",
@@ -343,7 +356,7 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
 
   await page.goto("/settings");
   await page.getByRole("tab", { name: "我的密钥" }).click();
-  await page.locator("#key-base-url").fill("http://158.94.173.197:8080/v1");
+  await page.locator("#key-base-url").fill("https://llm.example.com/v1");
   await page.locator("#key-secret").fill("sk-user-test");
   await page.getByRole("button", { name: "检测可用模型" }).click();
 
@@ -355,5 +368,7 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
   await page.getByRole("button", { name: "保存已验证模型" }).click();
 
   await expect(page.getByText("****55a9")).toBeVisible();
-  await expect(page.getByText("模型连接已验证，API Key 已加密保存")).toBeVisible();
+  await expect(
+    page.getByText("模型连接已验证，API Key 已加密保存"),
+  ).toBeVisible();
 });
