@@ -49,7 +49,11 @@ frontend/src-tauri/target/release/bundle/dmg/Synplex AgentHub_1.0.0_aarch64.dmg
 ## 安全与数据
 
 - **项目不使用摄像头/麦克风**：源码无 `getUserMedia`，Info.plist 无 Camera/Microphone 权限；
-  桌面包额外注入媒体 API 拒绝脚本，并设置 CSP `media-src 'none'`。关闭窗口会完全退出进程；
+  桌面包注入媒体 API 拒绝脚本、设置 CSP `media-src 'none'`，并在 vendored WRY 原生层移除
+  `requestMediaCapturePermission` selector（上游默认会 Grant）。关闭窗口会完全退出进程；
+- macOS 的 WKWebView 启动时仍会向 TCC 做 camera/microphone **preflight（仅查询）**；系统日志中
+  `authValue=1 / preflight=yes` 表示权限未决定、未授权，不是录像/录音。若 iPhone 弹出 Continuity
+  Camera 提示可直接关闭，AgentHub 不需要它；
 - JWT 保存在 Tauri WebView 的本地存储空间（与浏览器 localStorage 语义一致，应用间隔离）；
 - API Key 仍由后端加密保存，桌面包内不包含任何密钥；
 - 用户接入模型时先从 `/models` 自动发现真实模型 ID，再用选定模型执行一次最小聊天测试；
