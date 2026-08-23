@@ -6,11 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { AuthModal } from "@/components/AuthModal";
 import { getAccessToken, logout } from "@/lib/api";
-import {
-  getStoredTheme,
-  toggleTheme,
-  type Theme,
-} from "@/lib/theme";
+import { getStoredTheme, toggleTheme, type Theme } from "@/lib/theme";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,9 +80,7 @@ export function Header({
 
       <div className="flex items-center gap-2">
         <Hint
-          label={
-            theme === "dark" ? "切换为浅色日间模式" : "切换为深色夜间模式"
-          }
+          label={theme === "dark" ? "切换为浅色日间模式" : "切换为深色夜间模式"}
         >
           <Button
             variant="ghost"

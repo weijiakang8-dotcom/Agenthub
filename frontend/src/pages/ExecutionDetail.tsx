@@ -74,9 +74,7 @@ export default function ExecutionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [data, setData] = useState<ExecutionDetail | null>(null);
-  const [trace, setTrace] = useState<
-    import("@/lib/api").Trace | null
-  >(null);
+  const [trace, setTrace] = useState<import("@/lib/api").Trace | null>(null);
   const [loading, setLoading] = useState(true);
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [rating, setRating] = useState(5);
@@ -287,7 +285,8 @@ export default function ExecutionDetail() {
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             <span className="text-muted-foreground">
-              实际模型：{data.model_used?.length ? data.model_used.join("、") : "—"}
+              实际模型：
+              {data.model_used?.length ? data.model_used.join("、") : "—"}
             </span>
             <span className="text-muted-foreground">
               耗时：
@@ -330,7 +329,10 @@ export default function ExecutionDetail() {
                   className="flex items-center gap-2 text-xs text-muted-foreground"
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                  {step.name ?? step.task_id ?? step.role ?? `步骤 ${index + 1}`}
+                  {step.name ??
+                    step.task_id ??
+                    step.role ??
+                    `步骤 ${index + 1}`}
                   {step.capability_id ? ` · ${step.capability_id}` : ""}
                 </div>
               ))}
@@ -348,7 +350,9 @@ export default function ExecutionDetail() {
             <div className="rounded-md border border-border/60 p-2">
               <p className="text-muted-foreground">本次成本</p>
               <p className="font-medium">
-                {trace?.cost != null ? `¥${Number(trace.cost).toFixed(6)}` : "—"}
+                {trace?.cost != null
+                  ? `¥${Number(trace.cost).toFixed(6)}`
+                  : "—"}
               </p>
             </div>
             <div className="rounded-md border border-border/60 p-2">
@@ -373,13 +377,15 @@ export default function ExecutionDetail() {
 
           {trace?.verify_status && (
             <div className="rounded-md border border-agent-waiting/30 bg-agent-waiting/10 px-3 py-2 text-xs text-foreground">
-              本次输出未被验证器认证（{trace.verify_status}），业务结果保留但不可宣称“已验证安全”。
+              本次输出未被验证器认证（{trace.verify_status}
+              ），业务结果保留但不可宣称“已验证安全”。
             </div>
           )}
 
           {(trace?.approval_mismatch_count ?? 0) > 0 && (
             <div className="rounded-md border border-agent-failed/30 bg-agent-failed/10 px-3 py-2 text-xs text-foreground">
-              检测到 {trace?.approval_mismatch_count} 次审批不一致：执行已被中止，未产生对应副作用。
+              检测到 {trace?.approval_mismatch_count}{" "}
+              次审批不一致：执行已被中止，未产生对应副作用。
             </div>
           )}
 
@@ -393,7 +399,9 @@ export default function ExecutionDetail() {
                   key={index}
                   className="rounded-md border border-border/60 px-3 py-2 text-xs"
                 >
-                  <span className="font-medium">{proposal.tool ?? proposal.capability}</span>
+                  <span className="font-medium">
+                    {proposal.tool ?? proposal.capability}
+                  </span>
                   {proposal.params ? (
                     <span className="ml-2 text-muted-foreground">
                       {JSON.stringify(proposal.params).slice(0, 180)}
@@ -407,7 +415,9 @@ export default function ExecutionDetail() {
           <Separator />
 
           <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">工具调用轨迹</p>
+            <p className="text-xs font-medium text-muted-foreground">
+              工具调用轨迹
+            </p>
             {trace?.tool_calls.length ? (
               trace.tool_calls.map((tc) => (
                 <div
@@ -420,7 +430,9 @@ export default function ExecutionDetail() {
                       {tc.tool_name}
                       <span className="ml-2 text-muted-foreground">
                         {tc.status}
-                        {formatToolDuration(tc) ? ` · ${formatToolDuration(tc)}` : ""}
+                        {formatToolDuration(tc)
+                          ? ` · ${formatToolDuration(tc)}`
+                          : ""}
                       </span>
                     </p>
                     {tc.input_params ? (

@@ -6,11 +6,12 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
+
 from app.api.routes import documents as documents_routes
 from app.api.routes import eval as eval_routes
 from app.core import notification as notification_routes
 from app.models import Document, EvalDataset, ExecutionStatus
-from fastapi import HTTPException
 
 ORG_ID = uuid.uuid4()
 

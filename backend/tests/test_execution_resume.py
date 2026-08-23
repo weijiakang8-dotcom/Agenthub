@@ -5,10 +5,11 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
+
 from app.api.routes import executions
 from app.models.enums import ExecutionStatus
 from app.schemas.execution import ExecutionResume
-from fastapi import HTTPException
 
 
 class FakeSession:

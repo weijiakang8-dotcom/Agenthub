@@ -9,13 +9,14 @@ from datetime import datetime, timedelta, timezone
 
 import asyncpg
 import pytest
+from langchain_core.messages import AIMessage
+
 from app.config import settings
 from app.core import dlq, production_alerts
 from app.engine import graph as graph_module
 from app.engine import planner, reconciliation, runner
 from app.engine.executor import PlanInvalidError
 from app.engine.tool_executor import make_idempotency_key
-from langchain_core.messages import AIMessage
 
 
 def _sync_url() -> str:
@@ -524,8 +525,9 @@ def test_cost_metering_and_unknown_semantics(monkeypatch):
 
 def test_gateway_cross_provider_fallback_control_flow():
     async def main() -> None:
-        from app.core.model_gateway import ModelGateway
         from langchain_core.messages import HumanMessage
+
+        from app.core.model_gateway import ModelGateway
 
         class FailingLLM:
             model_name = "deepseek-v4-flash"
@@ -571,8 +573,9 @@ def test_gateway_cross_provider_fallback_control_flow():
 
 def test_metrics_endpoint_exposes_production_gauges(monkeypatch):
     async def main() -> None:
-        from app.main import app
         from fastapi.testclient import TestClient
+
+        from app.main import app
 
         metrics = {
             "dlq_count": 7,

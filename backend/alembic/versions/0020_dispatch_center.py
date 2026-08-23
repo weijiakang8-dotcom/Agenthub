@@ -145,7 +145,9 @@ def upgrade() -> None:
             sa.Column("latency_ms", sa.Float(), nullable=False),
             sa.Column("status", sa.String(16), nullable=False),
         )
-        op.create_index("ix_usage_events_execution_id", "usage_events", ["execution_id"])
+        op.create_index(
+            "ix_usage_events_execution_id", "usage_events", ["execution_id"]
+        )
         op.create_index("ix_usage_events_user_id", "usage_events", ["user_id"])
         op.create_index(
             "ix_usage_events_organization_id", "usage_events", ["organization_id"]
@@ -237,7 +239,8 @@ def upgrade() -> None:
 
     # —— skills 扩展列（条件式，缺哪列补哪列）——
     _add_column_if_missing(
-        "skills", sa.Column("source", sa.String(16), nullable=False, server_default="user")
+        "skills",
+        sa.Column("source", sa.String(16), nullable=False, server_default="user"),
     )
     _add_column_if_missing(
         "skills", sa.Column("version", sa.Integer(), nullable=False, server_default="1")
@@ -253,9 +256,12 @@ def upgrade() -> None:
     _add_column_if_missing(
         "skills", sa.Column("trigger", sa.Text(), nullable=False, server_default="")
     )
-    _add_column_if_missing("skills", sa.Column("model_tier_hints", sa.JSON(), nullable=True))
     _add_column_if_missing(
-        "skills", sa.Column("times_used", sa.Integer(), nullable=False, server_default="0")
+        "skills", sa.Column("model_tier_hints", sa.JSON(), nullable=True)
+    )
+    _add_column_if_missing(
+        "skills",
+        sa.Column("times_used", sa.Integer(), nullable=False, server_default="0"),
     )
     _add_column_if_missing(
         "skills", sa.Column("last_used_at", sa.DateTime(timezone=True), nullable=True)
@@ -276,9 +282,11 @@ def downgrade() -> None:
         if table in existing:
             op.drop_table(table)
 
-    skill_cols = {
-        col["name"] for col in inspector.get_columns("skills")
-    } if "skills" in existing else set()
+    skill_cols = (
+        {col["name"] for col in inspector.get_columns("skills")}
+        if "skills" in existing
+        else set()
+    )
     for column in (
         "source",
         "version",

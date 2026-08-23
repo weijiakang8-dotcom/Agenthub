@@ -21,11 +21,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  api,
-  type AgentRosterItem,
-  type AgentVersionItem,
-} from "@/lib/api";
+import { api, type AgentRosterItem, type AgentVersionItem } from "@/lib/api";
 
 const ROLE_ICONS: Record<string, string> = {
   dispatcher: "🧭",
@@ -38,7 +34,9 @@ const ROLE_ICONS: Record<string, string> = {
 
 export default function Agents() {
   const [roster, setRoster] = useState<AgentRosterItem[]>([]);
-  const [versions, setVersions] = useState<Record<string, AgentVersionItem[]>>({});
+  const [versions, setVersions] = useState<Record<string, AgentVersionItem[]>>(
+    {},
+  );
   const [expanded, setExpanded] = useState<string | null>(null);
   const [updating, setUpdating] = useState<AgentRosterItem | null>(null);
   const [changeNote, setChangeNote] = useState("");
@@ -120,7 +118,9 @@ export default function Agents() {
     try {
       const result = await api.agentRollback(name);
       toast.success(
-        result.version ? `已回滚到 v${result.version}` : "已回退到内置默认提示词",
+        result.version
+          ? `已回滚到 v${result.version}`
+          : "已回退到内置默认提示词",
       );
       setVersions((current) => {
         const next = { ...current };
@@ -151,7 +151,8 @@ export default function Agents() {
             Agent 中心
           </CardTitle>
           <CardDescription>
-            平台自带 6 个 Agent 各司其职；它们会从你的使用数据中自更新（候选 → 门禁 → 激活），每一步都有版本、可回滚。
+            平台自带 6 个 Agent 各司其职；它们会从你的使用数据中自更新（候选 →
+            门禁 → 激活），每一步都有版本、可回滚。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -165,8 +166,12 @@ export default function Agents() {
                       {ROLE_ICONS[agent.name]} {agent.name} · {agent.role}
                     </CardTitle>
                     <div className="flex gap-2">
-                      <Badge variant={agent.active_version ? "default" : "outline"}>
-                        {agent.active_version ? `v${agent.active_version} 生效中` : "内置默认"}
+                      <Badge
+                        variant={agent.active_version ? "default" : "outline"}
+                      >
+                        {agent.active_version
+                          ? `v${agent.active_version} 生效中`
+                          : "内置默认"}
                       </Badge>
                     </div>
                   </div>
@@ -176,13 +181,25 @@ export default function Agents() {
                     {agent.active_system_prompt_preview}
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => toggleVersions(agent.name)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => toggleVersions(agent.name)}
+                    >
                       {expanded === agent.name ? "收起版本" : "版本历史"}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setUpdating(agent)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setUpdating(agent)}
+                    >
                       <Wand2 className="mr-1 h-3.5 w-3.5" /> 自更新
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => rollback(agent.name)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => rollback(agent.name)}
+                    >
                       <Undo2 className="mr-1 h-3.5 w-3.5" /> 回滚
                     </Button>
                   </div>
@@ -200,8 +217,16 @@ export default function Agents() {
                         >
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm">v{version.version}</span>
-                              <Badge variant={version.status === "active" ? "default" : "secondary"}>
+                              <span className="font-mono text-sm">
+                                v{version.version}
+                              </span>
+                              <Badge
+                                variant={
+                                  version.status === "active"
+                                    ? "default"
+                                    : "secondary"
+                                }
+                              >
                                 {version.status}
                               </Badge>
                               <span className="text-xs text-muted-foreground">
@@ -212,14 +237,15 @@ export default function Agents() {
                               {version.system_prompt_preview}
                             </p>
                           </div>
-                          {version.status !== "active" && version.status !== "retired" && (
-                            <Button
-                              size="sm"
-                              onClick={() => activate(agent.name, version.id)}
-                            >
-                              激活
-                            </Button>
-                          )}
+                          {version.status !== "active" &&
+                            version.status !== "retired" && (
+                              <Button
+                                size="sm"
+                                onClick={() => activate(agent.name, version.id)}
+                              >
+                                激活
+                              </Button>
+                            )}
                         </div>
                       ))}
                     </div>
@@ -231,7 +257,10 @@ export default function Agents() {
         </CardContent>
       </Card>
 
-      <Dialog open={updating !== null} onOpenChange={(open) => !open && setUpdating(null)}>
+      <Dialog
+        open={updating !== null}
+        onOpenChange={(open) => !open && setUpdating(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -256,7 +285,9 @@ export default function Agents() {
               <Textarea
                 value={examples}
                 onChange={(event) => setExamples(event.target.value)}
-                placeholder={"样本A：三步完成调研并附来源\n样本B：复用技能骨架节省两步"}
+                placeholder={
+                  "样本A：三步完成调研并附来源\n样本B：复用技能骨架节省两步"
+                }
                 rows={4}
               />
             </div>

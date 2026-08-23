@@ -170,7 +170,9 @@ export default function UsagePanel() {
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Token 预算</Label>
+                <Label className="text-xs text-muted-foreground">
+                  Token 预算
+                </Label>
                 <Input
                   type="number"
                   min={0}
@@ -179,7 +181,9 @@ export default function UsagePanel() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">成本预算（¥）</Label>
+                <Label className="text-xs text-muted-foreground">
+                  成本预算（¥）
+                </Label>
                 <Input
                   type="number"
                   min={0}
@@ -189,7 +193,9 @@ export default function UsagePanel() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">并发模型调用</Label>
+                <Label className="text-xs text-muted-foreground">
+                  并发模型调用
+                </Label>
                 <Input
                   type="number"
                   min={0}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from app.kernel.artifact.model import Artifact
 from app.kernel.artifact.store import ArtifactStore
 from app.kernel.capability.contracts import build_standard_registry

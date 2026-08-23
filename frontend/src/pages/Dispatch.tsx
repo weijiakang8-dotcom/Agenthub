@@ -61,9 +61,7 @@ export default function Dispatch() {
     setLoading(true);
     setAnalysis(null);
     try {
-      setAnalysis(
-        await api.analyzeDispatch({ input: input.trim(), tier }),
-      );
+      setAnalysis(await api.analyzeDispatch({ input: input.trim(), tier }));
     } catch (err) {
       toast.error(String(err));
     } finally {
@@ -82,7 +80,9 @@ export default function Dispatch() {
 
   function goChatWithSkill(skillName?: string) {
     const draft = encodeURIComponent(input.trim());
-    navigate(`/chat?draft=${draft}${skillName ? `&skill=${encodeURIComponent(skillName)}` : ""}`);
+    navigate(
+      `/chat?draft=${draft}${skillName ? `&skill=${encodeURIComponent(skillName)}` : ""}`,
+    );
   }
 
   return (
@@ -94,7 +94,8 @@ export default function Dispatch() {
             调度中心
           </CardTitle>
           <CardDescription>
-            发布任务前先分析：复杂度评分、Skill 匹配、每步路由方案——发布后执行全程直播，每步选哪个模型都有理由、有记录。
+            发布任务前先分析：复杂度评分、Skill
+            匹配、每步路由方案——发布后执行全程直播，每步选哪个模型都有理由、有记录。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -148,7 +149,13 @@ export default function Dispatch() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 复杂度评分
-                <Badge variant={analysis.complexity.level === "complex" ? "destructive" : "secondary"}>
+                <Badge
+                  variant={
+                    analysis.complexity.level === "complex"
+                      ? "destructive"
+                      : "secondary"
+                  }
+                >
                   {analysis.complexity.level === "complex" ? "复杂" : "简单"} ·{" "}
                   {(analysis.complexity.score * 100).toFixed(0)} 分
                 </Badge>
@@ -168,8 +175,10 @@ export default function Dispatch() {
                     {FACTOR_LABELS[factor.factor] ?? factor.factor}
                     <span className="ml-2 text-xs">{factor.detail}</span>
                   </span>
-                  <Badge variant="outline">{factor.contribution > 0 ? "+" : ""}
-                    {factor.contribution.toFixed(2)}</Badge>
+                  <Badge variant="outline">
+                    {factor.contribution > 0 ? "+" : ""}
+                    {factor.contribution.toFixed(2)}
+                  </Badge>
                 </div>
               ))}
             </CardContent>
@@ -191,20 +200,35 @@ export default function Dispatch() {
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="truncate font-medium">{skill.name}</span>
-                        <Badge variant="secondary">{(skill.score * 100).toFixed(0)}% 匹配</Badge>
-                        {skill.source === "preset" && <Badge variant="outline">预设</Badge>}
+                        <span className="truncate font-medium">
+                          {skill.name}
+                        </span>
+                        <Badge variant="secondary">
+                          {(skill.score * 100).toFixed(0)}% 匹配
+                        </Badge>
+                        {skill.source === "preset" && (
+                          <Badge variant="outline">预设</Badge>
+                        )}
                       </div>
                       <p className="truncate text-xs text-muted-foreground">
                         {skill.description}
                       </p>
-                      <p className="text-xs text-muted-foreground">{skill.reason}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {skill.reason}
+                      </p>
                     </div>
                     <div className="flex shrink-0 gap-2">
-                      <Button size="sm" variant="outline" onClick={() => adopt(skill.id)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => adopt(skill.id)}
+                      >
                         添加到我的库
                       </Button>
-                      <Button size="sm" onClick={() => goChatWithSkill(skill.name)}>
+                      <Button
+                        size="sm"
+                        onClick={() => goChatWithSkill(skill.name)}
+                      >
                         带它执行 <ArrowRight className="ml-1 h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -234,14 +258,24 @@ export default function Dispatch() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{route.capability}</Badge>
-                        <span className="text-sm font-medium">{route.step_id}</span>
+                        <span className="text-sm font-medium">
+                          {route.step_id}
+                        </span>
                         <Badge
-                          variant={route.complexity === "complex" ? "destructive" : "secondary"}
+                          variant={
+                            route.complexity === "complex"
+                              ? "destructive"
+                              : "secondary"
+                          }
                         >
-                          {route.complexity === "complex" ? "强模型" : "便宜模型"}
+                          {route.complexity === "complex"
+                            ? "强模型"
+                            : "便宜模型"}
                         </Badge>
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">{route.reason}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {route.reason}
+                      </p>
                     </div>
                     <span className="shrink-0 text-sm text-muted-foreground">
                       {(route.score * 100).toFixed(0)} 分
@@ -249,7 +283,8 @@ export default function Dispatch() {
                   </div>
                 ))}
                 <p className="text-xs text-muted-foreground">
-                  执行中每步会按此方案实时选模型；便宜模型失败会自动升级强模型重做该步（每步最多 1 次），全部留痕可查。
+                  执行中每步会按此方案实时选模型；便宜模型失败会自动升级强模型重做该步（每步最多
+                  1 次），全部留痕可查。
                 </p>
               </CardContent>
             </Card>

@@ -110,10 +110,14 @@ export default function Quality() {
                         <td className="py-2 pr-3">{m.sor ?? "—"}%</td>
                         <td className="py-2 pr-3">{m.user ?? "—"}%</td>
                         <td className="py-2 pr-3">
-                          {m.gcr == null ? "N/A" : `${(m.gcr * 100).toFixed(1)}%`}
+                          {m.gcr == null
+                            ? "N/A"
+                            : `${(m.gcr * 100).toFixed(1)}%`}
                         </td>
                         <td className="py-2 pr-3">{m.tool_accuracy ?? "—"}%</td>
-                        <td className="py-2 pr-3">{m.param_accuracy ?? "—"}%</td>
+                        <td className="py-2 pr-3">
+                          {m.param_accuracy ?? "—"}%
+                        </td>
                         <td className="py-2 pr-3">
                           {m.cost_per_safe_success ?? "—"}
                         </td>
@@ -126,12 +130,14 @@ export default function Quality() {
             {benchmark.evidence_chain ? (
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">
-                  证据链：MODEL ERROR → LAYER → BLOCKED/ALLOWED → SIDE EFFECT → SAFE/UNSAFE
+                  证据链：MODEL ERROR → LAYER → BLOCKED/ALLOWED → SIDE EFFECT →
+                  SAFE/UNSAFE
                 </p>
                 {Object.entries(benchmark.evidence_chain).map(([arm, c]) => (
                   <p key={arm} className="text-xs">
-                    Arm {arm}：决策错误 {c.decision_errors} → 被拦截 {c.blocked} → 放行{" "}
-                    {c.allowed} → 不安全副作用 {c.unsafe} → 安全收尾 {c.safe_outcomes}
+                    Arm {arm}：决策错误 {c.decision_errors} → 被拦截 {c.blocked}{" "}
+                    → 放行 {c.allowed} → 不安全副作用 {c.unsafe} → 安全收尾{" "}
+                    {c.safe_outcomes}
                   </p>
                 ))}
               </div>

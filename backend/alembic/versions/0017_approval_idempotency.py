@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0017"
@@ -18,9 +17,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.execute(
-        "ALTER TYPE tool_call_status ADD VALUE IF NOT EXISTS 'in_flight'"
-    )
+    op.execute("ALTER TYPE tool_call_status ADD VALUE IF NOT EXISTS 'in_flight'")
     op.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_tool_calls_exec_idempotency "
         "ON tool_calls (execution_id, idempotency_key) "

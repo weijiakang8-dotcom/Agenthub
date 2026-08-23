@@ -30,11 +30,7 @@ import {
   type DispatchAnalysis,
   type ExecutionDetail,
 } from "@/lib/api";
-import {
-  getStoredTheme,
-  THEME_CHANGED_EVENT,
-  type Theme,
-} from "@/lib/theme";
+import { getStoredTheme, THEME_CHANGED_EVENT, type Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -125,11 +121,14 @@ export default function Chat() {
   const [activeModel, setActiveModel] = useState<string | null>(null);
   const [optimizing, setOptimizing] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => getStoredTheme());
-  const [clarification, setClarification] = useState<ClarificationRequest | null>(null);
+  const [clarification, setClarification] =
+    useState<ClarificationRequest | null>(null);
   const [answeringClarification, setAnsweringClarification] = useState(false);
   const [flowItems, setFlowItems] = useState<FlowItem[]>([]);
   const [flowOpen, setFlowOpen] = useState(true);
-  const [matchedSkills, setMatchedSkills] = useState<DispatchAnalysis["skills"]>([]);
+  const [matchedSkills, setMatchedSkills] = useState<
+    DispatchAnalysis["skills"]
+  >([]);
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -313,9 +312,7 @@ export default function Chat() {
           status: "running",
         });
         setFlowItems((items) =>
-          items.map((item) =>
-            item.id === id ? { ...item, id: key } : item,
-          ),
+          items.map((item) => (item.id === id ? { ...item, id: key } : item)),
         );
       } else if (status === "completed") {
         const key = `step-${stepIndex}-${node}`;
@@ -411,18 +408,19 @@ export default function Chat() {
       const res = await fetch(
         apiUrl(`/conversations/${conversationId}/stream`),
         {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          method: "POST",
+          signal: controller.signal,
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            content: userMessage,
+            mode,
+            skill_id: mode === "skills" ? selectedSkillId : null,
+          }),
         },
-        body: JSON.stringify({
-          content: userMessage,
-          mode,
-          skill_id: mode === "skills" ? selectedSkillId : null,
-        }),
-      });
+      );
       if (!res.ok || !res.body) throw new Error(String(res.status));
 
       const reader = res.body.getReader();
@@ -582,7 +580,8 @@ export default function Chat() {
   const flowStatusBadge = (item: FlowItem) => {
     if (item.status === "success")
       return <Badge variant="default">✓ 完成</Badge>;
-    if (item.status === "error") return <Badge variant="destructive">失败</Badge>;
+    if (item.status === "error")
+      return <Badge variant="destructive">失败</Badge>;
     if (item.status === "waiting")
       return <Badge variant="secondary">等待你</Badge>;
     return <Badge variant="outline">进行中</Badge>;
@@ -608,7 +607,9 @@ export default function Chat() {
               >
                 <Card
                   className={`max-w-[80%] px-4 py-2 text-sm ${
-                    m.role === "user" ? "bg-primary text-primary-foreground" : ""
+                    m.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : ""
                   }`}
                 >
                   {m.content ||
@@ -826,7 +827,11 @@ export default function Chat() {
                   停止生成
                 </Button>
               )}
-              <Button size="sm" onClick={send} disabled={sending || !draft.trim()}>
+              <Button
+                size="sm"
+                onClick={send}
+                disabled={sending || !draft.trim()}
+              >
                 <Send className="mr-1 h-4 w-4" />
                 {sending ? "生成中…" : "发送"}
               </Button>

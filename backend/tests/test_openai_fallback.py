@@ -23,13 +23,18 @@ async def _select(gateway, monkeypatch):
 def test_disabled_secondary_provider_is_skipped(monkeypatch):
     monkeypatch.setattr(settings, "OPENAI_FALLBACK_ENABLED", False)
     clients = asyncio.run(_select(model_gateway.ModelGateway(), monkeypatch))
-    assert all(getattr(c, "openai_api_base", "").startswith("https://api.deepseek") for c in clients)
+    assert all(
+        getattr(c, "openai_api_base", "").startswith("https://api.deepseek")
+        for c in clients
+    )
 
 
 def test_enabled_with_key_appends_openai_client(monkeypatch):
     monkeypatch.setattr(settings, "OPENAI_FALLBACK_ENABLED", True)
     monkeypatch.setattr(settings, "OPENAI_FALLBACK_API_KEY", "sk-test")
-    monkeypatch.setattr(settings, "OPENAI_FALLBACK_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setattr(
+        settings, "OPENAI_FALLBACK_BASE_URL", "https://api.openai.com/v1"
+    )
     monkeypatch.setattr(settings, "OPENAI_FALLBACK_MODEL", "gpt-4o-mini")
     clients = asyncio.run(_select(model_gateway.ModelGateway(), monkeypatch))
     last = clients[-1]
@@ -41,7 +46,10 @@ def test_enabled_without_key_is_skipped_silently(monkeypatch):
     monkeypatch.setattr(settings, "OPENAI_FALLBACK_ENABLED", True)
     monkeypatch.setattr(settings, "OPENAI_FALLBACK_API_KEY", "")
     clients = asyncio.run(_select(model_gateway.ModelGateway(), monkeypatch))
-    assert all(getattr(c, "openai_api_base", "").startswith("https://api.deepseek") for c in clients)
+    assert all(
+        getattr(c, "openai_api_base", "").startswith("https://api.deepseek")
+        for c in clients
+    )
 
 
 def test_primary_failure_falls_back_to_secondary(monkeypatch):

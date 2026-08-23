@@ -25,7 +25,11 @@ def _arm_metrics(records: list[dict]) -> dict:
     serious = sum(len(r["serious_unsafe_event"]) for r in records)
     latencies = [r["latency_ms"] for r in records]
     costs = [r["cost_cny"] for r in records if r["cost_cny"] is not None]
-    safe_costs = [r["cost_cny"] for r in records if r["safe_success"] and r["cost_cny"] is not None]
+    safe_costs = [
+        r["cost_cny"]
+        for r in records
+        if r["safe_success"] and r["cost_cny"] is not None
+    ]
     return {
         "runs": n,
         "safe_success": safe,
@@ -33,9 +37,15 @@ def _arm_metrics(records: list[dict]) -> dict:
         "serious_unsafe_events": serious,
         "serious_unsafe_events_per_100": round(serious / n * 100, 1) if n else 0.0,
         "mean_latency_ms": round(statistics.mean(latencies), 1) if latencies else None,
-        "p95_latency_ms": round(sorted(latencies)[int(len(latencies) * 0.95) - 1], 1) if latencies else None,
+        "p95_latency_ms": (
+            round(sorted(latencies)[int(len(latencies) * 0.95) - 1], 1)
+            if latencies
+            else None
+        ),
         "total_cost_cny": round(sum(costs), 6) if costs else None,
-        "cost_per_safe_success_cny": round(sum(safe_costs) / len(safe_costs), 6) if safe_costs else None,
+        "cost_per_safe_success_cny": (
+            round(sum(safe_costs) / len(safe_costs), 6) if safe_costs else None
+        ),
         "total_input_tokens": sum(r["input_tokens"] for r in records),
         "total_output_tokens": sum(r["output_tokens"] for r in records),
     }
@@ -80,12 +90,16 @@ def _write_report(records: list[dict]) -> Path:
         "records": records,
     }
     json_path = REPORT_DIR / "phase1a_report.json"
-    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    json_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     _write_markdown(payload, metrics, comparisons, records)
     return json_path
 
 
-def _write_markdown(payload: dict, metrics: dict, comparisons: list[dict], records: list[dict]) -> None:
+def _write_markdown(
+    payload: dict, metrics: dict, comparisons: list[dict], records: list[dict]
+) -> None:
     lines: list[str] = []
     add = lines.append
     add("# PHASE1A_REPORT — 真实模型四象限 Benchmark")
@@ -96,7 +110,9 @@ def _write_markdown(payload: dict, metrics: dict, comparisons: list[dict], recor
     add("## 1. Experiment Status")
     completed = sum(1 for r in records if r["success"])
     failed = sum(1 for r in records if not r["success"])
-    add(f"- 60 runs 要求：{len(records)} runs；completed={completed}；failed={failed}；blocked=0")
+    add(
+        f"- 60 runs 要求：{len(records)} runs；completed={completed}；failed={failed}；blocked=0"
+    )
     add("")
     add("## 2. 四象限结果")
     for arm in ("A", "B", "C", "D"):
@@ -110,7 +126,9 @@ def _write_markdown(payload: dict, metrics: dict, comparisons: list[dict], recor
         )
     add("")
     add("## 3. 每 arm 指标")
-    add("| arm | model | SSR | SUE/100 | recovery | mean ms | p95 ms | total cost CNY | cost/SS CNY |")
+    add(
+        "| arm | model | SSR | SUE/100 | recovery | mean ms | p95 ms | total cost CNY | cost/SS CNY |"
+    )
     add("|---|---|---|---|---|---|---|---|---|")
     for arm in ("A", "B", "C", "D"):
         m = metrics[arm]
@@ -124,11 +142,17 @@ def _write_markdown(payload: dict, metrics: dict, comparisons: list[dict], recor
     for task_id in REPRESENTATIVE_1A_TASKS:
         task_records = [r for r in records if r["task_id"] == task_id]
         safe = sum(1 for r in task_records if r["safe_success"])
-        reasons = [f"{r['arm']}:{r['failure_reason']}" for r in task_records if not r["safe_success"]]
+        reasons = [
+            f"{r['arm']}:{r['failure_reason']}"
+            for r in task_records
+            if not r["safe_success"]
+        ]
         add(f"- {task_id}: {safe}/{len(task_records)} safe success；unsafe={reasons}")
     add("")
     add("## 5. 每 trial 结果")
-    add("| task | arm | trial | safe | safety | semantic | tool | terminal | in tok | out tok | cost CNY | ms | reason |")
+    add(
+        "| task | arm | trial | safe | safety | semantic | tool | terminal | in tok | out tok | cost CNY | ms | reason |"
+    )
     add("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     for r in records:
         add(
@@ -142,7 +166,9 @@ def _write_markdown(payload: dict, metrics: dict, comparisons: list[dict], recor
     for r in records:
         if r["safety_failure"]:
             checks = [f"{c['check']}={c['pass']}" for c in r.get("safety_checks", [])]
-            add(f"- {r['task_id']} {r['arm']} trial{r['trial']}: events={r['serious_unsafe_event']} checks={checks}")
+            add(
+                f"- {r['task_id']} {r['arm']} trial{r['trial']}: events={r['serious_unsafe_event']} checks={checks}"
+            )
     add("")
     add("## 7. Semantic failures 明细")
     for r in records:
@@ -158,9 +184,8 @@ def _write_markdown(payload: dict, metrics: dict, comparisons: list[dict], recor
     add("## 9. Layer overhead（ON vs OFF，同模型）")
     for arm_on, arm_off, label in (("B", "A", "flash"), ("D", "C", "pro")):
         on, off = metrics[arm_on], metrics[arm_off]
-        tok_delta = (
-            (on["total_input_tokens"] + on["total_output_tokens"])
-            - (off["total_input_tokens"] + off["total_output_tokens"])
+        tok_delta = (on["total_input_tokens"] + on["total_output_tokens"]) - (
+            off["total_input_tokens"] + off["total_output_tokens"]
         )
         add(
             f"- {label}: tokens {off['total_input_tokens'] + off['total_output_tokens']} → "
@@ -178,8 +203,12 @@ def _write_markdown(payload: dict, metrics: dict, comparisons: list[dict], recor
     add("- 单一 provider 家族（DeepSeek），无跨 provider 对比")
     add("- 副作用为模拟环境，非真实外发")
     add("- 成本按官方 CNY 空闲档（缓存未命中）计算；cost_usd=null")
-    add("- ON 臂使用生产可靠性模块（execute_tool/冻结提案/audit），非完整 LangGraph runner")
-    add("- OFF 臂 Safety Oracle 只判任务级安全（审计/冻结等层级检查仅 ON 生效），避免结构性不公平")
+    add(
+        "- ON 臂使用生产可靠性模块（execute_tool/冻结提案/audit），非完整 LangGraph runner"
+    )
+    add(
+        "- OFF 臂 Safety Oracle 只判任务级安全（审计/冻结等层级检查仅 ON 生效），避免结构性不公平"
+    )
     add("- 结论仅 EXPLORATORY，商业裁决由 Pro/ChatGPT 负责")
     md_path = REPORT_DIR / "PHASE1A_REPORT.md"
     md_path.write_text("\n".join(lines), encoding="utf-8")
@@ -196,7 +225,10 @@ async def main() -> int:
         for arm in ARMS:
             for trial in (1, 2, 3):
                 index += 1
-                print(f"[{index}/{total}] {task_id} arm={arm} trial={trial} ...", flush=True)
+                print(
+                    f"[{index}/{total}] {task_id} arm={arm} trial={trial} ...",
+                    flush=True,
+                )
                 record = await run_trial(task_id, arm, trial)
                 records.append(record)
                 verdict = "SAFE" if record["safe_success"] else "UNSAFE"

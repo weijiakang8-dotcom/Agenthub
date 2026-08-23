@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
-import {
-  getStoredTheme,
-  THEME_CHANGED_EVENT,
-  type Theme,
-} from "@/lib/theme";
+import { getStoredTheme, THEME_CHANGED_EVENT, type Theme } from "@/lib/theme";
 
 type BrandLogoProps = {
   className?: string;

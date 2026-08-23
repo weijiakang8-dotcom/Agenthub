@@ -40,12 +40,15 @@ function Root() {
   // 桌面壳内的外部链接交给系统默认浏览器，避免把主窗口导航离开 AgentHub。
   useEffect(() => {
     const isTauri = Boolean(
-      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__,
+      (window as unknown as { __TAURI_INTERNALS__?: unknown })
+        .__TAURI_INTERNALS__,
     );
     if (!isTauri) return;
     const onClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
-      const anchor = target?.closest("a[href^='http']") as HTMLAnchorElement | null;
+      const anchor = target?.closest(
+        "a[href^='http']",
+      ) as HTMLAnchorElement | null;
       if (!anchor) return;
       event.preventDefault();
       openUrl(anchor.href).catch(() => undefined);

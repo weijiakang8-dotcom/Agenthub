@@ -14,8 +14,9 @@ import re
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from pgvector.sqlalchemy import Vector
+
+from alembic import op
 
 revision: str = "0016"
 down_revision: str | None = "0015"

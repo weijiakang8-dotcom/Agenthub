@@ -101,7 +101,9 @@ export default function Savings() {
               ¥{((savings?.savings ?? 0) / 1).toFixed(4)}
             </p>
             <p className="text-xs text-muted-foreground">
-              {savings ? `${(savings.savings_rate * 100).toFixed(0)}% 成本下降` : ""}
+              {savings
+                ? `${(savings.savings_rate * 100).toFixed(0)}% 成本下降`
+                : ""}
             </p>
           </CardContent>
         </Card>
@@ -128,8 +130,7 @@ export default function Savings() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            近 30 天 token 消耗（按模型）
+            <BarChart3 className="h-5 w-5" />近 30 天 token 消耗（按模型）
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -163,7 +164,10 @@ export default function Savings() {
               ))}
               {!tokens?.models.length && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <TableCell
+                    colSpan={5}
+                    className="text-center text-muted-foreground"
+                  >
                     本周期还没有模型调用记录——去调度中心发一个任务试试。
                   </TableCell>
                 </TableRow>

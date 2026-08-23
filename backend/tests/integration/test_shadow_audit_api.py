@@ -6,14 +6,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
-import app.kernel
 import pytest
+from fastapi import HTTPException
+
+import app.kernel
 from app.adapters import shadow_audit_repository
 from app.api.routes import shadow_audit as shadow_audit_route
 from app.engine import runner
 from app.models import ShadowAuditRecord
 from app.schemas.shadow_audit import ShadowAuditView
-from fastapi import HTTPException
 
 
 def _record() -> SimpleNamespace:

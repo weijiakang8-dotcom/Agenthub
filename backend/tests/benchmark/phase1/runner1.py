@@ -7,7 +7,6 @@ audit_execution_event）；OFF 臂用同一 agent loop 直接调 handler，无�
 from __future__ import annotations
 
 import time
-import uuid
 from typing import Any
 
 import asyncpg
@@ -16,7 +15,6 @@ from app.engine import tool_executor
 from app.engine.approval import build_proposal
 from app.engine.executor import audit_execution_event
 from app.engine.tool_registry import get_tool, register_builtin_tools
-
 from tests.benchmark import db as bench_db
 from tests.benchmark.phase1.fixtures import BusinessFixture, register_phase1_tools
 from tests.benchmark.phase1.gateway import call_action, call_synthesis, call_verify
@@ -49,7 +47,9 @@ def _classify_api_failure(message: str) -> str:
     return "other"
 
 
-def _param_equivalent(task_id: str, actual: dict[str, Any], canonical: dict[str, Any]) -> bool:
+def _param_equivalent(
+    task_id: str, actual: dict[str, Any], canonical: dict[str, Any]
+) -> bool:
     return param_equivalent(task_id, actual, canonical)
 
 
@@ -110,15 +110,39 @@ async def run_trial(task_id: str, arm: str, trial: int) -> dict[str, Any]:
             }
         )
         if not action["ok"]:
-            record["failure_reason"] = f"api_failure:{_classify_api_failure(action['api_failure'])}"
+            record["failure_reason"] = (
+                f"api_failure:{_classify_api_failure(action['api_failure'])}"
+            )
             record["execution_terminal_state"] = "failed"
-            return _finalize(record, task, reliability, fx, usage_list, started, executed_tool, executed_params, final_output)
+            return _finalize(
+                record,
+                task,
+                reliability,
+                fx,
+                usage_list,
+                started,
+                executed_tool,
+                executed_params,
+                final_output,
+            )
 
         tool_calls = action["tool_calls"]
         if len(tool_calls) != 1:
-            record["failure_reason"] = "no_tool_call" if not tool_calls else "multiple_tool_calls"
+            record["failure_reason"] = (
+                "no_tool_call" if not tool_calls else "multiple_tool_calls"
+            )
             record["execution_terminal_state"] = "failed"
-            return _finalize(record, task, reliability, fx, usage_list, started, executed_tool, executed_params, final_output)
+            return _finalize(
+                record,
+                task,
+                reliability,
+                fx,
+                usage_list,
+                started,
+                executed_tool,
+                executed_params,
+                final_output,
+            )
 
         call = tool_calls[0]
         executed_tool = str(call.get("name") or "")
@@ -129,9 +153,16 @@ async def run_trial(task_id: str, arm: str, trial: int) -> dict[str, Any]:
         if reliability == "ON":
             if conn is None:
                 conn = await asyncpg.connect(bench_db.sync_url())
-            org_id, user_id, workflow_id = await bench_db.setup_org(conn, f"p1-{task_id}-{arm}-{trial}")
+            org_id, user_id, workflow_id = await bench_db.setup_org(
+                conn, f"p1-{task_id}-{arm}-{trial}"
+            )
             execution_id = await bench_db.insert_execution(
-                conn, workflow_id, org_id, user_id, status="pending", user_input=task["user_intent"]
+                conn,
+                workflow_id,
+                org_id,
+                user_id,
+                status="pending",
+                user_input=task["user_intent"],
             )
             if task["risk"] == "R2":
                 proposal = build_proposal(
@@ -141,23 +172,39 @@ async def run_trial(task_id: str, arm: str, trial: int) -> dict[str, Any]:
                     params=executed_params,
                 )
                 record["frozen_proposal"] = proposal.to_dict()
-                result = await tool_executor.execute_tool(proposal.tool, proposal.params, execution_id)
+                result = await tool_executor.execute_tool(
+                    proposal.tool, proposal.params, execution_id
+                )
             else:
                 record["frozen_proposal"] = None
-                result = await tool_executor.execute_tool(executed_tool, executed_params, execution_id)
+                result = await tool_executor.execute_tool(
+                    executed_tool, executed_params, execution_id
+                )
             tool_result = result
         else:
             spec = get_tool(executed_tool)
             if spec is None:
                 record["failure_reason"] = "unknown_tool"
                 record["execution_terminal_state"] = "failed"
-                return _finalize(record, task, reliability, fx, usage_list, started, executed_tool, executed_params, final_output)
+                return _finalize(
+                    record,
+                    task,
+                    reliability,
+                    fx,
+                    usage_list,
+                    started,
+                    executed_tool,
+                    executed_params,
+                    final_output,
+                )
             tool_result = await spec.handler(executed_params, None)
 
         if tool_result is None or tool_result.get("status") != "success":
             record["failure_reason"] = f"tool_failed:{str(tool_result or {})[:120]}"
 
-        synthesis = await call_synthesis(llm, task["user_intent"], executed_tool, tool_result or {})
+        synthesis = await call_synthesis(
+            llm, task["user_intent"], executed_tool, tool_result or {}
+        )
         usage_list.append({"step": "synthesis", **synthesis["usage"]})
         record["model_calls"].append(
             {
@@ -169,7 +216,9 @@ async def run_trial(task_id: str, arm: str, trial: int) -> dict[str, Any]:
         )
         final_output = synthesis["text"]
         if not synthesis["ok"]:
-            record["failure_reason"] = f"api_failure:{_classify_api_failure(synthesis['api_failure'])}"
+            record["failure_reason"] = (
+                f"api_failure:{_classify_api_failure(synthesis['api_failure'])}"
+            )
 
         if reliability == "ON":
             verify = await call_verify(llm, task["user_intent"], final_output)
@@ -183,7 +232,9 @@ async def run_trial(task_id: str, arm: str, trial: int) -> dict[str, Any]:
                     "api_failure": verify["api_failure"],
                 }
             )
-            await bench_db.mark_execution(conn, execution_id, "completed", final_output=final_output or None)
+            await bench_db.mark_execution(
+                conn, execution_id, "completed", final_output=final_output or None
+            )
             await audit_execution_event(
                 execution_id=str(execution_id),
                 action="execution_completed",
@@ -192,16 +243,42 @@ async def run_trial(task_id: str, arm: str, trial: int) -> dict[str, Any]:
             )
             evidence = await bench_db.fetch_evidence(conn, execution_id)
             record["audit_evidence"] = evidence["audits"]
-            record["execution_terminal_state"] = evidence["execution"]["status"] if evidence["execution"] else "missing"
+            record["execution_terminal_state"] = (
+                evidence["execution"]["status"] if evidence["execution"] else "missing"
+            )
         else:
-            record["execution_terminal_state"] = "completed" if synthesis["ok"] else "failed"
+            record["execution_terminal_state"] = (
+                "completed" if synthesis["ok"] else "failed"
+            )
 
         record["success"] = True
-        return _finalize(record, task, reliability, fx, usage_list, started, executed_tool, executed_params, final_output)
+        return _finalize(
+            record,
+            task,
+            reliability,
+            fx,
+            usage_list,
+            started,
+            executed_tool,
+            executed_params,
+            final_output,
+        )
     except Exception as exc:  # noqa: BLE001
-        record["failure_reason"] = f"harness_error:{type(exc).__name__}:{str(exc)[:200]}"
+        record["failure_reason"] = (
+            f"harness_error:{type(exc).__name__}:{str(exc)[:200]}"
+        )
         record["execution_terminal_state"] = "failed"
-        return _finalize(record, task, reliability, fx, usage_list, started, executed_tool, executed_params, final_output)
+        return _finalize(
+            record,
+            task,
+            reliability,
+            fx,
+            usage_list,
+            started,
+            executed_tool,
+            executed_params,
+            final_output,
+        )
     finally:
         if conn is not None:
             try:
@@ -229,14 +306,29 @@ def _finalize(
     executed_params: dict[str, Any],
     final_output: str,
 ) -> dict[str, Any]:
-    total_input = sum(int(u.get("input_tokens") or 0) for u in usage_list if u.get("input_tokens") is not None)
-    total_output = sum(int(u.get("output_tokens") or 0) for u in usage_list if u.get("output_tokens") is not None)
-    any_unknown = any(u.get("input_tokens") is None or u.get("output_tokens") is None for u in usage_list)
+    total_input = sum(
+        int(u.get("input_tokens") or 0)
+        for u in usage_list
+        if u.get("input_tokens") is not None
+    )
+    total_output = sum(
+        int(u.get("output_tokens") or 0)
+        for u in usage_list
+        if u.get("output_tokens") is not None
+    )
+    any_unknown = any(
+        u.get("input_tokens") is None or u.get("output_tokens") is None
+        for u in usage_list
+    )
     record["input_tokens"] = total_input
     record["output_tokens"] = total_output
     peak = is_peak_hour()
     record["price_tier"] = "peak" if peak else "offpeak"
-    record["cost_cny"] = None if any_unknown else cost_cny(record["model"], total_input, total_output, peak)
+    record["cost_cny"] = (
+        None
+        if any_unknown
+        else cost_cny(record["model"], total_input, total_output, peak)
+    )
     record["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
     if task["risk"] == "R2":
         record["provider_calls"] = len(fx.sent_emails) + len(fx.finalized_invoices)
@@ -264,5 +356,7 @@ def _finalize(
     record["executed_params"] = executed_params
     record["final_output"] = final_output[:400]
     if record["failure_reason"] is None and not verdict["safe_success"]:
-        record["failure_reason"] = "safety_failure" if not verdict["safety_pass"] else "semantic_failure"
+        record["failure_reason"] = (
+            "safety_failure" if not verdict["safety_pass"] else "semantic_failure"
+        )
     return record

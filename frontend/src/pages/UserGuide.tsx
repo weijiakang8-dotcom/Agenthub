@@ -254,13 +254,17 @@ export default function UserGuide() {
             任务自动拆解 → 调度/规划/执行/验证/澄清/记账 6 个 Agent 按需分工，
             Skill 匹配为你选最合适的流程骨架。
           </CapabilityCard>
-          <CapabilityCard icon={RefreshCcw} title="动态换岗（Dynamic Role Switching）">
-            意图路由 + 复杂度评分决定每步"谁来干"；执行中可弹选项澄清、断点恢复，
+          <CapabilityCard
+            icon={RefreshCcw}
+            title="动态换岗（Dynamic Role Switching）"
+          >
+            意图路由 +
+            复杂度评分决定每步"谁来干"；执行中可弹选项澄清、断点恢复，
             任务不中断。
           </CapabilityCard>
           <CapabilityCard icon={Layers} title="能力复用（Capability Reuse）">
-            自成长 Skill：同类任务做多了自动打包成候选技能；RAG 知识库 + 长期记忆 +
-            历史执行召回跨任务复用；模型绩效档案让路由越用越准。
+            自成长 Skill：同类任务做多了自动打包成候选技能；RAG 知识库 +
+            长期记忆 + 历史执行召回跨任务复用；模型绩效档案让路由越用越准。
           </CapabilityCard>
           <CapabilityCard icon={Workflow} title="Workflow">
             用节点和连线搭建可复用的任务流水线。
