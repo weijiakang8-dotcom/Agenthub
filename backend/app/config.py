@@ -24,7 +24,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     ADMIN_API_KEY: str = ""
     JWT_SECRET_KEY: str = "change-me-in-production"
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:8080"
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,http://localhost:8080,"
+        "tauri://localhost,http://tauri.localhost,https://tauri.localhost"
+    )
     REPLICA_DATABASE_URL: str = ""
     LLM_BASE_URL: str = "https://api.deepseek.com/v1"
     LLM_MODEL: str = "deepseek-v4-flash"

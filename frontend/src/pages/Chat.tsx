@@ -23,7 +23,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { api, getAccessToken, type DispatchAnalysis, type ExecutionDetail } from "@/lib/api";
+import {
+  api,
+  apiUrl,
+  getAccessToken,
+  type DispatchAnalysis,
+  type ExecutionDetail,
+} from "@/lib/api";
 import {
   getStoredTheme,
   THEME_CHANGED_EVENT,
@@ -402,7 +408,9 @@ export default function Chat() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const res = await fetch(`/api/conversations/${conversationId}/stream`, {
+      const res = await fetch(
+        apiUrl(`/conversations/${conversationId}/stream`),
+        {
         method: "POST",
         signal: controller.signal,
         headers: {

@@ -68,10 +68,22 @@ cd ../frontend && npm install && npm run dev               # 前端 http://local
 
 登录后：左侧「调度中心」先分析任务 →「新建对话」发布 → 执行全程直播 →「省钱账单」看账。
 
+## macOS 桌面客户端
+
+桌面客户端采用 Tauri v2，完整复用 React 前端并直接连接 `https://synplex.xyz/api`，本机无需 Docker：
+
+```bash
+cd frontend
+npm run desktop:dev     # 开发
+npm run desktop:build   # 生成 .app + .dmg
+```
+
+详见 [docs/DESKTOP_CLIENT.md](docs/DESKTOP_CLIENT.md)。
+
 ## 技术栈
 
 - 后端：Python 3.11 / FastAPI / SQLAlchemy(asyncpg) / LangGraph / Celery / Redis；
-- 数据：PostgreSQL 16 + pgvector；Alembic head `0020`；Embedding：Ollama `nomic-embed-text`；
+- 数据：PostgreSQL 16 + pgvector；Alembic head `0021`；Embedding：Ollama `nomic-embed-text`；
 - 模型：DeepSeek（OpenAI 兼容端点）；Model Gateway 统一路由/重试/回退/成本；
 - 前端：React + Vite + TypeScript + Tailwind + Radix（深色/浅色双主题）；
 - 部署：Docker Compose（backend/worker/frontend/postgres/redis/mailhog/embedding + 监控栈）。

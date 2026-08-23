@@ -13,14 +13,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getAccessToken } from "@/lib/api";
+import { apiUrl, getAccessToken } from "@/lib/api";
 
 async function submitFeedback(
   content: string,
   contact: string,
 ): Promise<{ ok: boolean }> {
   const token = getAccessToken();
-  const res = await fetch("/api/feedback", {
+  const res = await fetch(apiUrl("/feedback"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

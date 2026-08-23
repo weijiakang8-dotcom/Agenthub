@@ -390,7 +390,16 @@ export type Intervention = {
   created_at: string;
 };
 
-const BASE = "/api";
+const CONFIGURED_API_BASE = import.meta.env.VITE_API_BASE_URL as
+  | string
+  | undefined;
+export const API_BASE = (CONFIGURED_API_BASE || "/api").replace(/\/$/, "");
+
+export function apiUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${normalized}`;
+}
+
 const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY as string | undefined;
 const ACCESS_TOKEN_KEY = "agenthub.access_token";
 const REFRESH_TOKEN_KEY = "agenthub.refresh_token";
@@ -452,7 +461,7 @@ async function refreshAccessToken(): Promise<string | null> {
       const refreshToken = getRefreshToken();
       if (!refreshToken) return null;
       try {
-        const res = await fetch(`${BASE}/auth/refresh`, {
+        const res = await fetch(apiUrl("/auth/refresh"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -481,7 +490,7 @@ async function performRequest(
   init?: RequestInit,
 ): Promise<Response> {
   const token = getAccessToken();
-  return fetch(`${BASE}${path}`, {
+  return fetch(apiUrl(path), {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -788,7 +797,7 @@ export const api = {
     const form = new FormData();
     form.append("file", file);
     const token = getAccessToken();
-    return fetch(`${BASE}/documents/upload`, {
+    return fetch(apiUrl("/documents/upload"), {
       method: "POST",
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
