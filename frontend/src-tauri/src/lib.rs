@@ -37,9 +37,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if window.label() == "main" {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    let _ = window.hide();
-                    api.prevent_close();
+                if let WindowEvent::CloseRequested { .. } = event {
+                    // 本产品不需要后台驻留；关闭窗口即完全退出，避免隐蔽资源占用。
+                    window.app_handle().exit(0);
                 }
             }
         })
