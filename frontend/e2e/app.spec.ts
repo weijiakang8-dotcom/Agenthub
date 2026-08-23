@@ -276,3 +276,84 @@ test("api key can be rotated from settings", async ({ page }) => {
   await expect(page.getByText("****9999")).toBeVisible();
   await expect(page.getByText("API Key 已轮换")).toBeVisible();
 });
+
+test("user discovers, tests and saves an OpenAI-compatible model", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("agenthub.access_token", "playwright-e2e-token");
+    localStorage.setItem("agenthub.onboarded", "1");
+  });
+  let saved = false;
+  const savedKey = {
+    id: "key-user-provider",
+    provider: "openai-compatible",
+    model: "gpt-5.6-sol",
+    base_url: "http://158.94.173.197:8080/v1",
+    api_key_masked: "****55a9",
+    is_active: true,
+    created_at: "2026-08-23T00:00:00Z",
+  };
+  await page.route("**/api/models", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
+  await page.route("**/api/user-api-keys/discover-models", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        base_url: "http://158.94.173.197:8080/v1",
+        models: [
+          "gpt-5.4",
+          "gpt-5.5",
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-5.6-terra",
+          "gpt-image-2",
+        ],
+      }),
+    }),
+  );
+  await page.route("**/api/user-api-keys/test-connection", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        model: "gpt-5.6-sol",
+        preview: "OK",
+      }),
+    }),
+  );
+  await page.route("**/api/user-api-keys", async (route) => {
+    if (route.request().method() === "POST") {
+      saved = true;
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify(savedKey),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(saved ? [savedKey] : []),
+    });
+  });
+
+  await page.goto("/settings");
+  await page.getByRole("tab", { name: "我的密钥" }).click();
+  await page.locator("#key-base-url").fill("http://158.94.173.197:8080/v1");
+  await page.locator("#key-secret").fill("sk-user-test");
+  await page.getByRole("button", { name: "检测可用模型" }).click();
+
+  await expect(page.locator("#key-model")).toHaveValue("gpt-5.6-sol");
+  await page.getByRole("button", { name: "测试连接" }).click();
+  await expect(
+    page.getByText("gpt-5.6-sol 连接成功 · OK", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "保存已验证模型" }).click();
+
+  await expect(page.getByText("****55a9")).toBeVisible();
+  await expect(page.getByText("模型连接已验证，API Key 已加密保存")).toBeVisible();
+});
