@@ -46,22 +46,23 @@ async def submit_feedback(payload: FeedbackCreate, request: Request) -> dict:
         session.add(Feedback(content=content, contact=contact, ip_address=ip_address))
         await session.commit()
 
-    email_result = {"ok": False, "error": "email service is not configured"}
-    try:
-        email_result = await send_email(
-            to=settings.FEEDBACK_NOTIFY_EMAIL,
-            subject="【AgentHub 用户反馈】新的反馈来啦",
-            text=(
-                f"收到一条新的用户反馈：\n\n"
-                f"{content}\n\n"
-                f"联系方式：{contact or '（未填写）'}\n"
-                f"IP：{ip_address}\n"
-                f"时间：{datetime.now(timezone.utc).isoformat()}"
-            ),
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("feedback email failed: %s", exc)
-        email_result = {"ok": False, "error": str(exc)}
+    email_result = {"ok": False, "error": "feedback email is not configured"}
+    if settings.FEEDBACK_NOTIFY_EMAIL:
+        try:
+            email_result = await send_email(
+                to=settings.FEEDBACK_NOTIFY_EMAIL,
+                subject="【AgentHub 用户反馈】新的反馈来啦",
+                text=(
+                    f"收到一条新的用户反馈：\n\n"
+                    f"{content}\n\n"
+                    f"联系方式：{contact or '（未填写）'}\n"
+                    f"IP：{ip_address}\n"
+                    f"时间：{datetime.now(timezone.utc).isoformat()}"
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("feedback email failed: %s", exc)
+            email_result = {"ok": False, "error": str(exc)}
     logger.info(
         "feedback submitted (email=%s): %s",
         email_result.get("ok"),

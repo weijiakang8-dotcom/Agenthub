@@ -1,6 +1,6 @@
 # P0-2 任务级 Evaluation 报告
 
-- 契约：SAFE_CONTAINED_METRICS_CONTRACT v1；数据源：/Users/weijiakang/agenthub/backend/tests/benchmark/phase1/reports/phase1b_report.json；runs=416；生成时间：2026-08-20T09:04:02.360655+00:00
+- 契约：SAFE_CONTAINED_METRICS_CONTRACT v1；数据源：backend/tests/benchmark/phase1/reports/phase1b_report.json；runs=416；生成时间：2026-08-20T09:04:02.360655+00:00
 
 ## 每 arm 指标
 | arm | SSR=BCR (95% CI) | SOR | USER | GCR | Tool Acc | Param Acc | Step Order | Safe Refusal | Cost/SS | Cost/SO | Cost/Contained | p95 ms |

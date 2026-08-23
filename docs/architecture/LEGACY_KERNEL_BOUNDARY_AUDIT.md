@@ -4,7 +4,7 @@
 
 ## A. Legacy Execution 对应 Kernel 中什么
 
-- Legacy `Execution`（[execution.py](/Users/weijiakang/agenthub/backend/app/models/execution.py:28)）是一次"工作流实例运行"，不是 Kernel Task。
+- Legacy `Execution`（`backend/app/models/execution.py`）是一次"工作流实例运行"，不是 Kernel Task。
 - 对应关系：`LegacyExecution` → Adapter → `RuntimeInput`（`initial_state + plan + goal`）。
 - `Execution.user_input` → Kernel 输入 Artifact（`L2_SUPPORTED`）。
 - `Execution.final_output` → Kernel `Artifact`（`L1_INFERRED`，LLM 输出），**不是 Observation**。
@@ -12,14 +12,14 @@
 
 ## B. Legacy Workflow 对应 Kernel 中什么
 
-- Legacy `Workflow`（[workflow.py](/Users/weijiakang/agenthub/backend/app/models/workflow.py:16)）= 静态 DAG/agent_chain，绑定 Agent/角色。
+- Legacy `Workflow`（`backend/app/models/workflow.py`）= 静态 DAG/agent_chain，绑定 Agent/角色。
 - 对应关系：`Workflow` → Adapter → `Plan`（Tasks + Dependencies），**不绑定 Agent**。
 - `agent_chain` 中的 Agent 身份是 orchestration metadata，迁移时留在 Adapter/Legacy 层。
 - `dag_definition` 的 node 可映射为 `Task`，但 node 的 `research/analyze/execute` 角色不能进入 Task。
 
 ## C. Legacy Agent 对应 Kernel 中什么
 
-- Legacy `Agent`（[agent.py](/Users/weijiakang/agenthub/backend/app/models/agent.py:10)）= name/system_prompt/tools，无 Kernel 执行语义。
+- Legacy `Agent`（`backend/app/models/agent.py`）= name/system_prompt/tools，无 Kernel 执行语义。
 - Kernel 没有 Agent。Agent 只能决定"谁执行 Task"，不能改变 Task/Capability/Goal/Evidence/Observation。
 - 迁移时 `system_prompt`/`name`/`model` 保留在 Adapter/Legacy 层，不得写进 `Task`。
 
