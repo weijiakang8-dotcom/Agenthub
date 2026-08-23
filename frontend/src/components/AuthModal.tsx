@@ -380,7 +380,9 @@ export function AuthModal({
                     <Hint label={showConfirmPassword ? "隐藏密码" : "显示密码"}>
                       <button
                         type="button"
-                        aria-label={showConfirmPassword ? "隐藏密码" : "显示密码"}
+                        aria-label={
+                          showConfirmPassword ? "隐藏密码" : "显示密码"
+                        }
                         onClick={() => setShowConfirmPassword((v) => !v)}
                         className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
                       >

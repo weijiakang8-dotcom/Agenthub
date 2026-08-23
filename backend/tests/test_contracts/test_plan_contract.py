@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 
-from app.engine import planner
 from langchain_core.messages import AIMessage
+
+from app.engine import planner
 
 
 def test_max_steps_is_six():

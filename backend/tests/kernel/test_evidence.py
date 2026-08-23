@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from app.kernel.evidence.model import (
     EvidenceEventType,
     EvidenceLevel,

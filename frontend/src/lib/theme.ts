@@ -22,6 +22,8 @@ export function storeTheme(theme: Theme): void {
 export function toggleTheme(current: Theme): Theme {
   const next: Theme = current === "dark" ? "light" : "dark";
   storeTheme(next);
-  window.dispatchEvent(new CustomEvent<Theme>(THEME_CHANGED_EVENT, { detail: next }));
+  window.dispatchEvent(
+    new CustomEvent<Theme>(THEME_CHANGED_EVENT, { detail: next }),
+  );
   return next;
 }

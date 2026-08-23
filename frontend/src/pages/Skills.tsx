@@ -33,12 +33,16 @@ export default function Skills() {
   const navigate = useNavigate();
   const [skills, setSkills] = useState<Skill[]>([]);
   const [proposals, setProposals] = useState<GrowthProposal[]>([]);
-  const [patterns, setPatterns] = useState<Array<{ task_type: string; capability: string; calls: number }>>([]);
+  const [patterns, setPatterns] = useState<
+    Array<{ task_type: string; capability: string; calls: number }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [goalJson, setGoalJson] = useState('{"predicate":"observation_exists","required_evidence":"L3_OBSERVED"}');
+  const [goalJson, setGoalJson] = useState(
+    '{"predicate":"observation_exists","required_evidence":"L3_OBSERVED"}',
+  );
   const [planJson, setPlanJson] = useState(
     JSON.stringify(
       {
@@ -143,7 +147,10 @@ export default function Skills() {
     }
   }
 
-  function parseJson(text: string, label: string): Record<string, unknown> | null {
+  function parseJson(
+    text: string,
+    label: string,
+  ): Record<string, unknown> | null {
     try {
       return JSON.parse(text) as Record<string, unknown>;
     } catch {
@@ -182,9 +189,15 @@ export default function Skills() {
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="text-base">{skill.name}</CardTitle>
             <div className="flex shrink-0 gap-1">
-              {skill.source === "preset" && <Badge variant="outline">预设</Badge>}
-              {skill.source === "auto" && <Badge variant="secondary">自成长</Badge>}
-              {skill.status === "proposed" && <Badge variant="secondary">候选</Badge>}
+              {skill.source === "preset" && (
+                <Badge variant="outline">预设</Badge>
+              )}
+              {skill.source === "auto" && (
+                <Badge variant="secondary">自成长</Badge>
+              )}
+              {skill.status === "proposed" && (
+                <Badge variant="secondary">候选</Badge>
+              )}
               {skill.times_used > 0 && (
                 <Badge variant="outline">用过 {skill.times_used} 次</Badge>
               )}
@@ -196,7 +209,8 @@ export default function Skills() {
         </CardHeader>
         <CardContent className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">
-            v{skill.version} · {skill.runtime === "agent" ? "调度中心" : "确定性内核"}
+            v{skill.version} ·{" "}
+            {skill.runtime === "agent" ? "调度中心" : "确定性内核"}
           </span>
           <div className="flex gap-2">
             {owned ? (
@@ -205,21 +219,34 @@ export default function Skills() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    const input = window.prompt("输入任务，用这个 Skill 执行：");
-                    if (input) api.executeSkill(skill.id, input).then(() => {
-                      toast.success("已提交执行");
-                      navigate("/executions");
-                    }).catch((err) => toast.error(String(err)));
+                    const input =
+                      window.prompt("输入任务，用这个 Skill 执行：");
+                    if (input)
+                      api
+                        .executeSkill(skill.id, input)
+                        .then(() => {
+                          toast.success("已提交执行");
+                          navigate("/executions");
+                        })
+                        .catch((err) => toast.error(String(err)));
                   }}
                 >
                   <Play className="mr-1 h-3.5 w-3.5" /> 执行
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => remove(skill.id)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => remove(skill.id)}
+                >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </>
             ) : (
-              <Button size="sm" variant="outline" onClick={() => adopt(skill.id)}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => adopt(skill.id)}
+              >
                 <Plus className="mr-1 h-3.5 w-3.5" /> 添加到我的库
               </Button>
             )}
@@ -239,7 +266,9 @@ export default function Skills() {
   }
 
   const mine = skills.filter((skill) => skill.organization_id !== null);
-  const presets = skills.filter((skill) => skill.organization_id === null && skill.source === "preset");
+  const presets = skills.filter(
+    (skill) => skill.organization_id === null && skill.source === "preset",
+  );
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
@@ -260,20 +289,38 @@ export default function Skills() {
             <CardContent className="space-y-3">
               <div className="space-y-1">
                 <Label>名称</Label>
-                <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：每周竞品周报" />
+                <Input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="例如：每周竞品周报"
+                />
               </div>
               <div className="space-y-1">
                 <Label>描述</Label>
-                <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} />
+                <Textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  rows={2}
+                />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label>Goal（JSON）</Label>
-                  <Textarea value={goalJson} onChange={(event) => setGoalJson(event.target.value)} rows={6} className="font-mono text-xs" />
+                  <Textarea
+                    value={goalJson}
+                    onChange={(event) => setGoalJson(event.target.value)}
+                    rows={6}
+                    className="font-mono text-xs"
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label>Plan 模板（JSON）</Label>
-                  <Textarea value={planJson} onChange={(event) => setPlanJson(event.target.value)} rows={6} className="font-mono text-xs" />
+                  <Textarea
+                    value={planJson}
+                    onChange={(event) => setPlanJson(event.target.value)}
+                    rows={6}
+                    className="font-mono text-xs"
+                  />
                 </div>
               </div>
               <Button onClick={create} disabled={creating}>
@@ -298,7 +345,8 @@ export default function Skills() {
         <TabsContent value="presets" className="space-y-4">
           <div className="flex justify-between">
             <p className="text-sm text-muted-foreground">
-              常用任务的开箱即用模板包（WorkBuddy 式）。添加到你的库后可以随使用不断进化。
+              常用任务的开箱即用模板包（WorkBuddy
+              式）。添加到你的库后可以随使用不断进化。
             </p>
             <Button variant="outline" size="sm" onClick={seedPresets}>
               <Sparkles className="mr-1 h-3.5 w-3.5" /> 播种预设包
@@ -320,9 +368,15 @@ export default function Skills() {
         <TabsContent value="growth" className="space-y-4">
           <div className="flex justify-between">
             <p className="text-sm text-muted-foreground">
-              平台观察你的使用习惯，把反复出现且成功率高的任务模式打包成候选 Skill——你点头才生效。
+              平台观察你的使用习惯，把反复出现且成功率高的任务模式打包成候选
+              Skill——你点头才生效。
             </p>
-            <Button variant="outline" size="sm" onClick={runGrowth} disabled={scanning}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={runGrowth}
+              disabled={scanning}
+            >
               {scanning ? (
                 <>
                   <RefreshCw className="mr-1 h-3.5 w-3.5 animate-spin" /> 扫描中
@@ -337,11 +391,16 @@ export default function Skills() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">平台看见的你的任务模式</CardTitle>
+              <CardTitle className="text-base">
+                平台看见的你的任务模式
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {patterns.map((pattern) => (
-                <div key={`${pattern.task_type}-${pattern.capability}`} className="flex items-center justify-between text-sm">
+                <div
+                  key={`${pattern.task_type}-${pattern.capability}`}
+                  className="flex items-center justify-between text-sm"
+                >
                   <span className="font-mono text-xs text-muted-foreground">
                     {pattern.task_type} · {pattern.capability || "—"}
                   </span>
@@ -349,7 +408,9 @@ export default function Skills() {
                 </div>
               ))}
               {patterns.length === 0 && (
-                <p className="text-xs text-muted-foreground">还没有足够的使用数据——多执行几个任务再来看看。</p>
+                <p className="text-xs text-muted-foreground">
+                  还没有足够的使用数据——多执行几个任务再来看看。
+                </p>
               )}
             </CardContent>
           </Card>
@@ -359,13 +420,19 @@ export default function Skills() {
               <Card key={proposal.id}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">{proposal.name}</CardTitle>
-                  <CardDescription className="line-clamp-3">{proposal.description}</CardDescription>
+                  <CardDescription className="line-clamp-3">
+                    {proposal.description}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="flex gap-2">
                   <Button size="sm" onClick={() => acceptGrowth(proposal.id)}>
                     <Check className="mr-1 h-3.5 w-3.5" /> 采纳
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => rejectGrowth(proposal.id)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => rejectGrowth(proposal.id)}
+                  >
                     <X className="mr-1 h-3.5 w-3.5" /> 忽略
                   </Button>
                 </CardContent>
@@ -374,7 +441,8 @@ export default function Skills() {
             {proposals.length === 0 && (
               <Card className="sm:col-span-2">
                 <CardContent className="pt-6 text-center text-sm text-muted-foreground">
-                  暂无候选：同类任务出现 3 次以上且成功率达标时，会自动出现在这里。
+                  暂无候选：同类任务出现 3
+                  次以上且成功率达标时，会自动出现在这里。
                 </CardContent>
               </Card>
             )}

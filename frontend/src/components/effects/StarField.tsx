@@ -52,10 +52,18 @@ export function StarField({ className }: { className?: string }) {
           star.x = Math.random();
         }
         const twinkle =
-          0.35 + 0.65 * (0.5 + 0.5 * Math.sin(now * 0.001 * star.speed + star.phase));
+          0.35 +
+          0.65 * (0.5 + 0.5 * Math.sin(now * 0.001 * star.speed + star.phase));
         const x = star.x * width;
         const y = star.y * height;
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, star.radius * 3);
+        const gradient = ctx.createRadialGradient(
+          x,
+          y,
+          0,
+          x,
+          y,
+          star.radius * 3,
+        );
         gradient.addColorStop(0, `rgba(255,255,255,${0.85 * twinkle})`);
         gradient.addColorStop(0.4, `rgba(190,220,255,${0.28 * twinkle})`);
         gradient.addColorStop(1, "rgba(0,0,0,0)");

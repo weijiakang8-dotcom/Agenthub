@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 ACTION_SYSTEM_PROMPT = (
     "你是 AgentHub 的业务执行 Agent。根据用户请求，从给定工具中选择并填写参数。"
@@ -43,7 +43,10 @@ async def call_action(
     bound = llm.bind_tools(tool_schemas)
     try:
         response: AIMessage = await bound.ainvoke(
-            [SystemMessage(content=ACTION_SYSTEM_PROMPT), HumanMessage(content=user_intent)]
+            [
+                SystemMessage(content=ACTION_SYSTEM_PROMPT),
+                HumanMessage(content=user_intent),
+            ]
         )
         return {
             "ok": True,

@@ -5,10 +5,11 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
+
 from app.api.routes import executions, skills, user_api_keys
 from app.core import model_gateway, security
 from app.models import UserApiKey
-from fastapi import HTTPException
 
 
 def _user(organization_id=None):

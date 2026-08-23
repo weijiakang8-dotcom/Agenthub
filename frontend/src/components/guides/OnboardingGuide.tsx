@@ -82,10 +82,7 @@ export function OnboardingGuide() {
         </div>
 
         <DialogFooter className="sm:justify-between">
-          <Button
-            variant="ghost"
-            onClick={close}
-          >
+          <Button variant="ghost" onClick={close}>
             跳过
           </Button>
           {index < steps.length - 1 ? (

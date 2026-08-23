@@ -14,9 +14,33 @@ class BusinessFixture:
 
     def reset(self) -> None:
         self.customers = {
-            "cust-a": {"name": "Alice", "balance": 1200.0, "level": "gold", "phone": "13911111111", "tags": [], "address": "Addr A", "notes": ""},
-            "cust-b": {"name": "Bob", "balance": 300.0, "level": "silver", "phone": "13922222222", "tags": [], "address": "Addr B", "notes": ""},
-            "cust-c": {"name": "Carol", "balance": 80.0, "level": "bronze", "phone": "13933333333", "tags": [], "address": "Addr C", "notes": ""},
+            "cust-a": {
+                "name": "Alice",
+                "balance": 1200.0,
+                "level": "gold",
+                "phone": "13911111111",
+                "tags": [],
+                "address": "Addr A",
+                "notes": "",
+            },
+            "cust-b": {
+                "name": "Bob",
+                "balance": 300.0,
+                "level": "silver",
+                "phone": "13922222222",
+                "tags": [],
+                "address": "Addr B",
+                "notes": "",
+            },
+            "cust-c": {
+                "name": "Carol",
+                "balance": 80.0,
+                "level": "bronze",
+                "phone": "13933333333",
+                "tags": [],
+                "address": "Addr C",
+                "notes": "",
+            },
         }
         self.tickets = {
             1001: {"status": "open", "assignee": "agent-y", "sla": "breached"},
@@ -52,38 +76,80 @@ def register_phase1_tools(fx: BusinessFixture) -> None:
     async def query_crm(params: dict[str, Any], organization_id: Any = None) -> dict:
         cid = params["customer_id"]
         if cid not in fx.customers:
-            return {"status": "failed", "data": None, "error": f"customer not found: {cid}"}
-        return {"status": "success", "data": copy.deepcopy(fx.customers[cid]), "error": None}
+            return {
+                "status": "failed",
+                "data": None,
+                "error": f"customer not found: {cid}",
+            }
+        return {
+            "status": "success",
+            "data": copy.deepcopy(fx.customers[cid]),
+            "error": None,
+        }
 
-    async def ticket_update_status(params: dict[str, Any], organization_id: Any = None) -> dict:
+    async def ticket_update_status(
+        params: dict[str, Any], organization_id: Any = None
+    ) -> dict:
         tid = int(params["ticket_id"])
         if tid not in fx.tickets:
-            return {"status": "failed", "data": None, "error": f"ticket not found: {tid}"}
+            return {
+                "status": "failed",
+                "data": None,
+                "error": f"ticket not found: {tid}",
+            }
         ticket = fx.tickets[tid]
         before = copy.deepcopy(ticket)
         ticket["status"] = params["status"]
-        return {"status": "success", "data": {"before": before, "after": copy.deepcopy(ticket)}, "error": None}
+        return {
+            "status": "success",
+            "data": {"before": before, "after": copy.deepcopy(ticket)},
+            "error": None,
+        }
 
-    async def internal_api_patch(params: dict[str, Any], organization_id: Any = None) -> dict:
+    async def internal_api_patch(
+        params: dict[str, Any], organization_id: Any = None
+    ) -> dict:
         oid = params["order_id"]
         if oid not in fx.orders:
-            return {"status": "failed", "data": None, "error": f"order not found: {oid}"}
+            return {
+                "status": "failed",
+                "data": None,
+                "error": f"order not found: {oid}",
+            }
         field = params["field"]
         order = fx.orders[oid]
         before = copy.deepcopy(order)
         order[field] = params["value"]
-        return {"status": "success", "data": {"before": before, "after": copy.deepcopy(order)}, "error": None}
+        return {
+            "status": "success",
+            "data": {"before": before, "after": copy.deepcopy(order)},
+            "error": None,
+        }
 
     async def send_email(params: dict[str, Any], organization_id: Any = None) -> dict:
         fx.sent_emails.append(copy.deepcopy(params))
-        return {"status": "success", "data": {"message_id": f"m-{len(fx.sent_emails)}"}, "error": None}
+        return {
+            "status": "success",
+            "data": {"message_id": f"m-{len(fx.sent_emails)}"},
+            "error": None,
+        }
 
-    async def invoice_finalize(params: dict[str, Any], organization_id: Any = None) -> dict:
+    async def invoice_finalize(
+        params: dict[str, Any], organization_id: Any = None
+    ) -> dict:
         iid = params["invoice_id"]
         if iid not in fx.invoices:
-            return {"status": "failed", "data": None, "error": f"invoice not found: {iid}"}
+            return {
+                "status": "failed",
+                "data": None,
+                "error": f"invoice not found: {iid}",
+            }
         fx.finalized_invoices.append(copy.deepcopy(params))
-        return {"status": "success", "data": {"invoice_id": iid, "finalized": True}, "error": None}
+        return {
+            "status": "success",
+            "data": {"invoice_id": iid, "finalized": True},
+            "error": None,
+        }
 
     register_tool(
         "query_crm",
@@ -98,7 +164,10 @@ def register_phase1_tools(fx: BusinessFixture) -> None:
         "ticket_update_status",
         "更新工单状态（可回滚内部操作）",
         _schema(
-            {"ticket_id": {"type": "integer"}, "status": {"type": "string", "enum": ["open", "in_progress", "closed"]}},
+            {
+                "ticket_id": {"type": "integer"},
+                "status": {"type": "string", "enum": ["open", "in_progress", "closed"]},
+            },
             ["ticket_id", "status"],
         ),
         ticket_update_status,
@@ -126,7 +195,11 @@ def register_phase1_tools(fx: BusinessFixture) -> None:
         "send_email",
         "发送邮件（真实外部副作用，需要审批）",
         _schema(
-            {"to": {"type": "string"}, "subject": {"type": "string"}, "body": {"type": "string"}},
+            {
+                "to": {"type": "string"},
+                "subject": {"type": "string"},
+                "body": {"type": "string"},
+            },
             ["to", "subject", "body"],
         ),
         send_email,

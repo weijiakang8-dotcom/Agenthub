@@ -67,7 +67,9 @@ export default function Tools() {
               <CardContent className="space-y-2 text-sm">
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline">timeout {tool.timeout}s</Badge>
-                  <Badge variant="outline">副作用: {tool.requires_approval ? "是" : "否"}</Badge>
+                  <Badge variant="outline">
+                    副作用: {tool.requires_approval ? "是" : "否"}
+                  </Badge>
                 </div>
                 {requiredKeys(tool.parameters).length > 0 && (
                   <p className="text-xs text-muted-foreground">

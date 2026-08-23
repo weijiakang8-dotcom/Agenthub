@@ -4,9 +4,10 @@ import os
 import uuid
 from pathlib import Path
 
-import app.kernel
 import httpx
 import pytest
+
+import app.kernel
 from app.adapters.real_effect_executor import RealEffectExecutor
 from app.kernel.artifact.store import ArtifactStore
 from app.kernel.capability.contracts import build_standard_registry

@@ -51,29 +51,31 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           collapsed ? "justify-center px-2" : "px-4",
         )}
       >
-        <BrandLogo
-          size="md"
-          showWordmark={!collapsed}
-          wordmark="synplex"
-        />
+        <BrandLogo size="md" showWordmark={!collapsed} wordmark="synplex" />
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
         {items.map(({ to, label, icon: Icon }) => (
           <Hint
             key={to}
-            label={collapsed ? label : `${label}：${({
-              "/chat": "创建新的对话任务",
-              "/dispatch": "发布任务前的复杂度评分与路由方案",
-              "/history": "查看历史对话",
-              "/skills": "预设、自建与自成长 Skill 包",
-              "/agents": "自带 Agent 阵容与自更新版本",
-              "/savings": "动态路由省下的真金白银",
-              "/tools": "查看当前运行时真实工具注册表",
-              "/executions": "查看 Agent 执行记录与审计",
-              "/guide": "查看使用指南",
-              "/settings": "配置模型、知识与通知",
-            })[to]}`}
+            label={
+              collapsed
+                ? label
+                : `${label}：${
+                    {
+                      "/chat": "创建新的对话任务",
+                      "/dispatch": "发布任务前的复杂度评分与路由方案",
+                      "/history": "查看历史对话",
+                      "/skills": "预设、自建与自成长 Skill 包",
+                      "/agents": "自带 Agent 阵容与自更新版本",
+                      "/savings": "动态路由省下的真金白银",
+                      "/tools": "查看当前运行时真实工具注册表",
+                      "/executions": "查看 Agent 执行记录与审计",
+                      "/guide": "查看使用指南",
+                      "/settings": "配置模型、知识与通知",
+                    }[to]
+                  }`
+            }
             side={collapsed ? "right" : "top"}
           >
             <NavLink

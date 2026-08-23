@@ -5,6 +5,7 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
+
 from app.memory import service as memory_service
 
 

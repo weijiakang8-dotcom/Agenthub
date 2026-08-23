@@ -85,7 +85,9 @@ export default function ApiKeysPanel() {
       // 优先保留用户已填模型；其次推荐 sol；最后选择第一个聊天模型。
       const recommended =
         availableChatModels.find((item) => item === model) ??
-        availableChatModels.find((item) => item.toLowerCase().endsWith("-sol")) ??
+        availableChatModels.find((item) =>
+          item.toLowerCase().endsWith("-sol"),
+        ) ??
         availableChatModels[0] ??
         result.models[0];
       setModel(recommended ?? "");
@@ -264,7 +266,8 @@ export default function ApiKeysPanel() {
                 </select>
                 {models.length > chatModels.length && (
                   <p className="text-xs text-muted-foreground">
-                    已自动排除 {models.length - chatModels.length} 个图片/非聊天模型。
+                    已自动排除 {models.length - chatModels.length}{" "}
+                    个图片/非聊天模型。
                   </p>
                 )}
               </div>
@@ -338,7 +341,11 @@ export default function ApiKeysPanel() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => rotate(key.id)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => rotate(key.id)}
+                  >
                     <RefreshCw className="h-3.5 w-3.5" />
                     轮换
                   </Button>
@@ -349,7 +356,11 @@ export default function ApiKeysPanel() {
                   >
                     {key.is_active ? "停用" : "启用"}
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => remove(key.id)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => remove(key.id)}
+                  >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>

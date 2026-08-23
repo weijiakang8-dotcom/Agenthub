@@ -5,8 +5,9 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
-from app.api.routes import workflows
 from fastapi import HTTPException
+
+from app.api.routes import workflows
 
 
 class FakeScalarResult:

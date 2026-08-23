@@ -6,13 +6,14 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
+
 from app.api.routes.documents import delete_document, list_documents
 from app.api.routes.eval import DatasetCreate, create_dataset
 from app.api.routes.models import ModelCreate, create_model, list_models, update_model
 from app.api.routes.notifications import list_notifications
 from app.api.routes.usage import usage
 from app.models import Document, ModelConfig, Notification
-from fastapi import HTTPException
 
 ORG_ID = uuid.uuid4()
 OTHER_ORG_ID = uuid.uuid4()

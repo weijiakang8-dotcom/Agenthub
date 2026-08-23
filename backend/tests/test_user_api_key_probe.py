@@ -95,7 +95,7 @@ def test_connection_failure_is_user_friendly_and_does_not_leak_key(client):
     FakeClient.post_response = FakeResponse(
         {"error": {"message": "Upstream request failed"}}, status_code=502
     )
-    secret = "sk-sensitive-never-return"
+    secret = "test-secret-never-return"
     response = client.post(
         "/api/user-api-keys/test-connection",
         json={

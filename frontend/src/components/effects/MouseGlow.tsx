@@ -1,10 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import {
-  getStoredTheme,
-  THEME_CHANGED_EVENT,
-  type Theme,
-} from "@/lib/theme";
+import { getStoredTheme, THEME_CHANGED_EVENT, type Theme } from "@/lib/theme";
 
 type Variant = "purple" | "water";
 
@@ -50,10 +46,8 @@ export function MouseGlow({ variant = "purple" }: { variant?: Variant }) {
       },
     };
 
-    const rgba = (
-      rgb: [number, number, number],
-      alpha: number,
-    ): string => `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
+    const rgba = (rgb: [number, number, number], alpha: number): string =>
+      `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${alpha})`;
 
     const resize = () => {
       canvas.width = Math.round(window.innerWidth * dpr);
@@ -78,7 +72,8 @@ export function MouseGlow({ variant = "purple" }: { variant?: Variant }) {
       target.x = event.clientX;
       target.y = event.clientY;
       lastMoveAt = performance.now();
-      if (variantRef.current === "water") spawnRing(event.clientX, event.clientY);
+      if (variantRef.current === "water")
+        spawnRing(event.clientX, event.clientY);
     };
 
     const draw = (now: number) => {
@@ -110,8 +105,12 @@ export function MouseGlow({ variant = "purple" }: { variant?: Variant }) {
       if (variantRef.current === "water") {
         // 环境光（水底透光感）
         const ambient = ctx.createRadialGradient(
-          halo.x, halo.y, 0,
-          halo.x, halo.y, Math.min(620, width / 2.6),
+          halo.x,
+          halo.y,
+          0,
+          halo.x,
+          halo.y,
+          Math.min(620, width / 2.6),
         );
         ambient.addColorStop(0, rgba(palette.halo, 0.1 * dim));
         ambient.addColorStop(0.5, rgba(palette.halo, 0.05 * dim));
@@ -128,8 +127,12 @@ export function MouseGlow({ variant = "purple" }: { variant?: Variant }) {
           const alpha = 0.34 * (1 - eased) * dim;
           if (alpha <= 0.004) continue;
           const gradient = ctx.createRadialGradient(
-            ring.x, ring.y, Math.max(0, radius - 3),
-            ring.x, ring.y, radius,
+            ring.x,
+            ring.y,
+            Math.max(0, radius - 3),
+            ring.x,
+            ring.y,
+            radius,
           );
           gradient.addColorStop(0, "rgba(0,0,0,0)");
           gradient.addColorStop(0.82, rgba(palette.ring, alpha));
@@ -144,8 +147,12 @@ export function MouseGlow({ variant = "purple" }: { variant?: Variant }) {
         }
         // 光标处高光核
         const coreGradient = ctx.createRadialGradient(
-          core.x, core.y, 0,
-          core.x, core.y, 90,
+          core.x,
+          core.y,
+          0,
+          core.x,
+          core.y,
+          90,
         );
         coreGradient.addColorStop(0, rgba(palette.core, 0.22 * dim));
         coreGradient.addColorStop(1, "rgba(0,0,0,0)");
@@ -154,8 +161,12 @@ export function MouseGlow({ variant = "purple" }: { variant?: Variant }) {
       } else {
         // purple：双层光团
         const coreGradient = ctx.createRadialGradient(
-          core.x, core.y, 0,
-          core.x, core.y, Math.min(220, width / 5),
+          core.x,
+          core.y,
+          0,
+          core.x,
+          core.y,
+          Math.min(220, width / 5),
         );
         coreGradient.addColorStop(0, rgba(palette.core, 0.16 * dim));
         coreGradient.addColorStop(0.55, rgba(palette.core, 0.07 * dim));
@@ -164,8 +175,12 @@ export function MouseGlow({ variant = "purple" }: { variant?: Variant }) {
         ctx.fillRect(0, 0, width, height);
 
         const haloGradient = ctx.createRadialGradient(
-          halo.x, halo.y, 0,
-          halo.x, halo.y, Math.min(560, width / 2.2),
+          halo.x,
+          halo.y,
+          0,
+          halo.x,
+          halo.y,
+          Math.min(560, width / 2.2),
         );
         haloGradient.addColorStop(0, rgba(palette.halo, 0.09 * dim));
         haloGradient.addColorStop(0.45, rgba(palette.halo, 0.045 * dim));

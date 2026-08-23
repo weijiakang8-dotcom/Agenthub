@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import app.kernel
 import pytest
+
+import app.kernel
 from app.kernel.artifact.store import ArtifactStore
 from app.kernel.capability.boundary import CapabilityBoundary
 from app.kernel.capability.classification import Classification, classify
