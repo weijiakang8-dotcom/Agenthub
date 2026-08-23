@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from langchain_openai import ChatOpenAI
 
 from app.config import settings
-from langchain_openai import ChatOpenAI
 
 SMALL_MODEL = "deepseek-v4-flash"
 LARGE_MODEL = "deepseek-v4-pro"
@@ -49,12 +51,14 @@ def build_llm(model: str) -> ChatOpenAI:
 
 
 def is_peak_hour(now: datetime | None = None) -> bool:
-    now = now or datetime.now()
+    now = now or datetime.now(ZoneInfo("Asia/Shanghai"))
     hour = now.hour
     return (9 <= hour < 12) or (14 <= hour < 18)
 
 
-def cost_cny(model: str, input_tokens: int, output_tokens: int, peak: bool) -> float | None:
+def cost_cny(
+    model: str, input_tokens: int, output_tokens: int, peak: bool
+) -> float | None:
     rates = RATES_CNY.get(model)
     if rates is None:
         return None
@@ -62,4 +66,7 @@ def cost_cny(model: str, input_tokens: int, output_tokens: int, peak: bool) -> f
     output_rate = rates["output_peak" if peak else "output_offpeak"]
     if input_tokens is None or output_tokens is None:
         return None
-    return round(input_tokens / 1_000_000 * input_rate + output_tokens / 1_000_000 * output_rate, 6)
+    return round(
+        input_tokens / 1_000_000 * input_rate + output_tokens / 1_000_000 * output_rate,
+        6,
+    )

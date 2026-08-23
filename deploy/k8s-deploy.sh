@@ -17,7 +17,7 @@ cp "$ROOT_DIR"/k8s/*.yaml "$WORK_DIR"/
 rm -f "$WORK_DIR/01-secrets.example.yaml" "$WORK_DIR/external-secret.example.yaml"
 
 find "$WORK_DIR" -name '*.yaml' -print0 | xargs -0 perl -pi \
-  -e "s|ghcr.io/weijiakang|${REGISTRY}/${ORG}|g;" \
+  -e "s|(?:ghcr.io/)?weijiakang/agenthub-|${REGISTRY}/${ORG}/agenthub-|g;" \
   -e "s|:latest|:${TAG}|g"
 
 echo "创建 namespace"
