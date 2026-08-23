@@ -41,6 +41,7 @@ def test_send_email_is_idempotent_in_process(monkeypatch):
             )
 
     monkeypatch.setattr(tools.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(tools.settings, "SMTP_HOST", "localhost")
     monkeypatch.setattr(tools.settings, "SMTP_PORT", 587)
     monkeypatch.setattr(tools.settings, "SMTP_USERNAME", "")
     monkeypatch.setattr(tools, "_SENT_EMAIL_HASHES", set())
