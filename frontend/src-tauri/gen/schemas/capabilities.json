@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Synplex AgentHub 桌面客户端默认权限","local":true,"windows":["main"],"permissions":["core:default","opener:default"]}}

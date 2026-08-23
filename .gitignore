@@ -45,5 +45,6 @@ backups/
 docker/nginx/ssl/
 frontend/playwright-report/
 frontend/test-results/
+frontend/src-tauri/target/
 
 # Benchmark 报告已版本化（可由 harness 重新生成）
