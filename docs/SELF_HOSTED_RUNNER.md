@@ -10,11 +10,20 @@ AgentHub production deploys run on a repository-scoped GitHub Actions runner. CI
 - Label: `agenthub-production`
 - Production checkout: `/home/ubuntu/agenthub`
 - Root-managed wrapper: `/usr/local/sbin/deploy-agenthub`
+- Reviewed wrapper source: `scripts/deploy-agenthub`
 - Deployment lock: `/run/lock/agenthub-production.lock`
 
 The runner user is not in the `docker` or `sudo` group. It can only run the root-owned deployment wrapper with a SHA argument through `/etc/sudoers.d/agenthub-runner-deploy`. Docker group membership is intentionally avoided because it is effectively root access.
 
-The workflow does not checkout repository code on the production runner. The wrapper validates a full commit SHA against `origin/main`, locks deployment concurrency, backs up PostgreSQL, refuses schema changes, builds and recreates application containers, validates `BUILD_SHA`, validates local and public health, and rolls back to the pre-deployment SHA on failure.
+The workflow does not checkout repository code on the production runner. The wrapper validates a full commit SHA against `origin/main`, locks deployment concurrency, backs up PostgreSQL, refuses schema changes, builds and recreates application containers, validates `BUILD_SHA`, validates local and public health, and rolls back to the pre-deployment SHA on failure. Git fetch uses HTTP/1.1 with bounded low-speed timeouts and three attempts so a transient GitHub TLS/HTTP2 failure cannot abort deployment before validation.
+
+The root-managed copy must match the reviewed source. Install an approved version and verify it with:
+
+```bash
+sudo install -o root -g root -m 0750 scripts/deploy-agenthub /usr/local/sbin/deploy-agenthub
+sha256sum scripts/deploy-agenthub
+sudo sha256sum /usr/local/sbin/deploy-agenthub
+```
 
 ## Deploy
 
