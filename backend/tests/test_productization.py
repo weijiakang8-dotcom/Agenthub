@@ -86,11 +86,37 @@ def test_user_api_key_create_lists_masked_only(monkeypatch):
     )
 
     assert result["api_key_masked"] == "****3456"
+    assert result["api_mode"] == "chat_completions"
     assert "api_key" not in result
     stored = session.added[0]
     assert isinstance(stored, UserApiKey)
     assert stored.api_key_encrypted != "sk-live-abcdef123456"
     assert security.decrypt_secret(stored.api_key_encrypted) == "sk-live-abcdef123456"
+
+
+def test_user_api_key_persists_responses_mode_without_schema_change(monkeypatch):
+    async def allow_public_url(_url: str):
+        return None
+
+    monkeypatch.setattr(user_api_keys, "_validate_public_url", allow_public_url)
+    session = FakeSession()
+    result = asyncio.run(
+        user_api_keys.create_key(
+            user_api_keys.UserApiKeyCreate(
+                provider="openai",
+                model="gpt-5",
+                base_url="https://api.openai.com/v1",
+                api_key="sk-openai-1234",
+                api_mode="responses",
+            ),
+            session=session,
+            user=_user(),
+        )
+    )
+
+    assert session.added[0].provider == "openai:responses"
+    assert result["provider"] == "openai"
+    assert result["api_mode"] == "responses"
 
 
 def test_user_api_key_delete_scoped_to_owner():
@@ -216,6 +242,7 @@ def test_get_chat_models_prefers_user_keys_then_system(monkeypatch):
     async def fake_user_keys(_uid):
         return [
             SimpleNamespace(
+                provider="user-provider",
                 model="user-model",
                 base_url="https://user.example.com/v1",
                 api_key_encrypted=security.encrypt_secret("sk-user"),
@@ -244,6 +271,34 @@ def test_get_chat_models_prefers_user_keys_then_system(monkeypatch):
     )
 
     assert [llm.model_name for llm in llms] == ["user-model", "deepseek-v4-pro"]
+    assert llms[0].use_responses_api is False
+
+
+def test_get_chat_models_uses_responses_for_openai_user_key(monkeypatch):
+    async def fake_user_keys(_uid):
+        return [
+            SimpleNamespace(
+                provider="openai:responses",
+                model="gpt-5",
+                base_url="https://api.openai.com/v1",
+                api_key_encrypted=security.encrypt_secret("sk-openai"),
+            )
+        ]
+
+    async def fake_system_models(_org):
+        return []
+
+    monkeypatch.setattr(model_gateway, "list_user_api_keys", fake_user_keys)
+    monkeypatch.setattr(model_gateway, "list_active_models", fake_system_models)
+
+    llms = asyncio.run(
+        model_gateway.get_chat_models("org", complexity="complex", user_id=uuid.uuid4())
+    )
+
+    assert llms[0].model_name == "gpt-5"
+    assert llms[0].use_responses_api is True
+    assert llms[0].metadata["provider"] == "openai"
+    assert llms[0].metadata["api_mode"] == "responses"
 
 
 def test_real_effect_executor_keeps_url_query_string(monkeypatch):
