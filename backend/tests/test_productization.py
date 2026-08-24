@@ -65,6 +65,10 @@ def test_encrypt_decrypt_roundtrip_and_mask():
 
 
 def test_user_api_key_create_lists_masked_only(monkeypatch):
+    async def allow_public_url(_url: str):
+        return None
+
+    monkeypatch.setattr(user_api_keys, "_validate_public_url", allow_public_url)
     user = _user()
     session = FakeSession()
 

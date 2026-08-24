@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import socket
 import uuid
 from types import SimpleNamespace
+from typing import ClassVar
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -13,18 +16,32 @@ from app.main import app
 
 
 class FakeResponse:
-    def __init__(self, payload: dict, status_code: int = 200):
+    def __init__(
+        self,
+        payload: dict,
+        status_code: int = 200,
+        *,
+        url: str = "https://example.com/v1/models",
+        headers: dict | None = None,
+    ):
         self._payload = payload
         self.status_code = status_code
         self.is_success = 200 <= status_code < 300
+        self.is_redirect = status_code in {301, 302, 303, 307, 308}
+        self.url = httpx.URL(url)
+        self.headers = headers or {}
 
     def json(self) -> dict:
         return self._payload
 
 
+REAL_VALIDATE_PUBLIC_URL = route_module._validate_public_url
+
+
 class FakeClient:
-    get_response = FakeResponse({"data": []})
-    post_response = FakeResponse({"choices": []})
+    responses: ClassVar[list[FakeResponse]] = [FakeResponse({"data": []})]
+    requests: ClassVar[list[tuple[str, str, dict]]] = []
+    error: ClassVar[Exception | None] = None
 
     def __init__(self, *args, **kwargs):
         pass
@@ -35,11 +52,13 @@ class FakeClient:
     async def __aexit__(self, *_args):
         return False
 
-    async def get(self, *_args, **_kwargs):
-        return self.get_response
-
-    async def post(self, *_args, **_kwargs):
-        return self.post_response
+    async def request(self, method: str, url: str, **kwargs):
+        self.requests.append((method, url, kwargs))
+        if self.error:
+            raise self.error
+        if not self.responses:
+            raise AssertionError("No fake response configured")
+        return self.responses.pop(0)
 
 
 @pytest.fixture()
@@ -52,36 +71,80 @@ def client(monkeypatch):
             id=uuid.uuid4(), organization_id=uuid.uuid4(), role="admin", is_active=True
         )
 
+    async def allow_public_url(_url: str):
+        return None
+
+    FakeClient.responses = [FakeResponse({"data": []})]
+    FakeClient.requests = []
+    FakeClient.error = None
     monkeypatch.setattr(main_module, "rate_limit", allow_request)
     monkeypatch.setattr(route_module.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(route_module, "_validate_public_url", allow_public_url)
     app.dependency_overrides[get_current_user] = current_user
     yield TestClient(app)
     app.dependency_overrides.clear()
 
 
 def test_discover_models_returns_sorted_ids(client):
-    FakeClient.get_response = FakeResponse(
-        {"data": [{"id": "gpt-5.6-sol"}, {"id": "gpt-5.5"}]}
-    )
+    FakeClient.responses = [
+        FakeResponse({"data": [{"id": "gpt-5.6-sol"}, {"id": "gpt-5.5"}]})
+    ]
     response = client.post(
         "/api/user-api-keys/discover-models",
-        json={"base_url": "http://example.com/v1/", "api_key": "sk-test"},
+        json={"base_url": "https://example.com/v1/", "api_key": "sk-test"},
     )
     assert response.status_code == 200
     assert response.json() == {
-        "base_url": "http://example.com/v1",
+        "base_url": "https://example.com/v1",
         "models": ["gpt-5.5", "gpt-5.6-sol"],
     }
+    assert FakeClient.requests[0][1] == "https://example.com/v1/models"
+
+
+def test_discover_models_adds_v1_when_root_models_is_missing(client):
+    FakeClient.responses = [
+        FakeResponse({}, 404, url="https://example.com/models"),
+        FakeResponse(
+            {"data": [{"id": "model-1"}]}, url="https://example.com/v1/models"
+        ),
+    ]
+    response = client.post(
+        "/api/user-api-keys/discover-models",
+        json={"base_url": "https://example.com", "api_key": "sk-test"},
+    )
+    assert response.status_code == 200
+    assert response.json()["base_url"] == "https://example.com/v1"
+    assert [item[1] for item in FakeClient.requests] == [
+        "https://example.com/models",
+        "https://example.com/v1/models",
+    ]
+
+
+def test_full_endpoint_is_normalized_to_api_root(client):
+    FakeClient.responses = [FakeResponse({"data": [{"id": "model-1"}]})]
+    response = client.post(
+        "/api/user-api-keys/discover-models",
+        json={
+            "base_url": "https://example.com/v1/chat/completions",
+            "api_key": "sk-test",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["base_url"] == "https://example.com/v1"
+    assert FakeClient.requests[0][1] == "https://example.com/v1/models"
 
 
 def test_connection_success(client):
-    FakeClient.post_response = FakeResponse(
-        {"choices": [{"message": {"content": "OK"}}]}
-    )
+    FakeClient.responses = [
+        FakeResponse(
+            {"choices": [{"message": {"content": "OK"}}]},
+            url="https://example.com/v1/chat/completions",
+        )
+    ]
     response = client.post(
         "/api/user-api-keys/test-connection",
         json={
-            "base_url": "http://example.com/v1",
+            "base_url": "https://example.com/v1",
             "api_key": "sk-test",
             "model": "gpt-5.6-sol",
         },
@@ -92,14 +155,18 @@ def test_connection_success(client):
 
 
 def test_connection_failure_is_user_friendly_and_does_not_leak_key(client):
-    FakeClient.post_response = FakeResponse(
-        {"error": {"message": "Upstream request failed"}}, status_code=502
-    )
+    FakeClient.responses = [
+        FakeResponse(
+            {"error": {"message": "Upstream request failed"}},
+            status_code=502,
+            url="https://example.com/v1/chat/completions",
+        )
+    ]
     secret = "test-secret-never-return"
     response = client.post(
         "/api/user-api-keys/test-connection",
         json={
-            "base_url": "http://example.com/v1",
+            "base_url": "https://example.com/v1",
             "api_key": secret,
             "model": "gpt-5.4",
         },
@@ -111,12 +178,68 @@ def test_connection_failure_is_user_friendly_and_does_not_leak_key(client):
     assert secret not in body
 
 
-def test_invalid_base_url_is_rejected(client):
+def test_timeout_explains_likely_configuration_causes(client):
+    FakeClient.error = httpx.ConnectTimeout("timed out")
     response = client.post(
         "/api/user-api-keys/discover-models",
-        json={"base_url": "file:///etc/passwd", "api_key": "sk-test"},
+        json={"base_url": "https://example.com", "api_key": "sk-test"},
     )
     assert response.status_code == 422
+    assert "连接超时" in response.text
+    assert "/v1" in response.text
+    assert "sk-test" not in response.text
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "file:///etc/passwd",
+        "http://127.0.0.1:8000/v1",
+        "http://10.0.0.1/v1",
+        "http://169.254.169.254/latest",
+        "http://[::1]/v1",
+    ],
+)
+def test_private_or_invalid_base_url_is_rejected(client, base_url, monkeypatch):
+    monkeypatch.setattr(route_module, "_validate_public_url", REAL_VALIDATE_PUBLIC_URL)
+    response = client.post(
+        "/api/user-api-keys/discover-models",
+        json={"base_url": base_url, "api_key": "sk-test"},
+    )
+    assert response.status_code == 422
+    assert not FakeClient.requests
+
+
+def test_hostname_resolving_to_private_ip_is_rejected(client, monkeypatch):
+    def private_dns(*_args, **_kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 443))]
+
+    monkeypatch.setattr(route_module, "_validate_public_url", REAL_VALIDATE_PUBLIC_URL)
+    monkeypatch.setattr(route_module.socket, "getaddrinfo", private_dns)
+    response = client.post(
+        "/api/user-api-keys/discover-models",
+        json={"base_url": "https://internal.example", "api_key": "sk-test"},
+    )
+    assert response.status_code == 422
+    assert "私有网络" in response.text
+
+
+def test_cross_origin_redirect_is_rejected_without_forwarding_key(client):
+    FakeClient.responses = [
+        FakeResponse(
+            {},
+            302,
+            url="https://example.com/models",
+            headers={"location": "https://other.example/models"},
+        )
+    ]
+    response = client.post(
+        "/api/user-api-keys/discover-models",
+        json={"base_url": "https://example.com", "api_key": "sk-test"},
+    )
+    assert response.status_code == 422
+    assert "其他域名" in response.text
+    assert len(FakeClient.requests) == 1
 
 
 def test_probe_requires_login(monkeypatch):
@@ -127,6 +250,6 @@ def test_probe_requires_login(monkeypatch):
     app.dependency_overrides.clear()
     response = TestClient(app).post(
         "/api/user-api-keys/discover-models",
-        json={"base_url": "http://example.com/v1", "api_key": "sk-test"},
+        json={"base_url": "https://example.com/v1", "api_key": "sk-test"},
     )
     assert response.status_code == 401

@@ -298,6 +298,8 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
     localStorage.setItem("agenthub.onboarded", "1");
   });
   let saved = false;
+  let testedBaseUrl = "";
+  let savedBaseUrl = "";
   const savedKey = {
     id: "key-user-provider",
     provider: "openai-compatible",
@@ -327,8 +329,9 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
       }),
     }),
   );
-  await page.route("**/api/user-api-keys/test-connection", (route) =>
-    route.fulfill({
+  await page.route("**/api/user-api-keys/test-connection", async (route) => {
+    testedBaseUrl = (await route.request().postDataJSON()).base_url;
+    return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
@@ -336,11 +339,12 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
         model: "gpt-5.6-sol",
         preview: "OK",
       }),
-    }),
-  );
+    });
+  });
   await page.route("**/api/user-api-keys", async (route) => {
     if (route.request().method() === "POST") {
       saved = true;
+      savedBaseUrl = (await route.request().postDataJSON()).base_url;
       return route.fulfill({
         status: 201,
         contentType: "application/json",
@@ -356,10 +360,13 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
 
   await page.goto("/settings");
   await page.getByRole("tab", { name: "我的密钥" }).click();
-  await page.locator("#key-base-url").fill("https://llm.example.com/v1");
+  await page.locator("#key-base-url").fill("https://llm.example.com");
   await page.locator("#key-secret").fill("sk-user-test");
   await page.getByRole("button", { name: "检测可用模型" }).click();
 
+  await expect(page.locator("#key-base-url")).toHaveValue(
+    "https://llm.example.com/v1",
+  );
   await expect(page.locator("#key-model")).toHaveValue("gpt-5.6-sol");
   await page.getByRole("button", { name: "测试连接" }).click();
   await expect(
@@ -367,6 +374,8 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
   ).toBeVisible();
   await page.getByRole("button", { name: "保存已验证模型" }).click();
 
+  expect(testedBaseUrl).toBe("https://llm.example.com/v1");
+  expect(savedBaseUrl).toBe("https://llm.example.com/v1");
   await expect(page.getByText("****55a9")).toBeVisible();
   await expect(
     page.getByText("模型连接已验证，API Key 已加密保存"),
