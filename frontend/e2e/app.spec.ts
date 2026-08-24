@@ -49,6 +49,41 @@ test("authenticated chat page can render a new conversation", async ({
   await expect(page.getByPlaceholder("输入消息，Enter 发送")).toBeEnabled();
 });
 
+test("assistant replies render polished Markdown and framed code", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("agenthub.access_token", "playwright-e2e-token");
+    localStorage.setItem("agenthub.onboarded", "1");
+  });
+  await page.route("**/api/conversations/markdown-preview", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: "markdown-preview",
+        messages: [
+          { role: "user", content: "写一段代码" },
+          {
+            role: "assistant",
+            content:
+              "## 示例实现\n\n下面是标准代码：\n\n```typescript\nconst answer = 42;\n```\n\n- 清晰\n- 可复制",
+          },
+        ],
+      }),
+    }),
+  );
+
+  await page.goto("/chat?id=markdown-preview");
+
+  await expect(page.getByRole("heading", { name: "示例实现" })).toBeVisible();
+  await expect(page.locator(".chat-code-block")).toContainText(
+    "const answer = 42;",
+  );
+  await expect(page.getByRole("button", { name: "复制代码" })).toBeVisible();
+  await expect(page.locator(".assistant-markdown li")).toHaveCount(2);
+});
+
 test("authenticated tools page renders the real tool registry", async ({
   page,
 }) => {

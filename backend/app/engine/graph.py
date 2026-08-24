@@ -57,6 +57,7 @@ from app.engine.canonical import params_canonical
 from app.engine.capabilities import (
     APPROVAL_REQUIRED_TOOLS,
     CAPABILITIES,
+    RESPONSE_FORMAT_PROMPT,
     Capability,
 )
 from app.engine.event_bus import publish_execution_event
@@ -490,7 +491,11 @@ async def _propose_side_effect_calls(
             user_id=state.get("user_id"),
         )
         bound_llms = [llm.bind_tools(tools) for llm in llms]
-        messages: list[BaseMessage] = [SystemMessage(content=capability.system_prompt)]
+        messages: list[BaseMessage] = [
+            SystemMessage(
+                content=f"{capability.system_prompt}\n\n{RESPONSE_FORMAT_PROMPT}"
+            )
+        ]
         messages.extend(state.get("messages") or [])
         if not any(isinstance(message, HumanMessage) for message in messages):
             messages.append(HumanMessage(content=state.get("user_input", "")))
@@ -1034,7 +1039,7 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
                 or f"budget_exceeded: {budget_reason}",
             }
 
-        system_prompt = capability.system_prompt
+        system_prompt = f"{capability.system_prompt}\n\n{RESPONSE_FORMAT_PROMPT}"
         if capability.inject_knowledge:
             try:
                 chunks = await retrieve_chunks(
@@ -1483,7 +1488,9 @@ async def _run_parallel_step(
     complexity = state.get("complexity") or "simple"
     name = str(plan[index].get("capability") or "answer")
     capability = CAPABILITIES.get(name, CAPABILITIES["answer"])
-    messages: list[BaseMessage] = [SystemMessage(content=capability.system_prompt)]
+    messages: list[BaseMessage] = [
+        SystemMessage(content=f"{capability.system_prompt}\n\n{RESPONSE_FORMAT_PROMPT}")
+    ]
     messages.extend(state.get("messages") or [])
     if not any(isinstance(message, HumanMessage) for message in messages):
         messages.append(HumanMessage(content=state.get("user_input", "")))
@@ -1551,7 +1558,12 @@ async def _run_parallel_step(
     if executed_tool:
         synthesis = await _stream_llm_text(
             await _get_llms(organization_id, complexity=complexity, user_id=user_id),
-            [SystemMessage(content=capability.system_prompt), *new_messages],
+            [
+                SystemMessage(
+                    content=f"{capability.system_prompt}\n\n{RESPONSE_FORMAT_PROMPT}"
+                ),
+                *new_messages,
+            ],
             execution_id,
             name,
         )

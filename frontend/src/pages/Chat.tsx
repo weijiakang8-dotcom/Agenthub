@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { AssistantMessage } from "@/components/chat/AssistantMessage";
 import { MouseGlow } from "@/components/effects/MouseGlow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -600,30 +601,28 @@ export default function Chat() {
               </p>
             </div>
           ) : (
-            messages.map((m, i) => (
-              <div
-                key={i}
-                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <Card
-                  className={`max-w-[80%] px-4 py-2 text-sm ${
-                    m.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : ""
-                  }`}
-                >
-                  {m.content ||
-                    (sending && i === messages.length - 1 ? "" : "（空回复）")}
-                  {sending &&
-                  i === messages.length - 1 &&
-                  m.role === "assistant" ? (
-                    <span className="animate-cursor-blink">▍</span>
-                  ) : null}
-                  {m.role === "assistant" &&
-                  i === messages.length - 1 &&
-                  details ? (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-xs text-muted-foreground">
+            messages.map((m, i) => {
+              const isLatestAssistant =
+                m.role === "assistant" && i === messages.length - 1;
+              if (m.role === "user") {
+                return (
+                  <div key={i} className="flex justify-end">
+                    <div className="max-w-[82%] whitespace-pre-wrap break-words rounded-lg bg-primary px-4 py-2.5 text-sm leading-6 text-primary-foreground shadow-xs">
+                      {m.content}
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={i} className="w-full px-1 py-2 sm:px-2">
+                  <AssistantMessage
+                    content={m.content}
+                    streaming={sending && isLatestAssistant}
+                  />
+                  {isLatestAssistant && details ? (
+                    <details className="mt-4 rounded-md border border-border/70 bg-muted/35 px-3 py-2">
+                      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
                         查看执行详情
                       </summary>
                       <div className="mt-2 space-y-1 text-xs">
@@ -688,9 +687,9 @@ export default function Chat() {
                       </div>
                     </details>
                   ) : null}
-                </Card>
-              </div>
-            ))
+                </div>
+              );
+            })
           )}
           <div ref={bottomRef} />
         </div>
