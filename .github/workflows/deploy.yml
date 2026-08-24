@@ -33,6 +33,6 @@ jobs:
       - name: Wait and verify health
         run: |
           curl -fsS --retry 5 --retry-delay 5 https://synplex.xyz/health \
-            | python -c 'import json,sys; data=json.load(sys.stdin); assert data["status"] == "ok"'
+            | EXPECTED_SHA='${{ github.event.workflow_run.head_sha }}' python -c 'import json,os,sys; data=json.load(sys.stdin); assert data["status"] == "ok"; assert data["build_sha"] == os.environ["EXPECTED_SHA"]'
           curl -fsSI https://synplex.xyz/ \
             | grep -qiE 'x-frame-options|x-content-type-options'

@@ -52,6 +52,7 @@ services:
     container_name: agenthub-backend
     restart: unless-stopped
     environment:
+      BUILD_SHA: ${BUILD_SHA:-development}
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/agenthub
       REDIS_URL: redis://redis:6379/0
       # 本地 .env 设置 SMTP_HOST=mailhog；生产 .env 留空即走 Resend
@@ -113,6 +114,7 @@ services:
       - --concurrency=2
       - -B
     environment:
+      BUILD_SHA: ${BUILD_SHA:-development}
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/agenthub
       REDIS_URL: redis://redis:6379/0
       # 本地 .env 设置 SMTP_HOST=mailhog；生产 .env 留空即走 Resend
