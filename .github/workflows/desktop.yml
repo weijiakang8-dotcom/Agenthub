@@ -34,14 +34,26 @@ jobs:
       - name: Build macOS desktop client
         working-directory: frontend
         run: npm run desktop:build
-      - name: Verify app bundle
+      - name: Sign and verify app bundle
         run: |
           APP="frontend/src-tauri/target/release/bundle/macos/Synplex AgentHub.app"
           test -d "$APP"
-          test -f "frontend/src-tauri/target/release/bundle/dmg/Synplex AgentHub_1.0.0_aarch64.dmg"
           grep -Rqs 'https://synplex.xyz/api' frontend/dist
           file "$APP/Contents/MacOS/synplex-agenthub" | grep -q arm64
+          codesign --force --deep --sign - "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
+      - name: Rebuild and verify signed DMG
+        run: |
+          APP="frontend/src-tauri/target/release/bundle/macos/Synplex AgentHub.app"
+          DMG="frontend/src-tauri/target/release/bundle/dmg/Synplex AgentHub_1.0.0_aarch64.dmg"
+          STAGING="$(mktemp -d)"
+          MOUNT="$(mktemp -d)"
+          ditto "$APP" "$STAGING/Synplex AgentHub.app"
+          ln -s /Applications "$STAGING/Applications"
+          hdiutil create -volname "Synplex AgentHub" -srcfolder "$STAGING" -ov -format UDZO "$DMG"
+          hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MOUNT"
+          codesign --verify --deep --strict --verbose=2 "$MOUNT/Synplex AgentHub.app"
+          hdiutil detach "$MOUNT"
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
         with:
