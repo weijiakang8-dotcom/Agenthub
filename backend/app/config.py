@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "AgentHub"
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
+    BUILD_SHA: str = "development"
 
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5433/agenthub"
     REDIS_URL: str = "redis://localhost:6379/0"

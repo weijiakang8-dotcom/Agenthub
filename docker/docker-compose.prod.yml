@@ -37,6 +37,7 @@ services:
       dockerfile: docker/Dockerfile.backend
     restart: unless-stopped
     environment:
+      BUILD_SHA: ${BUILD_SHA:-development}
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/agenthub}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       ENVIRONMENT: production
@@ -58,6 +59,7 @@ services:
     restart: unless-stopped
     command: celery -A app.engine.tasks worker --loglevel=info --concurrency=2
     environment:
+      BUILD_SHA: ${BUILD_SHA:-development}
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/agenthub}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       ENVIRONMENT: production
@@ -77,6 +79,7 @@ services:
     restart: unless-stopped
     command: celery -A app.engine.tasks beat --loglevel=info
     environment:
+      BUILD_SHA: ${BUILD_SHA:-development}
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/agenthub}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       ENVIRONMENT: production

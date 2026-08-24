@@ -191,6 +191,7 @@ async def health():
         status_code=200 if healthy else 503,
         content={
             "status": "ok" if healthy else "degraded",
+            "build_sha": settings.BUILD_SHA,
             "database": db_ok,
             "redis": redis_ok,
             "llm": llm_ok,
