@@ -32,22 +32,49 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.request
 
-          main_sha="$(gh api "repos/$REPOSITORY/commits/main" --jq .sha)"
-          compare_status="$(gh api "repos/$REPOSITORY/compare/$TARGET_SHA...$main_sha" --jq .status)"
-          [[ "$TARGET_SHA" == "$main_sha" || "$compare_status" == "ahead" || "$compare_status" == "identical" ]]
+          repository = os.environ["REPOSITORY"]
+          target = os.environ["TARGET_SHA"]
+          token = os.environ["GH_TOKEN"]
+          if not re.fullmatch(r"[0-9a-f]{40}", target):
+              raise SystemExit("Target must be a full lowercase 40-character SHA")
 
-          checks="$(gh api "repos/$REPOSITORY/commits/$TARGET_SHA/check-runs" --paginate)"
-          for required in backend frontend e2e docker benchmark-gate; do
-            conclusion="$(printf '%s' "$checks" | jq -r --arg name "$required" '[.check_runs[] | select(.name == $name)] | sort_by(.completed_at) | last | .conclusion // "missing"')"
-            [[ "$conclusion" == "success" ]] || {
-              echo "Required CI check failed or missing: $required ($conclusion)"
-              exit 1
-            }
-          done
-          echo "target_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
-          echo "Validated main ancestry and required CI for $TARGET_SHA"
+          def api(path):
+              request = urllib.request.Request(
+                  f"https://api.github.com/repos/{repository}/{path}",
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+
+          main_sha = api("commits/main")["sha"]
+          compare_status = api(f"compare/{target}...{main_sha}")["status"]
+          if target != main_sha and compare_status not in {"ahead", "identical"}:
+              raise SystemExit(f"Target is not in main ancestry: {compare_status}")
+
+          check_runs = api(f"commits/{target}/check-runs?per_page=100")["check_runs"]
+          required = {"backend", "frontend", "e2e", "docker", "benchmark-gate"}
+          conclusions = {}
+          for check in sorted(check_runs, key=lambda item: item.get("completed_at") or ""):
+              if check["name"] in required:
+                  conclusions[check["name"]] = check.get("conclusion")
+          failed = {name: conclusions.get(name, "missing") for name in required if conclusions.get(name) != "success"}
+          if failed:
+              raise SystemExit(f"Required CI checks failed or missing: {failed}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"target_sha={target}\n")
+          print(f"Validated main ancestry and required CI for {target}")
+          PY
 
       - name: Read-only runner self-check
         run: |
