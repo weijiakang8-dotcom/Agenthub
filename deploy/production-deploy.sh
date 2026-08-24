@@ -19,22 +19,33 @@ export BUILD_SHA="$(git rev-parse HEAD)"
 previous="$(git rev-parse 'origin/main@{1}' 2>/dev/null || git rev-parse HEAD~1)"
 echo "$previous" > "$STABLE_FILE"
 
-if ! $COMPOSE up -d --build backend worker frontend embedding; then
-  echo "DEPLOY_FAIL: build/up failed, rolling back to $previous"
+rollback() {
+  echo "DEPLOY_FAIL: rolling back to $previous"
   git checkout --force "$previous"
-  $COMPOSE up -d --build backend worker frontend embedding
+  export BUILD_SHA="$(git rev-parse HEAD)"
+  $COMPOSE up -d --build --force-recreate backend worker frontend embedding
+  $COMPOSE restart frontend
+}
+
+if ! $COMPOSE up -d --build --force-recreate backend worker frontend embedding; then
+  rollback
   exit 1
 fi
 
-# backend 重建后容器 IP 可能变化，必须重启 frontend 刷新 nginx 上游 DNS
+# backend 重建后容器 IP 可能变化，必须重启 frontend 刷新 nginx 上游 DNS。
 $COMPOSE restart frontend
 
 sleep 10
+container_sha="$($COMPOSE exec -T backend printenv BUILD_SHA 2>/dev/null || true)"
+health_sha="$(curl -fsS http://127.0.0.1:8000/health 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("build_sha", ""))' 2>/dev/null || true)"
+if [[ "$container_sha" != "$BUILD_SHA" || "$health_sha" != "$BUILD_SHA" ]]; then
+  echo "DEPLOY_FAIL: deployed build SHA mismatch"
+  rollback
+  exit 1
+fi
+
 if ! bash scripts/core_health_gate.sh; then
-  echo "DEPLOY_FAIL: health gate failed, rolling back to $previous"
-  git checkout --force "$previous"
-  $COMPOSE up -d --build backend worker frontend embedding
-  $COMPOSE restart frontend
+  rollback
   exit 1
 fi
 
