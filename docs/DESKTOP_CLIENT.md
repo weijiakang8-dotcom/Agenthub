@@ -30,6 +30,12 @@ cd frontend
 npm run desktop:build
 ```
 
+本机推荐使用根目录安装脚本。它会从当前源码重新构建、ad-hoc 重签名、备份现有应用、刷新 LaunchServices 并安装到 `/Applications`：
+
+```bash
+bash scripts/install-macos-desktop.sh
+```
+
 产物：
 
 ```text
@@ -39,12 +45,12 @@ frontend/src-tauri/target/release/bundle/dmg/Synplex AgentHub_1.0.0_aarch64.dmg
 
 ## 安装与 Gatekeeper
 
-当前为未签名的个人构建，首次打开 macOS 可能提示"无法验证开发者"：
+当前本机构建使用 ad-hoc 签名，不具备 Apple Developer ID 和 notarization。安装脚本会校验包完整性、移除本机构建的 quarantine 标记并刷新 LaunchServices。若手工复制 DMG 中的应用，首次打开仍可能提示"无法验证开发者"：
 
 1. 右键应用 → 打开 → 确认；或
 2. 系统设置 → 隐私与安全性 → 仍要打开。
 
-正式外部分发需要 Apple Developer ID 签名与 notarization（需付费开发者账号），这不影响本机/面试演示。
+正式外部分发必须使用 Apple Developer ID 签名与 notarization（需要付费开发者账号）。ad-hoc 包只适用于受控本机安装。
 
 ## 安全与数据
 
@@ -57,7 +63,9 @@ frontend/src-tauri/target/release/bundle/dmg/Synplex AgentHub_1.0.0_aarch64.dmg
 - JWT 保存在 Tauri WebView 的本地存储空间（与浏览器 localStorage 语义一致，应用间隔离）；
 - API Key 仍由后端加密保存，桌面包内不包含任何密钥；
 - 用户接入模型时先从 `/models` 自动发现真实模型 ID，再用选定模型执行一次最小聊天测试；
-  只有测试成功后才能保存，避免因填错模型（如服务端列出但上游不可用）导致聊天报错；
+  可填写供应商根域、`/v1`、`/models` 或 `/chat/completions` 地址，服务端会规范为实际 API root；
+  只有测试成功后才能保存，避免因填错路径或模型（如服务端列出但上游不可用）导致聊天报错；
+- 模型探测由生产后端发起，Base URL 仅允许解析到公网地址；本机、私网、链路本地及重定向到私网的地址会被拒绝；
 - 所有业务数据在生产服务器，卸载桌面客户端不会删除账号或执行记录。
 
 ## 配置

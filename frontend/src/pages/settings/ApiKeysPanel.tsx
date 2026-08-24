@@ -74,10 +74,12 @@ export default function ApiKeysPanel() {
     setDiscovering(true);
     setTestStatus(null);
     try {
+      const submittedBaseUrl = baseUrl.trim();
       const result = await api.discoverUserModels({
-        base_url: baseUrl.trim(),
+        base_url: submittedBaseUrl,
         api_key: apiKey.trim(),
       });
+      setBaseUrl(result.base_url);
       setModels(result.models);
       const availableChatModels = result.models.filter(
         (item) => !item.toLowerCase().includes("image"),
@@ -91,7 +93,11 @@ export default function ApiKeysPanel() {
         availableChatModels[0] ??
         result.models[0];
       setModel(recommended ?? "");
-      toast.success(`发现 ${result.models.length} 个模型，请测试后保存`);
+      toast.success(
+        result.base_url === submittedBaseUrl.replace(/\/$/, "")
+          ? `发现 ${result.models.length} 个模型，请测试后保存`
+          : `发现 ${result.models.length} 个模型，API 地址已规范为 ${result.base_url}`,
+      );
     } catch (err) {
       setModels([]);
       setModel("");
