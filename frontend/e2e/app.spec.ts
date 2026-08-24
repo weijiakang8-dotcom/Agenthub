@@ -303,6 +303,7 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
   const savedKey = {
     id: "key-user-provider",
     provider: "openai-compatible",
+    api_mode: "chat_completions",
     model: "gpt-5.6-sol",
     base_url: "https://llm.example.com/v1",
     api_key_masked: "****55a9",
@@ -326,6 +327,14 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
           "gpt-5.6-terra",
           "gpt-image-2",
         ],
+        chat_models: [
+          "gpt-5.4",
+          "gpt-5.5",
+          "gpt-5.6-luna",
+          "gpt-5.6-sol",
+          "gpt-5.6-terra",
+        ],
+        api_mode: "chat_completions",
       }),
     }),
   );
@@ -338,6 +347,7 @@ test("user discovers, tests and saves an OpenAI-compatible model", async ({
         ok: true,
         model: "gpt-5.6-sol",
         preview: "OK",
+        api_mode: "chat_completions",
       }),
     });
   });

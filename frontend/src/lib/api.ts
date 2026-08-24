@@ -152,9 +152,12 @@ export type ModelConfig = {
   is_default: boolean;
 };
 
+export type ModelApiMode = "chat_completions" | "responses";
+
 export type UserApiKey = {
   id: string;
   provider: string;
+  api_mode: ModelApiMode;
   model: string;
   base_url: string;
   api_key_masked: string;
@@ -653,24 +656,36 @@ export const api = {
     ),
   listUserApiKeys: () => request<UserApiKey[]>("/user-api-keys"),
   discoverUserModels: (payload: { base_url: string; api_key: string }) =>
-    request<{ base_url: string; models: string[] }>(
-      "/user-api-keys/discover-models",
-      { method: "POST", body: JSON.stringify(payload) },
-    ),
+    request<{
+      base_url: string;
+      models: string[];
+      chat_models: string[];
+      api_mode: ModelApiMode;
+    }>("/user-api-keys/discover-models", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   testUserModelConnection: (payload: {
     base_url: string;
     api_key: string;
     model: string;
+    api_mode: ModelApiMode | "auto";
   }) =>
-    request<{ ok: boolean; model: string; preview: string }>(
-      "/user-api-keys/test-connection",
-      { method: "POST", body: JSON.stringify(payload) },
-    ),
+    request<{
+      ok: boolean;
+      model: string;
+      preview: string;
+      api_mode: ModelApiMode;
+    }>("/user-api-keys/test-connection", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   createUserApiKey: (payload: {
     provider: string;
     model: string;
     base_url: string;
     api_key: string;
+    api_mode: ModelApiMode;
   }) =>
     request<UserApiKey>("/user-api-keys", {
       method: "POST",

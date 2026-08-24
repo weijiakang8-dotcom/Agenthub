@@ -62,9 +62,10 @@ frontend/src-tauri/target/release/bundle/dmg/Synplex AgentHub_1.0.0_aarch64.dmg
   Camera 提示可直接关闭，AgentHub 不需要它；
 - JWT 保存在 Tauri WebView 的本地存储空间（与浏览器 localStorage 语义一致，应用间隔离）；
 - API Key 仍由后端加密保存，桌面包内不包含任何密钥；
-- 用户接入模型时先从 `/models` 自动发现真实模型 ID，再用选定模型执行一次最小聊天测试；
-  可填写供应商根域、`/v1`、`/models` 或 `/chat/completions` 地址，服务端会规范为实际 API root；
-  只有测试成功后才能保存，避免因填错路径或模型（如服务端列出但上游不可用）导致聊天报错；
+- 用户接入模型时先从 `/models` 自动发现真实模型 ID，再用选定模型执行一次最小请求测试；
+  可填写供应商根域、`/v1`、`/models`、`/chat/completions` 或 `/responses` 地址，服务端会规范为实际 API root；
+  OpenAI 官方 API 默认使用 Responses API，其他兼容供应商默认使用 Chat Completions；若兼容服务明确拒绝 Chat 端点，测试会自动尝试 Responses，并保存实际模式；
+  非对话模型会从选择列表排除。只有测试成功后才能保存，避免因填错路径、端点或模型导致 Agent 执行报错；
 - 模型探测由生产后端发起，Base URL 仅允许解析到公网地址；本机、私网、链路本地及重定向到私网的地址会被拒绝；
 - 所有业务数据在生产服务器，卸载桌面客户端不会删除账号或执行记录。
 
