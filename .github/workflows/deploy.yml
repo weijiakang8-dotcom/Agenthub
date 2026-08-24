@@ -1,38 +1,77 @@
 name: Deploy AgentHub
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full 40-character commit SHA from main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  checks: read
 
 concurrency:
-  group: production-deploy
+  group: agenthub-production
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy to server
-    runs-on: ubuntu-latest
+    name: Deploy verified main SHA
+    environment: production
+    runs-on: [self-hosted, linux, agenthub-production]
     timeout-minutes: 30
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
 
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ubuntu
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            set -e
-            cd ~/agenthub
-            bash deploy/production-deploy.sh
-            docker image prune -f || true
-
-      - name: Wait and verify health
+      - name: Validate target and CI
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ inputs.sha }}
+          REPOSITORY: ${{ github.repository }}
         run: |
+          set -euo pipefail
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+          main_sha="$(gh api "repos/$REPOSITORY/commits/main" --jq .sha)"
+          compare_status="$(gh api "repos/$REPOSITORY/compare/$TARGET_SHA...$main_sha" --jq .status)"
+          [[ "$TARGET_SHA" == "$main_sha" || "$compare_status" == "ahead" || "$compare_status" == "identical" ]]
+
+          checks="$(gh api "repos/$REPOSITORY/commits/$TARGET_SHA/check-runs" --paginate)"
+          for required in backend frontend e2e docker benchmark-gate; do
+            conclusion="$(printf '%s' "$checks" | jq -r --arg name "$required" '[.check_runs[] | select(.name == $name)] | sort_by(.completed_at) | last | .conclusion // "missing"')"
+            [[ "$conclusion" == "success" ]] || {
+              echo "Required CI check failed or missing: $required ($conclusion)"
+              exit 1
+            }
+          done
+          echo "target_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
+          echo "Validated main ancestry and required CI for $TARGET_SHA"
+
+      - name: Read-only runner self-check
+        run: |
+          set -euo pipefail
+          echo "user=$(whoami)"
+          echo "host=$(hostname)"
+          id
+          systemctl is-active actions.runner.weijiakang8-dotcom-Agenthub.agenthub-prod-193-112-130-181.service
+          if docker ps >/dev/null 2>&1; then
+            echo "Runner unexpectedly has direct Docker access"
+            exit 1
+          fi
+          sudo -n -l
+
+      - name: Deploy through controlled wrapper
+        env:
+          TARGET_SHA: ${{ steps.target.outputs.target_sha }}
+        run: sudo -n /usr/local/sbin/deploy-agenthub "$TARGET_SHA"
+
+      - name: Verify public production SHA
+        env:
+          TARGET_SHA: ${{ steps.target.outputs.target_sha }}
+        run: |
+          set -euo pipefail
           curl -fsS --retry 5 --retry-delay 5 https://synplex.xyz/health \
-            | EXPECTED_SHA='${{ github.event.workflow_run.head_sha }}' python -c 'import json,os,sys; data=json.load(sys.stdin); assert data["status"] == "ok"; assert data["build_sha"] == os.environ["EXPECTED_SHA"]'
-          curl -fsSI https://synplex.xyz/ \
-            | grep -qiE 'x-frame-options|x-content-type-options'
+            | python3 -c 'import json,os,sys; d=json.load(sys.stdin); assert d["status"] == "ok"; assert d["build_sha"] == os.environ["TARGET_SHA"]; assert d["database"] is True; assert d["redis"] is True; assert d["llm"] is True'
+          echo "Production verified at $TARGET_SHA"
