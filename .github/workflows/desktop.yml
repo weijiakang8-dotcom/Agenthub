@@ -36,8 +36,12 @@ jobs:
         run: npm run desktop:build
       - name: Verify app bundle
         run: |
-          test -d "frontend/src-tauri/target/release/bundle/macos/Synplex AgentHub.app"
+          APP="frontend/src-tauri/target/release/bundle/macos/Synplex AgentHub.app"
+          test -d "$APP"
           test -f "frontend/src-tauri/target/release/bundle/dmg/Synplex AgentHub_1.0.0_aarch64.dmg"
+          grep -Rqs 'https://synplex.xyz/api' frontend/dist
+          file "$APP/Contents/MacOS/synplex-agenthub" | grep -q arm64
+          codesign --verify --deep --strict --verbose=2 "$APP"
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
         with:

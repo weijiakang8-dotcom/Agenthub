@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+import ipaddress
+import socket
 import uuid
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -39,14 +43,98 @@ class ModelConnectionTestRequest(ModelDiscoveryRequest):
 
 
 def _normalize_base_url(value: str) -> str:
-    base_url = value.strip().rstrip("/")
+    raw = value.strip().rstrip("/")
     try:
-        parsed = httpx.URL(base_url)
-    except Exception as exc:
+        parsed = urlsplit(raw)
+    except ValueError as exc:
         raise HTTPException(status_code=422, detail="Base URL 格式无效") from exc
-    if parsed.scheme not in {"http", "https"} or not parsed.host:
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise HTTPException(status_code=422, detail="Base URL 必须是 http/https 地址")
-    return base_url
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise HTTPException(
+            status_code=422, detail="Base URL 不能包含账号、查询参数或片段"
+        )
+
+    path = parsed.path.rstrip("/")
+    for suffix in ("/chat/completions", "/responses", "/models"):
+        if path.endswith(suffix):
+            path = path[: -len(suffix)]
+            break
+    return urlunsplit((parsed.scheme, parsed.netloc, path.rstrip("/"), "", ""))
+
+
+def _model_endpoint_candidates(base_url: str) -> list[str]:
+    parsed = urlsplit(base_url)
+    path = parsed.path.rstrip("/")
+    candidates = [f"{base_url}/models"]
+    if not path.endswith("/v1"):
+        candidates.append(f"{base_url}/v1/models")
+    return list(dict.fromkeys(candidates))
+
+
+def _is_public_ip(value: str) -> bool:
+    address = ipaddress.ip_address(value.split("%", 1)[0])
+    return bool(address.is_global)
+
+
+async def _validate_public_url(url: str) -> None:
+    parsed = urlsplit(url)
+    host = parsed.hostname
+    if parsed.scheme not in {"http", "https"} or not host:
+        raise HTTPException(status_code=422, detail="模型服务地址无效")
+    try:
+        address = ipaddress.ip_address(host)
+        addresses = [str(address)]
+    except ValueError:
+        try:
+            records = await asyncio.to_thread(
+                socket.getaddrinfo,
+                host,
+                parsed.port or (443 if parsed.scheme == "https" else 80),
+                type=socket.SOCK_STREAM,
+            )
+        except socket.gaierror as exc:
+            raise HTTPException(
+                status_code=422, detail="模型服务域名无法解析，请检查 Base URL"
+            ) from exc
+        addresses = list({record[4][0] for record in records})
+    if not addresses or any(not _is_public_ip(item) for item in addresses):
+        raise HTTPException(status_code=422, detail="Base URL 不允许访问本机或私有网络")
+
+
+async def _request_public(
+    client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    **kwargs,
+) -> httpx.Response:
+    current_url = url
+    for _ in range(4):
+        await _validate_public_url(current_url)
+        response = await client.request(method, current_url, **kwargs)
+        if not response.is_redirect:
+            return response
+        location = response.headers.get("location")
+        if not location:
+            return response
+        redirect_url = str(response.url.join(location))
+        current_origin = urlsplit(current_url)
+        redirect_origin = urlsplit(redirect_url)
+        if (
+            current_origin.scheme,
+            current_origin.hostname,
+            current_origin.port,
+        ) != (
+            redirect_origin.scheme,
+            redirect_origin.hostname,
+            redirect_origin.port,
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="模型服务不能重定向到其他域名，请直接填写最终 API 地址",
+            )
+        current_url = redirect_url
+    raise HTTPException(status_code=422, detail="模型服务重定向次数过多")
 
 
 def _upstream_error(response: httpx.Response, *, model: str | None = None) -> str:
@@ -62,6 +150,16 @@ def _upstream_error(response: httpx.Response, *, model: str | None = None) -> st
     return f"模型服务连接失败（HTTP {response.status_code}）" + (
         f"：{message}" if message else ""
     )
+
+
+def _connection_error(exc: httpx.HTTPError, *, action: str) -> str:
+    if isinstance(exc, httpx.TimeoutException):
+        reason = "连接超时"
+    elif isinstance(exc, httpx.ConnectError):
+        reason = "DNS、TLS 或网络连接失败"
+    else:
+        reason = type(exc).__name__
+    return f"{action}失败：{reason}。请检查服务地址、/v1 路径和服务器网络限制"
 
 
 def _serialize(key: UserApiKey) -> dict:
@@ -81,24 +179,43 @@ async def discover_models(
     payload: ModelDiscoveryRequest,
     _user: CurrentUserDep,
 ) -> dict:
-    """作为普通用户读取 OpenAI 兼容服务的 /models，避免手填/猜测模型 ID。"""
-    base_url = _normalize_base_url(payload.base_url)
+    """读取 OpenAI 兼容服务的模型列表，并返回规范化 API root。"""
+    submitted_url = _normalize_base_url(payload.base_url)
+    last_response: httpx.Response | None = None
     try:
-        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
-            response = await client.get(
-                f"{base_url}/models",
-                headers={"Authorization": f"Bearer {payload.api_key}"},
-            )
+        async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
+            for endpoint in _model_endpoint_candidates(submitted_url):
+                response = await _request_public(
+                    client,
+                    "GET",
+                    endpoint,
+                    headers={"Authorization": f"Bearer {payload.api_key}"},
+                )
+                last_response = response
+                if response.is_success:
+                    base_url = endpoint.removesuffix("/models")
+                    break
+                if response.status_code not in {404, 405}:
+                    raise HTTPException(
+                        status_code=422, detail=_upstream_error(response)
+                    )
+            else:
+                assert last_response is not None
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "未找到 OpenAI 兼容的 /models 接口；请填写供应商 API 根地址，"
+                        "例如 https://example.com/v1"
+                    ),
+                )
+    except HTTPException:
+        raise
     except httpx.HTTPError as exc:
         raise HTTPException(
             status_code=422,
-            detail=f"无法连接模型服务：{type(exc).__name__}",
+            detail=_connection_error(exc, action="模型列表检测"),
         ) from exc
-    if not response.is_success:
-        raise HTTPException(
-            status_code=422,
-            detail=_upstream_error(response),
-        )
+
     try:
         data = response.json()
         models = sorted(
@@ -120,11 +237,13 @@ async def test_connection(
     payload: ModelConnectionTestRequest,
     _user: CurrentUserDep,
 ) -> dict:
-    """用用户选定的模型发一次最小聊天请求，确认不是只列出但实际不可用。"""
+    """用用户选定的模型发一次最小聊天请求。"""
     base_url = _normalize_base_url(payload.base_url)
     try:
-        async with httpx.AsyncClient(timeout=90, follow_redirects=True) as client:
-            response = await client.post(
+        async with httpx.AsyncClient(timeout=90, follow_redirects=False) as client:
+            response = await _request_public(
+                client,
+                "POST",
                 f"{base_url}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {payload.api_key}",
@@ -136,10 +255,12 @@ async def test_connection(
                     "stream": False,
                 },
             )
+    except HTTPException:
+        raise
     except httpx.HTTPError as exc:
         raise HTTPException(
             status_code=422,
-            detail=f"模型连接失败：{type(exc).__name__}",
+            detail=_connection_error(exc, action="模型连接"),
         ) from exc
     if not response.is_success:
         raise HTTPException(
@@ -171,11 +292,13 @@ async def list_keys(session: SessionDep, user: CurrentUserDep) -> list[dict]:
 async def create_key(
     payload: UserApiKeyCreate, session: SessionDep, user: CurrentUserDep
 ) -> dict:
+    base_url = _normalize_base_url(payload.base_url)
+    await _validate_public_url(base_url)
     key = UserApiKey(
         user_id=user.id,
         provider=payload.provider,
         model=payload.model,
-        base_url=_normalize_base_url(payload.base_url),
+        base_url=base_url,
         api_key_encrypted=encrypt_secret(payload.api_key),
         api_key_hint=payload.api_key[-4:],
         is_active=True,
