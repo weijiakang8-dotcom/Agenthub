@@ -19,10 +19,13 @@ router = APIRouter(prefix="/user-api-keys", tags=["user-api-keys"])
 
 
 class UserApiKeyCreate(BaseModel):
-    provider: str = Field(..., min_length=1, max_length=50)
+    provider: str = Field(..., min_length=1, max_length=40)
     model: str = Field(..., min_length=1, max_length=100)
     base_url: str = Field(..., min_length=1, max_length=255)
     api_key: str = Field(..., min_length=1)
+    api_mode: str = Field(
+        default="chat_completions", pattern="^(chat_completions|responses)$"
+    )
 
 
 class UserApiKeyUpdate(BaseModel):
@@ -40,6 +43,7 @@ class ModelDiscoveryRequest(BaseModel):
 
 class ModelConnectionTestRequest(ModelDiscoveryRequest):
     model: str = Field(..., min_length=1, max_length=100)
+    api_mode: str = Field(default="auto", pattern="^(auto|chat_completions|responses)$")
 
 
 def _normalize_base_url(value: str) -> str:
@@ -70,6 +74,45 @@ def _model_endpoint_candidates(base_url: str) -> list[str]:
     if not path.endswith("/v1"):
         candidates.append(f"{base_url}/v1/models")
     return list(dict.fromkeys(candidates))
+
+
+_NON_CHAT_MODEL_MARKERS = (
+    "audio",
+    "babbage",
+    "dall-e",
+    "embedding",
+    "image",
+    "moderation",
+    "realtime",
+    "search-preview",
+    "transcribe",
+    "tts",
+    "whisper",
+)
+
+
+def _chat_model_ids(models: list[str]) -> list[str]:
+    return [
+        model
+        for model in models
+        if not any(marker in model.lower() for marker in _NON_CHAT_MODEL_MARKERS)
+    ]
+
+
+def _is_openai_official(base_url: str) -> bool:
+    host = (urlsplit(base_url).hostname or "").lower()
+    return host == "api.openai.com" or host.endswith(".api.openai.com")
+
+
+def _stored_provider(provider: str, api_mode: str) -> str:
+    clean = provider.removesuffix(":responses")
+    return f"{clean}:responses" if api_mode == "responses" else clean
+
+
+def _provider_api_mode(provider: str, base_url: str) -> str:
+    if provider.endswith(":responses") or _is_openai_official(base_url):
+        return "responses"
+    return "chat_completions"
 
 
 def _is_public_ip(value: str) -> bool:
@@ -162,10 +205,79 @@ def _connection_error(exc: httpx.HTTPError, *, action: str) -> str:
     return f"{action}失败：{reason}。请检查服务地址、/v1 路径和服务器网络限制"
 
 
+def _should_try_responses(response: httpx.Response) -> bool:
+    if response.status_code in {404, 405}:
+        return True
+    if response.status_code not in {400, 422}:
+        return False
+    try:
+        message = str((response.json().get("error") or {}).get("message") or "").lower()
+    except Exception:  # noqa: BLE001
+        return False
+    return any(
+        marker in message
+        for marker in ("responses", "chat completions", "not supported", "unsupported")
+    )
+
+
+async def _test_with_mode(
+    client: httpx.AsyncClient,
+    *,
+    base_url: str,
+    api_key: str,
+    model: str,
+    api_mode: str,
+) -> httpx.Response:
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    if api_mode == "responses":
+        return await _request_public(
+            client,
+            "POST",
+            f"{base_url}/responses",
+            headers=headers,
+            json={
+                "model": model,
+                "input": "Reply with exactly OK",
+                "max_output_tokens": 64,
+            },
+        )
+    return await _request_public(
+        client,
+        "POST",
+        f"{base_url}/chat/completions",
+        headers=headers,
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": "只回复 OK"}],
+            "stream": False,
+        },
+    )
+
+
+def _response_preview(response: httpx.Response, api_mode: str) -> str:
+    data = response.json()
+    if api_mode == "chat_completions":
+        return str(
+            (((data.get("choices") or [{}])[0].get("message") or {}).get("content"))
+            or ""
+        )[:120]
+    if data.get("output_text"):
+        return str(data["output_text"])[:120]
+    for output in data.get("output") or []:
+        for content in output.get("content") or []:
+            if content.get("text"):
+                return str(content["text"])[:120]
+    return ""
+
+
 def _serialize(key: UserApiKey) -> dict:
     return {
         "id": str(key.id),
-        "provider": key.provider,
+        "provider": key.provider.removesuffix(":responses"),
+        "api_mode": _provider_api_mode(key.provider, key.base_url),
         "model": key.model,
         "base_url": key.base_url,
         "api_key_masked": f"****{key.api_key_hint}",
@@ -229,7 +341,17 @@ async def discover_models(
         raise HTTPException(status_code=422, detail="模型列表响应格式无效") from exc
     if not models:
         raise HTTPException(status_code=422, detail="服务未返回任何模型")
-    return {"base_url": base_url, "models": models}
+    chat_models = _chat_model_ids(models)
+    if not chat_models:
+        raise HTTPException(status_code=422, detail="服务未返回可用于 Agent 对话的模型")
+    return {
+        "base_url": base_url,
+        "models": models,
+        "chat_models": chat_models,
+        "api_mode": (
+            "responses" if _is_openai_official(base_url) else "chat_completions"
+        ),
+    }
 
 
 @router.post("/test-connection")
@@ -239,22 +361,31 @@ async def test_connection(
 ) -> dict:
     """用用户选定的模型发一次最小聊天请求。"""
     base_url = _normalize_base_url(payload.base_url)
+    api_mode = payload.api_mode
+    if api_mode == "auto":
+        api_mode = "responses" if _is_openai_official(base_url) else "chat_completions"
     try:
         async with httpx.AsyncClient(timeout=90, follow_redirects=False) as client:
-            response = await _request_public(
+            response = await _test_with_mode(
                 client,
-                "POST",
-                f"{base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {payload.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": payload.model,
-                    "messages": [{"role": "user", "content": "只回复 OK"}],
-                    "stream": False,
-                },
+                base_url=base_url,
+                api_key=payload.api_key,
+                model=payload.model,
+                api_mode=api_mode,
             )
+            if (
+                api_mode == "chat_completions"
+                and not response.is_success
+                and _should_try_responses(response)
+            ):
+                response = await _test_with_mode(
+                    client,
+                    base_url=base_url,
+                    api_key=payload.api_key,
+                    model=payload.model,
+                    api_mode="responses",
+                )
+                api_mode = "responses"
     except HTTPException:
         raise
     except httpx.HTTPError as exc:
@@ -268,14 +399,15 @@ async def test_connection(
             detail=_upstream_error(response, model=payload.model),
         )
     try:
-        data = response.json()
-        preview = str(
-            (((data.get("choices") or [{}])[0].get("message") or {}).get("content"))
-            or ""
-        )[:120]
+        preview = _response_preview(response, api_mode)
     except Exception as exc:
-        raise HTTPException(status_code=422, detail="聊天响应格式无效") from exc
-    return {"ok": True, "model": payload.model, "preview": preview}
+        raise HTTPException(status_code=422, detail="模型响应格式无效") from exc
+    return {
+        "ok": True,
+        "model": payload.model,
+        "preview": preview,
+        "api_mode": api_mode,
+    }
 
 
 @router.get("")
@@ -296,7 +428,7 @@ async def create_key(
     await _validate_public_url(base_url)
     key = UserApiKey(
         user_id=user.id,
-        provider=payload.provider,
+        provider=_stored_provider(payload.provider, payload.api_mode),
         model=payload.model,
         base_url=base_url,
         api_key_encrypted=encrypt_secret(payload.api_key),

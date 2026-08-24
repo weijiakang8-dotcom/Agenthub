@@ -13,6 +13,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
+from urllib.parse import urlsplit
 
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_openai import ChatOpenAI
@@ -64,6 +65,11 @@ async def list_active_models(organization_id: str | None = None) -> list[ModelCo
         )
         result = await session.execute(stmt.order_by(ModelConfig.cost_per_1k_tokens))
         return list(result.scalars().all())
+
+
+def _user_key_uses_responses_api(key: UserApiKey) -> bool:
+    host = (urlsplit(key.base_url).hostname or "").lower()
+    return key.provider.endswith(":responses") or host == "api.openai.com"
 
 
 async def list_user_api_keys(user_id: str | uuid.UUID | None) -> list[UserApiKey]:
@@ -177,14 +183,22 @@ class ModelGateway:
         for key in await list_user_api_keys(user_id):
             secret = decrypt_secret(key.api_key_encrypted)
             if secret:
+                uses_responses = _user_key_uses_responses_api(key)
                 user_llms.append(
                     ChatOpenAI(
                         model=key.model,
                         base_url=key.base_url,
                         api_key=secret,
-                        temperature=0,
+                        temperature=None if uses_responses else 0,
                         request_timeout=120,
                         max_retries=2,
+                        use_responses_api=uses_responses,
+                        metadata={
+                            "provider": key.provider.removesuffix(":responses"),
+                            "api_mode": (
+                                "responses" if uses_responses else "chat_completions"
+                            ),
+                        },
                     )
                 )
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   KeyRound,
@@ -23,7 +23,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type UserApiKey } from "@/lib/api";
+import { api, type ModelApiMode, type UserApiKey } from "@/lib/api";
 
 type TestStatus = { ok: boolean; message: string } | null;
 
@@ -35,15 +35,12 @@ export default function ApiKeysPanel() {
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [models, setModels] = useState<string[]>([]);
+  const [chatModels, setChatModels] = useState<string[]>([]);
+  const [apiMode, setApiMode] = useState<ModelApiMode>("chat_completions");
   const [discovering, setDiscovering] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testStatus, setTestStatus] = useState<TestStatus>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const chatModels = useMemo(
-    () => models.filter((item) => !item.toLowerCase().includes("image")),
-    [models],
-  );
 
   async function load() {
     setLoading(true);
@@ -62,7 +59,9 @@ export default function ApiKeysPanel() {
 
   function resetProbe() {
     setModels([]);
+    setChatModels([]);
     setModel("");
+    setApiMode("chat_completions");
     setTestStatus(null);
   }
 
@@ -81,15 +80,22 @@ export default function ApiKeysPanel() {
       });
       setBaseUrl(result.base_url);
       setModels(result.models);
-      const availableChatModels = result.models.filter(
-        (item) => !item.toLowerCase().includes("image"),
-      );
-      // 优先保留用户已填模型；其次推荐 sol；最后选择第一个聊天模型。
+      setChatModels(result.chat_models);
+      setApiMode(result.api_mode);
+      const availableChatModels = result.chat_models;
+      // 优先保留用户选择，其次选择厂商的通用高能力聊天模型。
+      const preferredByProvider =
+        result.api_mode === "responses"
+          ? (availableChatModels.find((item) =>
+              /^gpt-5(?:\.\d+)?$/i.test(item),
+            ) ?? availableChatModels.find((item) => /^gpt-5/i.test(item)))
+          : availableChatModels.find((item) =>
+              item.toLowerCase().endsWith("-sol"),
+            );
       const recommended =
         availableChatModels.find((item) => item === model) ??
-        availableChatModels.find((item) =>
-          item.toLowerCase().endsWith("-sol"),
-        ) ??
+        preferredByProvider ??
+        availableChatModels.find((item) => /^gpt-4\.1$/i.test(item)) ??
         availableChatModels[0] ??
         result.models[0];
       setModel(recommended ?? "");
@@ -107,10 +113,10 @@ export default function ApiKeysPanel() {
     }
   }
 
-  async function testConnection(): Promise<boolean> {
+  async function testConnection(): Promise<ModelApiMode | null> {
     if (!baseUrl.trim() || !apiKey.trim() || !model.trim()) {
       toast.error("请先检测并选择模型");
-      return false;
+      return null;
     }
     setTesting(true);
     setTestStatus(null);
@@ -119,18 +125,20 @@ export default function ApiKeysPanel() {
         base_url: baseUrl.trim(),
         api_key: apiKey.trim(),
         model: model.trim(),
+        api_mode: apiMode,
       });
+      setApiMode(result.api_mode);
       setTestStatus({
         ok: true,
         message: `${result.model} 连接成功${result.preview ? ` · ${result.preview}` : ""}`,
       });
       toast.success(`${result.model} 连接成功`);
-      return true;
+      return result.api_mode;
     } catch (err) {
       const message = String(err);
       setTestStatus({ ok: false, message });
       toast.error(message);
-      return false;
+      return null;
     } finally {
       setTesting(false);
     }
@@ -141,9 +149,11 @@ export default function ApiKeysPanel() {
       toast.error("请填写 Base URL、API Key 并选择模型");
       return;
     }
+    let verifiedApiMode = apiMode;
     if (!testStatus?.ok) {
-      const passed = await testConnection();
-      if (!passed) return;
+      const testedApiMode = await testConnection();
+      if (!testedApiMode) return;
+      verifiedApiMode = testedApiMode;
     }
     setSubmitting(true);
     try {
@@ -152,6 +162,7 @@ export default function ApiKeysPanel() {
         model: model.trim(),
         base_url: baseUrl.trim(),
         api_key: apiKey.trim(),
+        api_mode: verifiedApiMode,
       });
       toast.success("模型连接已验证，API Key 已加密保存");
       setApiKey("");
@@ -253,7 +264,12 @@ export default function ApiKeysPanel() {
           {models.length > 0 && (
             <>
               <div className="space-y-1.5 md:col-span-3">
-                <Label htmlFor="key-model">模型标识</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="key-model">模型标识</Label>
+                  <Badge variant="outline">
+                    {apiMode === "responses" ? "Responses" : "Chat Completions"}
+                  </Badge>
+                </div>
                 <select
                   id="key-model"
                   value={model}
@@ -338,6 +354,9 @@ export default function ApiKeysPanel() {
                     <span className="text-sm text-muted-foreground">
                       {key.model}
                     </span>
+                    <Badge variant="outline">
+                      {key.api_mode === "responses" ? "Responses" : "Chat"}
+                    </Badge>
                     <Badge variant={key.is_active ? "default" : "secondary"}>
                       {key.is_active ? "启用" : "停用"}
                     </Badge>

@@ -97,6 +97,8 @@ def test_discover_models_returns_sorted_ids(client):
     assert response.json() == {
         "base_url": "https://example.com/v1",
         "models": ["gpt-5.5", "gpt-5.6-sol"],
+        "chat_models": ["gpt-5.5", "gpt-5.6-sol"],
+        "api_mode": "chat_completions",
     }
     assert FakeClient.requests[0][1] == "https://example.com/v1/models"
 
@@ -152,6 +154,83 @@ def test_connection_success(client):
     assert response.status_code == 200
     assert response.json()["ok"] is True
     assert response.json()["model"] == "gpt-5.6-sol"
+    assert response.json()["api_mode"] == "chat_completions"
+
+
+def test_openai_official_uses_responses_api(client):
+    FakeClient.responses = [
+        FakeResponse(
+            {"output_text": "OK"},
+            url="https://api.openai.com/v1/responses",
+        )
+    ]
+    response = client.post(
+        "/api/user-api-keys/test-connection",
+        json={
+            "base_url": "https://api.openai.com/v1",
+            "api_key": "sk-test",
+            "model": "gpt-5",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["api_mode"] == "responses"
+    assert response.json()["preview"] == "OK"
+    method, url, kwargs = FakeClient.requests[0]
+    assert method == "POST"
+    assert url == "https://api.openai.com/v1/responses"
+    assert kwargs["json"]["input"] == "Reply with exactly OK"
+
+
+def test_chat_endpoint_rejection_falls_back_to_responses(client):
+    FakeClient.responses = [
+        FakeResponse(
+            {"error": {"message": "This model is not supported in chat completions"}},
+            status_code=400,
+            url="https://example.com/v1/chat/completions",
+        ),
+        FakeResponse(
+            {"output": [{"content": [{"type": "output_text", "text": "OK"}]}]},
+            url="https://example.com/v1/responses",
+        ),
+    ]
+    response = client.post(
+        "/api/user-api-keys/test-connection",
+        json={
+            "base_url": "https://example.com/v1",
+            "api_key": "sk-test",
+            "model": "provider-reasoning-model",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["api_mode"] == "responses"
+    assert [request[1] for request in FakeClient.requests] == [
+        "https://example.com/v1/chat/completions",
+        "https://example.com/v1/responses",
+    ]
+
+
+def test_discovery_filters_openai_non_chat_models(client):
+    FakeClient.responses = [
+        FakeResponse(
+            {
+                "data": [
+                    {"id": "text-embedding-3-large"},
+                    {"id": "gpt-image-1"},
+                    {"id": "whisper-1"},
+                    {"id": "omni-moderation-latest"},
+                    {"id": "gpt-5"},
+                ]
+            },
+            url="https://api.openai.com/v1/models",
+        )
+    ]
+    response = client.post(
+        "/api/user-api-keys/discover-models",
+        json={"base_url": "https://api.openai.com/v1", "api_key": "sk-test"},
+    )
+    assert response.status_code == 200
+    assert response.json()["chat_models"] == ["gpt-5"]
+    assert response.json()["api_mode"] == "responses"
 
 
 def test_connection_failure_is_user_friendly_and_does_not_leak_key(client):
