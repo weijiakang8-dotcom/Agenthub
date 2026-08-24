@@ -8,6 +8,12 @@ from app.engine import chat, intent
 from app.rag import embedder
 
 
+def test_chat_prompt_requires_clean_markdown_without_wrapping_quotes():
+    assert "Markdown" in chat.CHAT_SYSTEM_PROMPT
+    assert "带语言标识" in chat.CHAT_SYSTEM_PROMPT
+    assert "不要把整段回答包在引号" in chat.CHAT_SYSTEM_PROMPT
+
+
 def test_intent_router_parses_known_decision():
     class FakeGateway:
         async def select(self, **kwargs):

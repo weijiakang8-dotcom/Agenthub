@@ -8,6 +8,7 @@ from typing import Any
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from app.core.model_gateway import ModelGateway
+from app.engine.capabilities import RESPONSE_FORMAT_PROMPT
 from app.engine.runner import (
     MAX_CONTEXT_MESSAGES,
     _clean_message_dicts,
@@ -20,6 +21,7 @@ CHAT_SYSTEM_PROMPT = (
     "如果上下文中提供了【联网搜索结果】，请优先基于这些最新结果回答，"
     "涉及外部事实时尽量标注来源；如果搜索失败，如实说明未能联网检索，"
     "再基于已有知识回答，不要编造搜索结果。"
+    f"\n\n{RESPONSE_FORMAT_PROMPT}"
 )
 
 

@@ -18,6 +18,12 @@ from app.engine.tools import (
     send_email,
 )
 
+RESPONSE_FORMAT_PROMPT = (
+    "请使用清晰、自然的 Markdown 排版：正文用短段落，复杂内容使用简短标题和列表；"
+    "代码必须放在带语言标识的三反引号代码块中。不要把整段回答包在引号、JSON 字符串或代码块里，"
+    "不要输出原始 HTML，也不要为了排版添加多余空行。"
+)
+
 
 @dataclass(frozen=True)
 class Capability:
