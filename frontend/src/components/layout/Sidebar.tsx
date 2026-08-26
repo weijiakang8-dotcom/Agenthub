@@ -142,7 +142,7 @@ export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
           </button>
         </Hint>
         {!collapsed && (
-          <p className="text-xs text-muted-foreground">v0.2.0 · MIT</p>
+          <p className="text-xs text-muted-foreground">v0.2.0 · Apache-2.0</p>
         )}
       </div>
       <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />

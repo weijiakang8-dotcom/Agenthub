@@ -234,4 +234,4 @@ BENCH_REAL_MODELS=1 PHASE1B_MODE=full python -m tests.benchmark.phase1.run_1b
 
 ## License
 
-MIT
+[Apache License 2.0](LICENSE)
