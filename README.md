@@ -104,6 +104,9 @@ recall_executions / send_email`。能力目录：`backend/app/engine/capabilitie
 
 > 明确的边界：`send_sms / create_ticket / refund_order` 等仅存在于 benchmark fixture，
 > 不是生产工具；Prompt Injection 防线仍在设计冻结待评审。
+>
+> 安全修复、可靠执行、RAG 2.0、模型路由评测与 Skill 数据闭环的实施顺序见
+> [修复与升级路线图](docs/REMEDIATION_AND_UPGRADE_ROADMAP.md)。
 
 ---
 
