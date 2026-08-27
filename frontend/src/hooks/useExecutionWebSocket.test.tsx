@@ -44,6 +44,38 @@ describe("useExecutionWebSocket", () => {
     unmount();
   });
 
+  it("deduplicates replayed and out-of-order durable events", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("WebSocket", FakeWebSocket);
+    const { result, unmount } = renderHook(() =>
+      useExecutionWebSocket("exec-deduplicate"),
+    );
+    const socket = FakeWebSocket.instances[0];
+
+    act(() => {
+      socket.onmessage?.({
+        data: JSON.stringify({ event: "step", sequence: 5, value: "new" }),
+      } as MessageEvent);
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "step",
+          sequence: 5,
+          value: "duplicate",
+        }),
+      } as MessageEvent);
+      socket.onmessage?.({
+        data: JSON.stringify({ event: "step", sequence: 4, value: "old" }),
+      } as MessageEvent);
+    });
+
+    expect(result.current.lastEvent).toEqual({
+      event: "step",
+      sequence: 5,
+      value: "new",
+    });
+    unmount();
+  });
+
   it("does not regress the replay cursor on status events", () => {
     vi.useFakeTimers();
     vi.stubGlobal("WebSocket", FakeWebSocket);

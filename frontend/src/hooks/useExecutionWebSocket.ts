@@ -43,10 +43,8 @@ export function useExecutionWebSocket(executionId: string | undefined) {
       ws.onmessage = (e) => {
         try {
           const event = JSON.parse(e.data) as ExecutionEvent;
-          if (
-            typeof event.sequence === "number" &&
-            event.sequence > lastSequence.current
-          ) {
+          if (typeof event.sequence === "number") {
+            if (event.sequence <= lastSequence.current) return;
             lastSequence.current = event.sequence;
           }
           setLastEvent(event);
