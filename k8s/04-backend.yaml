@@ -42,6 +42,13 @@ spec:
           command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
           ports:
             - containerPort: 8000
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
           envFrom:
             - configMapRef:
                 name: agenthub-config
@@ -80,6 +87,13 @@ spec:
           image: weijiakang/agenthub-backend:1.0.0
           imagePullPolicy: IfNotPresent
           command: ["celery", "-A", "app.engine.tasks", "worker", "--loglevel=info"]
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
           envFrom:
             - configMapRef:
                 name: agenthub-config
@@ -106,6 +120,13 @@ spec:
           image: weijiakang/agenthub-backend:1.0.0
           imagePullPolicy: IfNotPresent
           command: ["celery", "-A", "app.engine.tasks", "beat", "--loglevel=info"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           envFrom:
             - configMapRef:
                 name: agenthub-config
