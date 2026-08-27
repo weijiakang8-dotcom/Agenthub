@@ -9,6 +9,7 @@ import "./index.css";
 import App from "./App";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { startAuthSync } from "@/lib/api";
 import {
   getStoredTheme,
   storeTheme,
@@ -26,6 +27,8 @@ function Root() {
   useEffect(() => {
     rootRef.current?.classList.toggle("dark", theme === "dark");
   }, [theme]);
+
+  useEffect(() => startAuthSync(() => window.location.reload()), []);
 
   useEffect(() => {
     const onChange = (event: Event) => {

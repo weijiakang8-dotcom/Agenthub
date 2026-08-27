@@ -1,10 +1,31 @@
 from __future__ import annotations
 
+import ipaddress
+
 from fastapi import Request
+
+from app.config import settings
 
 
 def get_client_ip(request: Request) -> str:
-    """从代理请求头解析真实客户端 IP，兼容 Nginx / Ingress。"""
+    """Trust forwarding headers only from explicitly configured proxies."""
+    peer = request.client.host if request.client else "unknown"
+    try:
+        peer_address = ipaddress.ip_address(peer)
+    except ValueError:
+        return peer
+    trusted = []
+    for value in settings.TRUSTED_PROXY_IPS.split(","):
+        value = value.strip()
+        if not value:
+            continue
+        try:
+            trusted.append(ipaddress.ip_network(value, strict=False))
+        except ValueError:
+            continue
+    if not any(peer_address in network for network in trusted):
+        return peer
+
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
         return forwarded.split(",")[0].strip()
@@ -13,4 +34,4 @@ def get_client_ip(request: Request) -> str:
     if real_ip:
         return real_ip.strip()
 
-    return request.client.host if request.client else "unknown"
+    return peer

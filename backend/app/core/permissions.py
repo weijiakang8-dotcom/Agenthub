@@ -18,6 +18,7 @@ PERMISSION_ROLES: dict[str, set[str]] = {
     "models:manage": {ROLE_ADMIN},
     "members:manage": {ROLE_ADMIN},
     "audit:view": {ROLE_ADMIN},
+    "operations:manage": {ROLE_ADMIN},
     "executions:write": {ROLE_ADMIN, ROLE_MEMBER},
     "resources:write": {ROLE_ADMIN, ROLE_MEMBER},
 }

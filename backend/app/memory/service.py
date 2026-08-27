@@ -19,7 +19,7 @@ SIMILARITY_THRESHOLD = 0.9
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
-    if not a or not b:
+    if len(a) == 0 or len(b) == 0:
         return 0.0
     dot = sum(x * y for x, y in zip(a, b))
     norm_a = sum(x * x for x in a) ** 0.5
@@ -103,7 +103,10 @@ async def _find_similar_memory(
             continue
         if organization_id is not None and candidate.organization_id != organization_id:
             continue
-        similarity = _cosine(embedding, candidate.embedding or [])
+        candidate_embedding = candidate.embedding
+        similarity = _cosine(
+            embedding, candidate_embedding if candidate_embedding is not None else []
+        )
         score = similarity + float(candidate.importance or 0.0) * 0.1
         if similarity >= SIMILARITY_THRESHOLD and score > best[0]:
             best = (score, candidate)
@@ -209,7 +212,10 @@ async def _retrieve_memories_impl(
             continue
         if organization_id is not None and memory.organization_id != organization_id:
             continue
-        similarity = _cosine(query_vec, memory.embedding or [])
+        memory_embedding = memory.embedding
+        similarity = _cosine(
+            query_vec, memory_embedding if memory_embedding is not None else []
+        )
         scored.append(
             (
                 similarity + float(memory.importance or 0.0) * 0.1,

@@ -142,7 +142,7 @@ async def _get_or_create_workflow(
     async with async_session_factory() as session:
         if workflow_id is not None:
             workflow = await session.get(Workflow, workflow_id)
-            if workflow is None:
+            if workflow is None or workflow.organization_id != org_id:
                 raise HTTPException(status_code=404, detail="Workflow not found")
             return workflow.id
 

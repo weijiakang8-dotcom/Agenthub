@@ -648,6 +648,10 @@ def test_real_budget_enforcement_in_graph(monkeypatch):
             intent={"category": "TASK", "risk": "MEDIUM"},
         )
         try:
+            await conn.execute(
+                "UPDATE executions SET status = 'running' WHERE id = $1",
+                execution_id,
+            )
             plan = normalize_plan(
                 {
                     "goal": "测试任务",

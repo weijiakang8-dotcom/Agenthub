@@ -7,9 +7,40 @@ from types import SimpleNamespace
 
 import jwt
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
+from starlette.requests import Request
 
 from app.api.routes import auth as auth_routes
+from app.core.security import create_refresh_token
+
+
+async def allow_rate_limit(*_args, **_kwargs):
+    return True
+
+
+def make_request(
+    *,
+    desktop: bool = True,
+    origin: str = "http://localhost:5173",
+    cookies: dict[str, str] | None = None,
+) -> Request:
+    headers = [(b"origin", origin.encode())]
+    if desktop:
+        headers.append((b"x-agenthub-client", b"desktop"))
+    if cookies:
+        cookie = "; ".join(f"{key}={value}" for key, value in cookies.items())
+        headers.append((b"cookie", cookie.encode()))
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/auth/refresh",
+            "headers": headers,
+            "client": ("127.0.0.1", 12345),
+            "scheme": "https",
+            "server": ("testserver", 443),
+        }
+    )
 
 
 class FakeRedis:
@@ -324,9 +355,11 @@ def test_register_rejects_existing_email(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
             auth_routes.register(
+                response=Response(),
+                request=make_request(),
                 payload=auth_routes.RegisterRequest(
                     email="a@b.com", password="password", code="123456"
-                )
+                ),
             )
         )
 
@@ -481,14 +514,17 @@ def test_login_ignores_code_and_never_verifies(monkeypatch):
     session = FakeSession(user=make_user())
     monkeypatch.setattr(auth_routes, "_verify_code", verify_code)
     monkeypatch.setattr(auth_routes, "verify_password", verify_password)
+    monkeypatch.setattr(auth_routes, "rate_limit", allow_rate_limit)
     monkeypatch.setattr(auth_routes, "master_session_factory", lambda: session)
 
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
             auth_routes.login(
+                response=Response(),
+                request=make_request(),
                 payload=auth_routes.LoginRequest(
                     email="a@b.com", password="password", code="000000"
-                )
+                ),
             )
         )
     assert exc.value.status_code == 401
@@ -502,14 +538,17 @@ def test_login_rejects_unknown_email_without_leaking(monkeypatch):
 
     session = FakeSession(user=None)
     monkeypatch.setattr(auth_routes, "_verify_code", verify_code)
+    monkeypatch.setattr(auth_routes, "rate_limit", allow_rate_limit)
     monkeypatch.setattr(auth_routes, "master_session_factory", lambda: session)
 
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
             auth_routes.login(
+                response=Response(),
+                request=make_request(),
                 payload=auth_routes.LoginRequest(
                     email="a@b.com", password="password", code="123456"
-                )
+                ),
             )
         )
     assert exc.value.status_code == 401
@@ -526,14 +565,17 @@ def test_login_rejects_wrong_password(monkeypatch):
     session = FakeSession(user=make_user())
     monkeypatch.setattr(auth_routes, "_verify_code", verify_code)
     monkeypatch.setattr(auth_routes, "verify_password", verify_password)
+    monkeypatch.setattr(auth_routes, "rate_limit", allow_rate_limit)
     monkeypatch.setattr(auth_routes, "master_session_factory", lambda: session)
 
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
             auth_routes.login(
+                response=Response(),
+                request=make_request(),
                 payload=auth_routes.LoginRequest(
                     email="a@b.com", password="wrong", code="123456"
-                )
+                ),
             )
         )
     assert exc.value.status_code == 401
@@ -551,14 +593,22 @@ def test_login_success(monkeypatch):
     user = make_user(organization_id=organization_id)
     session = FakeSession(user=user, organization=make_organization(organization_id))
     monkeypatch.setattr(auth_routes, "_verify_code", verify_code)
+    monkeypatch.setattr(auth_routes, "rate_limit", allow_rate_limit)
+
+    async def issue_refresh(_session, _user):
+        return create_refresh_token(_user.id, _user.organization_id)
+
     monkeypatch.setattr(auth_routes, "verify_password", verify_password)
+    monkeypatch.setattr(auth_routes, "issue_refresh_session", issue_refresh)
     monkeypatch.setattr(auth_routes, "master_session_factory", lambda: session)
 
     result = asyncio.run(
         auth_routes.login(
             payload=auth_routes.LoginRequest(
                 email="a@b.com", password="password", code="123456"
-            )
+            ),
+            response=Response(),
+            request=make_request(),
         )
     )
 
@@ -581,9 +631,8 @@ def test_login_rate_limited_returns_429(monkeypatch):
         asyncio.run(
             auth_routes.login(
                 payload=auth_routes.LoginRequest(email="a@b.com", password="password"),
-                request=SimpleNamespace(
-                    headers={}, client=SimpleNamespace(host="1.2.3.4")
-                ),
+                response=Response(),
+                request=make_request(),
             )
         )
     assert exc.value.status_code == 429
@@ -591,14 +640,20 @@ def test_login_rate_limited_returns_429(monkeypatch):
 
 def test_refresh_requires_bearer():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(auth_routes.refresh())
+        asyncio.run(auth_routes.refresh(request=make_request(), response=Response()))
     assert exc.value.status_code == 401
     assert exc.value.detail["code"] == "INVALID_REFRESH_TOKEN"
 
 
 def test_refresh_rejects_invalid_token():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(auth_routes.refresh(authorization="Bearer not-a-jwt"))
+        asyncio.run(
+            auth_routes.refresh(
+                request=make_request(),
+                response=Response(),
+                authorization="Bearer not-a-jwt",
+            )
+        )
     assert exc.value.status_code == 401
     assert exc.value.detail["code"] == "INVALID_REFRESH_TOKEN"
 
@@ -606,7 +661,13 @@ def test_refresh_rejects_invalid_token():
 def test_refresh_rejects_expired_token():
     token = make_refresh_token(uuid.uuid4(), expired=True)
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(auth_routes.refresh(authorization=f"Bearer {token}"))
+        asyncio.run(
+            auth_routes.refresh(
+                request=make_request(),
+                response=Response(),
+                authorization=f"Bearer {token}",
+            )
+        )
     assert exc.value.status_code == 401
     assert exc.value.detail["code"] == "REFRESH_TOKEN_EXPIRED"
 
@@ -614,21 +675,73 @@ def test_refresh_rejects_expired_token():
 def test_refresh_rejects_access_token_as_refresh():
     access = auth_routes.create_access_token(uuid.uuid4(), uuid.uuid4())
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(auth_routes.refresh(authorization=f"Bearer {access}"))
+        asyncio.run(
+            auth_routes.refresh(
+                request=make_request(),
+                response=Response(),
+                authorization=f"Bearer {access}",
+            )
+        )
     assert exc.value.status_code == 401
     assert exc.value.detail["code"] == "INVALID_REFRESH_TOKEN"
+
+
+def test_logout_requires_refresh_token():
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(auth_routes.logout(request=make_request(), response=Response()))
+    assert exc.value.status_code == 401
+    assert exc.value.detail["code"] == "INVALID_REFRESH_TOKEN"
+
+
+def test_logout_revokes_token_family(monkeypatch):
+    family_id = uuid.uuid4()
+    token = create_refresh_token(uuid.uuid4(), uuid.uuid4(), family_id=family_id)
+    session = FakeSession()
+    revoked = []
+
+    async def revoke(_session, candidate_family_id):
+        revoked.append(candidate_family_id)
+
+    monkeypatch.setattr(auth_routes, "revoke_family", revoke)
+    monkeypatch.setattr(auth_routes, "master_session_factory", lambda: session)
+
+    result = asyncio.run(
+        auth_routes.logout(
+            request=make_request(), response=Response(), authorization=f"Bearer {token}"
+        )
+    )
+
+    assert result == {"status": "ok"}
+    assert revoked == [family_id]
+    assert session.committed is True
 
 
 def test_refresh_success(monkeypatch):
     organization_id = uuid.uuid4()
     user = make_user(organization_id=organization_id)
-    refresh_token = auth_routes.create_refresh_token(user.id, organization_id)
+    refresh_token = create_refresh_token(user.id, organization_id)
     session = FakeSession(user=user, organization=make_organization(organization_id))
+
+    async def rotate_refresh(_session, _token):
+        return (
+            create_refresh_token(user.id, organization_id, family_id=uuid.uuid4()),
+            user,
+        )
+
+    monkeypatch.setattr(auth_routes, "rotate_refresh_session", rotate_refresh)
     monkeypatch.setattr(auth_routes, "master_session_factory", lambda: session)
 
-    result = asyncio.run(auth_routes.refresh(authorization=f"Bearer {refresh_token}"))
+    result = asyncio.run(
+        auth_routes.refresh(
+            request=make_request(),
+            response=Response(),
+            authorization=f"Bearer {refresh_token}",
+        )
+    )
 
     assert result.access_token
+    assert result.refresh_token
+    assert result.refresh_token != refresh_token
     payload = auth_routes.decode_token_checked(result.access_token)
     assert payload["sub"] == str(user.id)
     assert payload["type"] == "access"

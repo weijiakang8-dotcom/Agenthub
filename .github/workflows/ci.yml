@@ -46,8 +46,8 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
-      - name: Install test dependency
-        run: pip install pytest
+      - name: Install test and quality dependencies
+        run: pip install pytest ruff black
       - name: Migrate database to head
         working-directory: backend
         run: alembic upgrade head
@@ -86,6 +86,11 @@ jobs:
 
           asyncio.run(main())
           PY
+      - name: Lint and format check
+        working-directory: backend
+        run: |
+          python -m ruff check app tests alembic
+          python -m black --check app tests
       - name: Compile and import smoke test
         working-directory: backend
         run: |
@@ -107,6 +112,11 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+      - name: Lint and format check
+        working-directory: frontend
+        run: |
+          npm run lint
+          npm run format:check
       - name: Typecheck
         working-directory: frontend
         run: npm run typecheck
@@ -162,7 +172,7 @@ jobs:
         run: |
           nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/backend.log 2>&1 &
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
+            if curl -fsS http://127.0.0.1:8000/health/ready >/dev/null; then
               echo "backend-ready"
               exit 0
             fi
@@ -201,6 +211,46 @@ jobs:
         run: docker build -f docker/Dockerfile.backend -t agenthub-backend:ci .
       - name: Build frontend image
         run: docker build -f docker/Dockerfile.frontend -t agenthub-frontend:ci .
+      - name: Scan backend image vulnerabilities
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/workspace" aquasec/trivy:0.65.0 image \
+            --format sarif --output /workspace/trivy-backend.sarif \
+            --severity CRITICAL,HIGH --exit-code 1 --ignore-unfixed \
+            agenthub-backend:ci
+      - name: Scan frontend image vulnerabilities
+        if: success() || failure()
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/workspace" aquasec/trivy:0.65.0 image \
+            --format sarif --output /workspace/trivy-frontend.sarif \
+            --severity CRITICAL,HIGH --exit-code 1 --ignore-unfixed \
+            agenthub-frontend:ci
+      - name: Generate backend SBOM
+        if: success() || failure()
+        uses: anchore/sbom-action@v0.20.6
+        with:
+          image: agenthub-backend:ci
+          format: spdx-json
+          output-file: sbom-backend.spdx.json
+      - name: Generate frontend SBOM
+        if: success() || failure()
+        uses: anchore/sbom-action@v0.20.6
+        with:
+          image: agenthub-frontend:ci
+          format: spdx-json
+          output-file: sbom-frontend.spdx.json
+      - name: Upload supply-chain evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-evidence
+          path: |
+            trivy-backend.sarif
+            trivy-frontend.sarif
+            sbom-backend.spdx.json
+            sbom-frontend.spdx.json
+          retention-days: 30
 
   benchmark-gate:
     runs-on: ubuntu-latest

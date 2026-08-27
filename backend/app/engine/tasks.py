@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -47,6 +47,10 @@ celery_app.conf.beat_schedule = {
     "mark-stale-executions": {
         "task": "agenthub.mark_stale_executions",
         "schedule": 120.0,
+    },
+    "dispatch-outbox": {
+        "task": "agenthub.dispatch_outbox",
+        "schedule": 2.0,
     },
     "reconcile-state": {
         "task": "agenthub.reconcile_state",
@@ -108,15 +112,22 @@ def setup_telemetry_on_worker(**kwargs) -> None:
 
 @celery_app.task(name="agenthub.execute_workflow", bind=True, max_retries=3)
 def execute_workflow_task(self, execution_id: str) -> None:
+    from app.engine.lease_runner import run_with_execution_lease
     from app.engine.runner import run_execution
 
-    try:
+    execution_uuid = uuid.UUID(execution_id)
+    owner = f"celery:{self.request.id or uuid.uuid4()}"
+
+    async def run() -> None:
         if settings.RUNTIME_MODE == "kernel":
             from app.adapters.kernel_runner import run_kernel_execution
 
-            asyncio.run(run_kernel_execution(uuid.UUID(execution_id)))
+            await run_kernel_execution(execution_uuid)
         else:
-            asyncio.run(run_execution(uuid.UUID(execution_id)))
+            await run_execution(execution_uuid)
+
+    try:
+        asyncio.run(run_with_execution_lease(execution_uuid, owner, run))
     except UnsupportedKernelWorkflowError as exc:
         asyncio.run(persist_unsupported_workflow(uuid.UUID(execution_id), str(exc)))
     except Exception as exc:  # noqa: BLE001
@@ -151,24 +162,45 @@ def evaluate_all_rules_task() -> None:
 @celery_app.task(name="agenthub.mark_stale_executions")
 def mark_stale_executions_task() -> int:
     async def _mark() -> int:
-        stale_before = datetime.now(timezone.utc) - timedelta(minutes=15)
+        now = datetime.now(timezone.utc)
         async with async_session_factory() as session:
             result = await session.execute(
                 update(Execution)
                 .where(
                     Execution.status == ExecutionStatus.RUNNING,
-                    Execution.updated_at < stale_before,
+                    Execution.lease_expires_at.isnot(None),
+                    Execution.lease_expires_at < now,
                 )
                 .values(
                     status=ExecutionStatus.FAILED,
-                    error_message="Execution timed out after 15 minutes",
-                    completed_at=datetime.now(timezone.utc),
+                    error_message="Execution lease expired",
+                    completed_at=now,
+                    lease_owner=None,
+                    lease_expires_at=None,
                 )
             )
             await session.commit()
             return result.rowcount or 0
 
     return asyncio.run(_mark())
+
+
+@celery_app.task(name="agenthub.dispatch_outbox")
+def dispatch_outbox_task() -> dict:
+    from app.engine.outbox import dispatch_outbox_batch
+
+    async def _run() -> dict:
+        async with async_session_factory() as session:
+            return await dispatch_outbox_batch(
+                session,
+                {
+                    "execute_workflow": execute_workflow_task.delay,
+                    "resume_workflow": resume_workflow_task.delay,
+                    "evaluate_execution": evaluate_execution_task.delay,
+                },
+            )
+
+    return asyncio.run(_run())
 
 
 @celery_app.task(name="agenthub.reconcile_state")

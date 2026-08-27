@@ -1,13 +1,26 @@
-# AgentHub 后端镜像（FastAPI）
-# 运行入口假定存在 backend/app/main.py，其中暴露名为 app 的 ASGI 应用。
+# AgentHub backend image (FastAPI).
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY backend/requirements.txt ./
+RUN pip config set global.index-url https://mirrors.cloud.tencent.com/pypi/simple \
+    && pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir --prefix=/install -r requirements.txt \
+    && rm -rf /install/lib/python3.11/site-packages/pip* \
+        /install/lib/python3.11/site-packages/setuptools*
+
 FROM python:3.11-slim
 
 WORKDIR /app
-
-COPY backend/requirements.txt ./
-RUN pip config set global.index-url https://mirrors.cloud.tencent.com/pypi/simple
-RUN pip install --no-cache-dir -r requirements.txt
-
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends libpq5 \
+    && python -m pip uninstall -y pip setuptools wheel \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /install /usr/local
 COPY backend/ ./
 
 EXPOSE 8000

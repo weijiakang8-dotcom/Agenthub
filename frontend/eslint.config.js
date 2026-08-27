@@ -10,12 +10,22 @@ export default tseslint.config(
     ignores: [
       "dist",
       "node_modules",
+      "playwright-report",
+      "test-results",
+      "coverage",
       "src-tauri/target",
       "src-tauri/gen",
       "src-tauri/vendor",
     ],
   },
   js.configs.recommended,
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.node,
+    },
+  },
   ...tseslint.configs.recommended,
   {
     files: ["**/*.{ts,tsx}"],

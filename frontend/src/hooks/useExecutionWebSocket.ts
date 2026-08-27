@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api, getAccessToken } from "@/lib/api";
 
@@ -10,8 +10,10 @@ export type ExecutionEvent = {
 export function useExecutionWebSocket(executionId: string | undefined) {
   const [lastEvent, setLastEvent] = useState<ExecutionEvent | null>(null);
   const [connected, setConnected] = useState(false);
+  const lastSequence = useRef(0);
 
   useEffect(() => {
+    lastSequence.current = 0;
     if (!executionId) return;
 
     let ws: WebSocket | null = null;
@@ -21,10 +23,13 @@ export function useExecutionWebSocket(executionId: string | undefined) {
 
     const connect = () => {
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
+      const params = new URLSearchParams({
+        after_sequence: String(lastSequence.current),
+      });
       const token = getAccessToken();
-      const query = token ? `?token=${encodeURIComponent(token)}` : "";
+      if (token) params.set("token", token);
       ws = new WebSocket(
-        `${proto}://${window.location.host}/ws/executions/${executionId}${query}`,
+        `${proto}://${window.location.host}/ws/executions/${executionId}?${params}`,
       );
 
       ws.onopen = () => {
@@ -37,7 +42,12 @@ export function useExecutionWebSocket(executionId: string | undefined) {
 
       ws.onmessage = (e) => {
         try {
-          setLastEvent(JSON.parse(e.data));
+          const event = JSON.parse(e.data) as ExecutionEvent;
+          if (typeof event.sequence === "number") {
+            if (event.sequence <= lastSequence.current) return;
+            lastSequence.current = event.sequence;
+          }
+          setLastEvent(event);
         } catch {
           // ignore malformed messages
         }

@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from app.config import settings
+from app.core.safe_outbound import request_public
 from app.database import async_session_factory
 from app.models import Notification
 
@@ -47,9 +48,9 @@ async def _send_email(to: str, subject: str, body: str) -> None:
 
 
 async def _send_webhook(url: str, payload: dict[str, Any]) -> None:
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(url, json=payload)
-        resp.raise_for_status()
+    async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+        response = await request_public(client, "POST", url, json=payload)
+        response.raise_for_status()
 
 
 async def _dispatch(channel: str, text: str, params: dict[str, Any]) -> None:

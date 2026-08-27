@@ -23,12 +23,20 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
 
-          if (id.includes("/recharts/") || id.includes("/d3-")) {
-            return "charts";
-          }
-
-          if (id.includes("/@xyflow/")) {
-            return "flow";
+          if (
+            id.includes("/react-markdown/") ||
+            id.includes("/remark-") ||
+            id.includes("/rehype-") ||
+            id.includes("/highlight.js/") ||
+            id.includes("/lowlight/") ||
+            id.includes("/unified/") ||
+            id.includes("/micromark") ||
+            id.includes("/mdast-") ||
+            id.includes("/hast-") ||
+            id.includes("/property-information/") ||
+            id.includes("/vfile")
+          ) {
+            return "markdown";
           }
 
           if (

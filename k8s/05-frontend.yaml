@@ -27,10 +27,17 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: weijiakang/agenthub-frontend:latest
+          image: weijiakang/agenthub-frontend:1.0.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
           readinessProbe:
             httpGet:
               path: /

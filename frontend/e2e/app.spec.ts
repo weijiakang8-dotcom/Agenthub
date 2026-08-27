@@ -118,6 +118,9 @@ test("authenticated usage page shows tenant quota", async ({ page }) => {
     localStorage.setItem("agenthub.access_token", "playwright-e2e-token");
     localStorage.setItem("agenthub.onboarded", "1");
   });
+  await page.route("**/api/models", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
   await page.route("**/api/usage", (route) =>
     route.fulfill({
       status: 200,
@@ -284,9 +287,13 @@ test("api key can be rotated from settings", async ({ page }) => {
     base_url: "https://api.deepseek.com/v1",
     api_key_masked: "****1234",
     is_active: true,
+    cost_per_1k_tokens: 0.002,
     created_at: "2026-08-21T00:00:00Z",
   };
   let rotated = false;
+  await page.route("**/api/models", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
   await page.route("**/api/user-api-keys", async (route) => {
     if (route.request().method() === "GET") {
       return route.fulfill({

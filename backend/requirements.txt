@@ -13,7 +13,7 @@ pgvector
 # PostgreSQL 异步 ORM
 asyncpg
 sqlalchemy[asyncio]
-psycopg[binary]
+psycopg[c]
 
 # Web search fallback
 duckduckgo-search

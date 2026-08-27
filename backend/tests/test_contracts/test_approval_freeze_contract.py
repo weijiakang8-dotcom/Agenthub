@@ -226,6 +226,12 @@ def test_replan_read_only_keeps_frozen_proposals():
     assert planner.compute_plan_hash(accepted) == planner.compute_plan_hash(original)
 
 
+def test_resume_without_explicit_approval_is_rejected():
+    ok, reason = resume_approval_decision({})
+    assert ok is False
+    assert "explicit" in reason
+
+
 def test_resume_with_modified_plan_is_rejected():
     ok, _ = resume_approval_decision({"approved": True})
     assert ok

@@ -14,6 +14,25 @@ from app.rag.vector_store import delete_document_chunks, rebuild_document_chunks
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+UPLOAD_CHUNK_BYTES = 64 * 1024
+MAX_PDF_PAGES = 200
+TEXT_CONTENT_TYPES = {"", "text/plain", "text/markdown"}
+PDF_CONTENT_TYPES = {"", "application/pdf"}
+
+
+async def _read_upload_limited(file: UploadFile) -> bytes:
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await file.read(UPLOAD_CHUNK_BYTES):
+        total += len(chunk)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413, detail="File exceeds upload size limit"
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
 
 class DocumentUpload(BaseModel):
     name: str
@@ -55,20 +74,33 @@ async def upload_document(
     user: CurrentUserDep,
     file: UploadFile = File(...),  # noqa: B008
 ) -> dict:
-    raw = await file.read()
+    raw = await _read_upload_limited(file)
     filename = file.filename or "document.txt"
     lower = filename.lower()
+    content_type = (file.content_type or "").lower().split(";", 1)[0].strip()
 
     if lower.endswith((".txt", ".md", ".markdown")):
-        content = raw.decode("utf-8", errors="ignore")
+        if content_type not in TEXT_CONTENT_TYPES or raw.startswith(b"%PDF-"):
+            raise HTTPException(
+                status_code=422, detail="File content type does not match extension"
+            )
+        content = raw.decode("utf-8", errors="strict")
     elif lower.endswith(".pdf"):
+        if content_type not in PDF_CONTENT_TYPES or not raw.startswith(b"%PDF-"):
+            raise HTTPException(
+                status_code=422, detail="File content does not match PDF type"
+            )
         try:
             from io import BytesIO
 
             from pypdf import PdfReader
 
             reader = PdfReader(BytesIO(raw))
+            if len(reader.pages) > MAX_PDF_PAGES:
+                raise HTTPException(status_code=413, detail="PDF exceeds page limit")
             content = "\n".join((page.extract_text() or "") for page in reader.pages)
+        except HTTPException:
+            raise
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=422, detail=f"PDF parsing failed: {exc}")
     else:

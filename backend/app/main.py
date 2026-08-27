@@ -161,6 +161,12 @@ async def root():
     }
 
 
+@app.get("/health/live")
+async def liveness():
+    return {"status": "ok", "build_sha": settings.BUILD_SHA}
+
+
+@app.get("/health/ready")
 @app.get("/health")
 async def health():
     db_ok = redis_ok = llm_ok = False

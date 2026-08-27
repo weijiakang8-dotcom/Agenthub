@@ -31,6 +31,8 @@ def test_refresh_token_roundtrip():
     token = create_refresh_token("user-1", "org-1")
     payload = decode_token(token)
     assert payload["type"] == "refresh"
+    assert payload["jti"]
+    assert payload["family"]
 
 
 def test_token_expiry_policies():

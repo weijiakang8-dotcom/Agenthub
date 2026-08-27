@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from app.api.deps import CurrentUserDep, SessionDep, get_current_user
+from app.api.deps import CurrentUserDep, SessionDep
+from app.core.permissions import require_permission
 from app.models import AlertRule
 
 router = APIRouter(prefix="/alert-rules", tags=["alert-rules"])
@@ -36,7 +37,11 @@ async def list_rules(session: SessionDep, user: CurrentUserDep) -> list[AlertRul
     return list((await session.execute(stmt)).scalars().all())
 
 
-@router.post("", response_model=None, dependencies=[Depends(get_current_user)])
+@router.post(
+    "",
+    response_model=None,
+    dependencies=[Depends(require_permission("resources:write"))],
+)
 async def create_rule(
     payload: AlertRuleCreate, session: SessionDep, user: CurrentUserDep
 ) -> AlertRule:
@@ -47,7 +52,11 @@ async def create_rule(
     return rule
 
 
-@router.put("/{rule_id}", response_model=None, dependencies=[Depends(get_current_user)])
+@router.put(
+    "/{rule_id}",
+    response_model=None,
+    dependencies=[Depends(require_permission("resources:write"))],
+)
 async def update_rule(
     rule_id: uuid.UUID,
     payload: AlertRuleUpdate,
@@ -69,7 +78,11 @@ async def update_rule(
     return rule
 
 
-@router.delete("/{rule_id}", status_code=204, dependencies=[Depends(get_current_user)])
+@router.delete(
+    "/{rule_id}",
+    status_code=204,
+    dependencies=[Depends(require_permission("resources:write"))],
+)
 async def delete_rule(
     rule_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
 ) -> None:
@@ -85,7 +98,9 @@ async def delete_rule(
     await session.commit()
 
 
-@router.post("/{rule_id}/test", dependencies=[Depends(get_current_user)])
+@router.post(
+    "/{rule_id}/test", dependencies=[Depends(require_permission("resources:write"))]
+)
 async def test_rule(
     rule_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
 ) -> dict:

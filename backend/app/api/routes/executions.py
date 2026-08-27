@@ -1,4 +1,3 @@
-import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -8,7 +7,7 @@ from sqlalchemy import select, update
 from app.api.deps import CurrentUserDep, SessionDep, get_current_user
 from app.core.permissions import require_permission
 from app.core.telemetry import get_meter, get_tracer
-from app.engine.tasks import execute_workflow_task, resume_workflow_task
+from app.engine.outbox import enqueue_outbox_event
 from app.models import (
     AuditLog,
     Execution,
@@ -33,7 +32,6 @@ from app.schemas.tool_call import ToolCallRead, ToolCallSummary
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 
-logger = logging.getLogger(__name__)
 tracer = get_tracer("agenthub.api")
 execution_counter = get_meter("agenthub.api").create_counter(
     "execution.started.total",
@@ -148,22 +146,15 @@ async def create_execution(
             user_id=user.id,
         )
         session.add(execution)
+        await session.flush()
+        await enqueue_outbox_event(
+            session,
+            "execute_workflow",
+            {"execution_id": str(execution.id)},
+            execution_id=execution.id,
+        )
         await session.commit()
         await session.refresh(execution)
-
-        try:
-            execute_workflow_task.delay(str(execution.id))
-        except Exception:
-            logger.warning(
-                "Task broker unavailable; marking execution %s as failed",
-                execution.id,
-                exc_info=True,
-            )
-            execution.status = ExecutionStatus.FAILED
-            execution.error_message = "Task broker unavailable"
-            execution.completed_at = utcnow()
-            await session.commit()
-            raise HTTPException(status_code=503, detail="Task broker unavailable")
         execution_counter.add(1, {"workflow_id": str(payload.workflow_id)})
 
         return ExecutionAccepted(
@@ -201,6 +192,7 @@ async def cancel_execution(
     execution.status = ExecutionStatus.FAILED
     execution.error_message = "Cancelled by user"
     execution.completed_at = utcnow()
+    execution.lease_expires_at = utcnow()
     await session.commit()
     await session.refresh(execution)
     return execution
@@ -324,13 +316,21 @@ async def resume_execution(
         )
         .values(status=ExecutionStatus.RUNNING)
     )
+    if result.rowcount:
+        await enqueue_outbox_event(
+            session,
+            "resume_workflow",
+            {
+                "execution_id": str(execution_id),
+                "decision": payload.model_dump(),
+            },
+            execution_id=execution_id,
+        )
     await session.commit()
     if result.rowcount == 0:
         raise HTTPException(
             status_code=409, detail="Execution is already being resumed"
         )
-
-    resume_workflow_task.delay(str(execution_id), payload.model_dump())
 
     return ExecutionAccepted(execution_id=execution_id, status=ExecutionStatus.RUNNING)
 
@@ -447,9 +447,17 @@ async def intervene(
         execution.error_message = "终止任务"
         execution.completed_at = utcnow()
     else:
-        resume_workflow_task.delay(
-            str(execution_id),
-            {"approved": True, "comment": payload.modified_plan or ""},
+        await enqueue_outbox_event(
+            session,
+            "resume_workflow",
+            {
+                "execution_id": str(execution_id),
+                "decision": {
+                    "approved": True,
+                    "comment": payload.modified_plan or "",
+                },
+            },
+            execution_id=execution_id,
         )
     await session.commit()
     return {"status": "ok", "action": payload.action}

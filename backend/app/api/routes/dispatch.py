@@ -94,10 +94,10 @@ async def decisions(
 ) -> list[dict]:
     """路由决策审计：每一步为什么选这个模型，全部可查可回放。"""
     stmt = select(RoutingDecision).order_by(RoutingDecision.created_at.desc())
+    if user.organization_id is not None:
+        stmt = stmt.where(RoutingDecision.organization_id == user.organization_id)
     if execution_id is not None:
         stmt = stmt.where(RoutingDecision.execution_id == execution_id)
-    elif user.organization_id is not None:
-        stmt = stmt.where(RoutingDecision.organization_id == user.organization_id)
     stmt = stmt.limit(min(limit, 200))
     result = await session.execute(stmt)
     return [_serialize_decision(decision) for decision in result.scalars().all()]
@@ -111,10 +111,10 @@ async def clarifications(
     limit: int = 20,
 ) -> list[dict]:
     stmt = select(Clarification).order_by(Clarification.created_at.desc())
+    if user.organization_id is not None:
+        stmt = stmt.where(Clarification.organization_id == user.organization_id)
     if execution_id is not None:
         stmt = stmt.where(Clarification.execution_id == execution_id)
-    elif user.organization_id is not None:
-        stmt = stmt.where(Clarification.organization_id == user.organization_id)
     result = await session.execute(stmt.limit(min(limit, 100)))
     return [
         {
