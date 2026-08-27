@@ -45,6 +45,30 @@ def test_concurrent_dispatchers_publish_event_once():
     asyncio.run(run())
 
 
+def test_committed_event_survives_dispatcher_restart():
+    async def run() -> None:
+        event_id = await _create_event()
+        calls: list[str] = []
+        try:
+            # Simulate process exit after the business transaction committed but before
+            # any broker publish attempt. A new dispatcher session must find the row.
+            async with async_session_factory() as restarted_session:
+                result = await dispatch_outbox_batch(
+                    restarted_session, {"test": lambda value: calls.append(value)}
+                )
+                assert result == {"published": 1, "failed": 0}
+
+            async with async_session_factory() as session:
+                event = await session.get(OutboxEvent, event_id)
+                assert event.published_at is not None
+                assert event.attempt_count == 0
+                assert calls == ["ok"]
+        finally:
+            await _delete_event(event_id)
+
+    asyncio.run(run())
+
+
 def test_failed_delivery_is_retried_and_can_recover():
     async def run() -> None:
         event_id = await _create_event()
