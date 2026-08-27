@@ -212,30 +212,29 @@ jobs:
       - name: Build frontend image
         run: docker build -f docker/Dockerfile.frontend -t agenthub-frontend:ci .
       - name: Scan backend image vulnerabilities
-        uses: aquasecurity/trivy-action@v0.33.1
-        with:
-          image-ref: agenthub-backend:ci
-          format: sarif
-          output: trivy-backend.sarif
-          severity: CRITICAL,HIGH
-          exit-code: "1"
-          ignore-unfixed: true
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/workspace" aquasec/trivy:0.65.0 image \
+            --format sarif --output /workspace/trivy-backend.sarif \
+            --severity CRITICAL,HIGH --exit-code 1 --ignore-unfixed \
+            agenthub-backend:ci
       - name: Scan frontend image vulnerabilities
-        uses: aquasecurity/trivy-action@v0.33.1
-        with:
-          image-ref: agenthub-frontend:ci
-          format: sarif
-          output: trivy-frontend.sarif
-          severity: CRITICAL,HIGH
-          exit-code: "1"
-          ignore-unfixed: true
+        if: success() || failure()
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/workspace" aquasec/trivy:0.65.0 image \
+            --format sarif --output /workspace/trivy-frontend.sarif \
+            --severity CRITICAL,HIGH --exit-code 1 --ignore-unfixed \
+            agenthub-frontend:ci
       - name: Generate backend SBOM
+        if: success() || failure()
         uses: anchore/sbom-action@v0.20.6
         with:
           image: agenthub-backend:ci
           format: spdx-json
           output-file: sbom-backend.spdx.json
       - name: Generate frontend SBOM
+        if: success() || failure()
         uses: anchore/sbom-action@v0.20.6
         with:
           image: agenthub-frontend:ci
