@@ -86,6 +86,11 @@ jobs:
 
           asyncio.run(main())
           PY
+      - name: Lint and format check
+        working-directory: backend
+        run: |
+          python -m ruff check app tests alembic
+          python -m black --check app tests
       - name: Compile and import smoke test
         working-directory: backend
         run: |
@@ -107,6 +112,11 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+      - name: Lint and format check
+        working-directory: frontend
+        run: |
+          npm run lint
+          npm run format:check
       - name: Typecheck
         working-directory: frontend
         run: npm run typecheck
@@ -162,7 +172,7 @@ jobs:
         run: |
           nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/backend.log 2>&1 &
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
+            if curl -fsS http://127.0.0.1:8000/health/ready >/dev/null; then
               echo "backend-ready"
               exit 0
             fi

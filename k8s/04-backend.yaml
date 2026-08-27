@@ -27,7 +27,7 @@ spec:
     spec:
       initContainers:
         - name: migrate
-          image: weijiakang/agenthub-backend:latest
+          image: weijiakang/agenthub-backend:1.0.0
           imagePullPolicy: IfNotPresent
           command: ["alembic", "upgrade", "head"]
           envFrom:
@@ -37,7 +37,7 @@ spec:
                 name: agenthub-secrets
       containers:
         - name: api
-          image: weijiakang/agenthub-backend:latest
+          image: weijiakang/agenthub-backend:1.0.0
           imagePullPolicy: IfNotPresent
           command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
           ports:
@@ -49,13 +49,13 @@ spec:
                 name: agenthub-secrets
           readinessProbe:
             httpGet:
-              path: /health
+              path: /health/ready
               port: 8000
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /health
+              path: /health/live
               port: 8000
             initialDelaySeconds: 15
             periodSeconds: 20
@@ -77,7 +77,7 @@ spec:
     spec:
       containers:
         - name: worker
-          image: weijiakang/agenthub-backend:latest
+          image: weijiakang/agenthub-backend:1.0.0
           imagePullPolicy: IfNotPresent
           command: ["celery", "-A", "app.engine.tasks", "worker", "--loglevel=info"]
           envFrom:
@@ -103,7 +103,7 @@ spec:
     spec:
       containers:
         - name: beat
-          image: weijiakang/agenthub-backend:latest
+          image: weijiakang/agenthub-backend:1.0.0
           imagePullPolicy: IfNotPresent
           command: ["celery", "-A", "app.engine.tasks", "beat", "--loglevel=info"]
           envFrom:

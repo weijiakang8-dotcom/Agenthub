@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: weijiakang/agenthub-frontend:latest
+          image: weijiakang/agenthub-frontend:1.0.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
