@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AssistantMessage } from "./AssistantMessage";
 
 describe("AssistantMessage", () => {
-  it("renders structured Markdown without exposing formatting syntax", () => {
+  it("renders structured Markdown without exposing formatting syntax", async () => {
     render(
       <AssistantMessage
         content={[
@@ -24,19 +24,23 @@ describe("AssistantMessage", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "实现方案" })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { name: "实现方案" }),
+    ).toBeVisible();
     expect(screen.getByText("inline()", { selector: "code" })).toBeVisible();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByText("关键说明").closest("blockquote")).not.toBeNull();
     expect(screen.getByRole("table")).toBeVisible();
   });
 
-  it("unwraps an accidentally JSON-encoded full reply", () => {
+  it("unwraps an accidentally JSON-encoded full reply", async () => {
     render(
       <AssistantMessage content={JSON.stringify("## 正常标题\n\n正常正文")} />,
     );
 
-    expect(screen.getByRole("heading", { name: "正常标题" })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { name: "正常标题" }),
+    ).toBeVisible();
     expect(screen.getByText("正常正文")).toBeVisible();
   });
 
@@ -53,7 +57,7 @@ describe("AssistantMessage", () => {
       />,
     );
 
-    expect(screen.getByText("typescript")).toBeVisible();
+    expect(await screen.findByText("typescript")).toBeVisible();
     expect(document.querySelector(".chat-code-block code")).toHaveTextContent(
       "const answer: number = 42;",
     );
@@ -64,16 +68,11 @@ describe("AssistantMessage", () => {
     ).toBeVisible();
   });
 
-  it("opens links in a separate protected tab", () => {
+  it("opens links in a separate protected tab", async () => {
     render(<AssistantMessage content="[OpenAI](https://openai.com)" />);
 
-    expect(screen.getByRole("link", { name: "OpenAI" })).toHaveAttribute(
-      "rel",
-      "noreferrer noopener",
-    );
-    expect(screen.getByRole("link", { name: "OpenAI" })).toHaveAttribute(
-      "target",
-      "_blank",
-    );
+    const link = await screen.findByRole("link", { name: "OpenAI" });
+    expect(link).toHaveAttribute("rel", "noreferrer noopener");
+    expect(link).toHaveAttribute("target", "_blank");
   });
 });

@@ -32,6 +32,22 @@ export default defineConfig({
           }
 
           if (
+            id.includes("/react-markdown/") ||
+            id.includes("/remark-") ||
+            id.includes("/rehype-") ||
+            id.includes("/highlight.js/") ||
+            id.includes("/lowlight/") ||
+            id.includes("/unified/") ||
+            id.includes("/micromark") ||
+            id.includes("/mdast-") ||
+            id.includes("/hast-") ||
+            id.includes("/property-information/") ||
+            id.includes("/vfile")
+          ) {
+            return "markdown";
+          }
+
+          if (
             id.includes("/radix-ui/") ||
             id.includes("/lucide-react/") ||
             id.includes("/sonner/") ||
