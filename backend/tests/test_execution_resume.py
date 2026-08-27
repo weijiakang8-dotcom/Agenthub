@@ -17,12 +17,19 @@ class FakeSession:
         self.get_result = get_result
         self.execute_result = execute_result
         self.commits = 0
+        self.added = []
 
     async def get(self, _model, _obj_id):
         return self.get_result
 
     async def execute(self, _stmt):
         return self.execute_result
+
+    def add(self, obj):
+        self.added.append(obj)
+
+    async def flush(self):
+        return None
 
     async def commit(self):
         self.commits += 1
@@ -48,12 +55,6 @@ def test_resume_execution_enqueues_once(monkeypatch):
         get_result=execution,
         execute_result=SimpleNamespace(rowcount=1),
     )
-    delayed = []
-    monkeypatch.setattr(
-        executions.resume_workflow_task,
-        "delay",
-        lambda execution_id, decision: delayed.append((execution_id, decision)),
-    )
 
     result = asyncio.run(
         executions.resume_execution(
@@ -65,7 +66,9 @@ def test_resume_execution_enqueues_once(monkeypatch):
     )
 
     assert result.status == ExecutionStatus.RUNNING
-    assert len(delayed) == 1
+    assert len(session.added) == 1
+    assert session.added[0].event_type == "resume_workflow"
+    assert session.added[0].payload["execution_id"] == str(execution.id)
 
 
 def test_resume_execution_rejects_concurrent_update(monkeypatch):
@@ -75,13 +78,6 @@ def test_resume_execution_rejects_concurrent_update(monkeypatch):
         get_result=execution,
         execute_result=SimpleNamespace(rowcount=0),
     )
-    delayed = []
-    monkeypatch.setattr(
-        executions.resume_workflow_task,
-        "delay",
-        lambda *args, **kwargs: delayed.append(args),
-    )
-
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
             executions.resume_execution(
@@ -93,20 +89,13 @@ def test_resume_execution_rejects_concurrent_update(monkeypatch):
         )
 
     assert exc.value.status_code == 409
-    assert delayed == []
+    assert session.added == []
 
 
 def test_resume_rejects_early_approval_when_not_waiting(monkeypatch):
     org_id = uuid.uuid4()
     execution = make_execution(ExecutionStatus.RUNNING, org_id)
     session = FakeSession(get_result=execution)
-    delayed = []
-    monkeypatch.setattr(
-        executions.resume_workflow_task,
-        "delay",
-        lambda *args, **kwargs: delayed.append(args),
-    )
-
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
             executions.resume_execution(
@@ -118,4 +107,4 @@ def test_resume_rejects_early_approval_when_not_waiting(monkeypatch):
         )
 
     assert exc.value.status_code == 409
-    assert delayed == []
+    assert session.added == []

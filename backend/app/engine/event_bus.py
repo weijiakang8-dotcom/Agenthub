@@ -11,7 +11,7 @@ from sqlalchemy import select, update
 
 from app.config import settings
 from app.database import async_session_factory
-from app.models import Execution
+from app.models import Execution, ExecutionEvent
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,25 @@ async def publish_execution_event(execution_id: str, event: dict[str, Any]) -> N
                     if row is not None:
                         sequence = int(row.event_sequence)
                         correlation_id = row.correlation_id
+                        event_id = str(uuid_module.uuid4())
+                        payload = {
+                            "event_id": event_id,
+                            "execution_id": execution_id,
+                            "correlation_id": (
+                                str(correlation_id) if correlation_id else None
+                            ),
+                            "sequence": sequence,
+                            "ts": time.time_ns(),
+                            **event,
+                        }
+                        session.add(
+                            ExecutionEvent(
+                                id=uuid_module.UUID(event_id),
+                                execution_id=execution_uuid,
+                                sequence=sequence,
+                                payload=payload,
+                            )
+                        )
                 await session.commit()
         except Exception:
             logger.warning(
@@ -64,7 +83,8 @@ async def publish_execution_event(execution_id: str, event: dict[str, Any]) -> N
                 exc_info=True,
             )
 
-    event_id = str(uuid_module.uuid4())
+    if "event_id" not in locals():
+        event_id = str(uuid_module.uuid4())
     client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
     try:
         try:

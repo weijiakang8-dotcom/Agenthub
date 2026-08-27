@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "AgentHub"
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
+    TRUSTED_PROXY_IPS: str = ""
     BUILD_SHA: str = "development"
 
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5433/agenthub"

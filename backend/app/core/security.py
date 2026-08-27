@@ -87,13 +87,19 @@ def create_access_token(
 
 
 def create_refresh_token(
-    user_id: str | uuid.UUID, organization_id: str | uuid.UUID | None
+    user_id: str | uuid.UUID,
+    organization_id: str | uuid.UUID | None,
+    *,
+    family_id: str | uuid.UUID | None = None,
+    jti: str | uuid.UUID | None = None,
 ) -> str:
     return _encode_token(
         {
             "sub": str(user_id),
             "org": str(organization_id) if organization_id else None,
             "type": "refresh",
+            "jti": str(jti or uuid.uuid4()),
+            "family": str(family_id or uuid.uuid4()),
         },
         REFRESH_TOKEN_EXPIRE,
     )

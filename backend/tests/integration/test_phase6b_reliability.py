@@ -523,7 +523,7 @@ def test_cost_metering_and_unknown_semantics(monkeypatch):
     asyncio.run(main())
 
 
-def test_gateway_cross_provider_fallback_control_flow():
+def test_gateway_cross_provider_fallback_control_flow(monkeypatch):
     async def main() -> None:
         from langchain_core.messages import HumanMessage
 
@@ -551,6 +551,11 @@ def test_gateway_cross_provider_fallback_control_flow():
                 )
 
         gateway = ModelGateway()
+
+        async def configured_rate(_model_name, _organization_id):
+            return 0.002
+
+        monkeypatch.setattr(gateway, "_rate_for_model", configured_rate)
         response = await gateway.invoke(
             [FailingLLM(), WorkingLLM()],
             [HumanMessage(content="hi")],
@@ -565,8 +570,7 @@ def test_gateway_cross_provider_fallback_control_flow():
         assert metadata["attempts"] == 1
         assert metadata["input_tokens"] == 1000
         assert metadata["output_tokens"] == 500
-        # 真实 rate（deepseek-chat）存在时 cost 必须可计算
-        assert metadata.get("cost") is not None
+        assert metadata["cost"] == pytest.approx(0.003)
 
     asyncio.run(main())
 
@@ -735,12 +739,6 @@ def test_concurrent_resume_only_one_wins(monkeypatch):
         execution_id = await _insert_execution(
             conn, workflow_id, org_id, user_id, status="waiting_for_approval"
         )
-        delayed: list[str] = []
-        monkeypatch.setattr(
-            exec_routes.resume_workflow_task,
-            "delay",
-            lambda execution_id, decision: delayed.append(execution_id),
-        )
         user = SimpleNamespace(id=user_id, organization_id=org_id)
         codes: list[int] = []
 
@@ -760,7 +758,12 @@ def test_concurrent_resume_only_one_wins(monkeypatch):
         try:
             await asyncio.gather(resume_once(), resume_once())
             assert sorted(codes) == [202, 409]
-            assert len(delayed) == 1
+            outbox_count = await conn.fetchval(
+                "SELECT count(*) FROM outbox_events "
+                "WHERE execution_id=$1 AND event_type='resume_workflow'",
+                execution_id,
+            )
+            assert outbox_count == 1
         finally:
             await _cleanup(
                 conn,

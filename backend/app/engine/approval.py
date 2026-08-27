@@ -149,11 +149,11 @@ def validate_proposals(plan: dict[str, Any]) -> list[str]:
 
 
 def resume_approval_decision(decision: dict[str, Any]) -> tuple[bool, str]:
-    """resume 决策：approved=false 或携带 modified_plan 一律拒绝。"""
+    """resume 决策：只有 approved=true 且计划未修改才放行。"""
     if not isinstance(decision, dict):
         return False, "invalid resume decision"
-    if decision.get("approved") is False:
-        return False, "approval rejected"
+    if decision.get("approved") is not True:
+        return False, "explicit approval required"
     if decision.get("comment"):
         return False, "approval_mismatch: modified_plan requires new approval"
     return True, ""

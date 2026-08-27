@@ -6,6 +6,15 @@ import json
 from app import main as main_module
 
 
+def test_liveness_has_no_external_dependencies(monkeypatch):
+    monkeypatch.setattr(main_module.settings, "BUILD_SHA", "abc123")
+
+    assert asyncio.run(main_module.liveness()) == {
+        "status": "ok",
+        "build_sha": "abc123",
+    }
+
+
 def test_health_reports_build_sha(monkeypatch):
     class FakeConnection:
         async def __aenter__(self):

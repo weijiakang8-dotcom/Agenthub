@@ -45,8 +45,10 @@ class FakeSession:
     def __init__(self, execute_results=None):
         self.execute_results = list(execute_results or [])
         self.committed = False
+        self.statements = []
 
-    async def execute(self, _stmt):
+    async def execute(self, stmt):
+        self.statements.append(stmt)
         if not self.execute_results:
             raise AssertionError("no execute result configured")
         return self.execute_results.pop(0)
@@ -55,7 +57,7 @@ class FakeSession:
         self.committed = True
 
 
-def _client(monkeypatch, execute_results):
+def _client_with_session(monkeypatch, execute_results):
     async def allow_request(*_args, **_kwargs):
         return True
 
@@ -74,7 +76,12 @@ def _client(monkeypatch, execute_results):
 
     app.dependency_overrides[get_current_user] = override_user
     app.dependency_overrides[get_db] = override_db
-    return TestClient(app)
+    return TestClient(app), session
+
+
+def _client(monkeypatch, execute_results):
+    client, _session = _client_with_session(monkeypatch, execute_results)
+    return client
 
 
 def test_dispatch_analyze(monkeypatch):
@@ -152,6 +159,38 @@ def test_dispatch_decisions(monkeypatch):
     data = response.json()
     assert data[0]["step_id"] == "step_1"
     assert data[0]["outcome"] == "success"
+
+
+def test_dispatch_decisions_with_execution_stays_tenant_scoped(monkeypatch):
+    execution_id = uuid.uuid4()
+    client, session = _client_with_session(monkeypatch, [FakeResult(scalars=[])])
+
+    response = client.get(
+        "/api/dispatch/decisions", params={"execution_id": str(execution_id)}
+    )
+
+    assert response.status_code == 200
+    sql = str(session.statements[0].compile(compile_kwargs={"literal_binds": True}))
+    assert "routing_decisions.execution_id" in sql
+    assert "routing_decisions.organization_id" in sql
+    assert execution_id.hex in sql
+    assert ORG_ID.hex in sql
+
+
+def test_dispatch_clarifications_with_execution_stays_tenant_scoped(monkeypatch):
+    execution_id = uuid.uuid4()
+    client, session = _client_with_session(monkeypatch, [FakeResult(scalars=[])])
+
+    response = client.get(
+        "/api/dispatch/clarifications", params={"execution_id": str(execution_id)}
+    )
+
+    assert response.status_code == 200
+    sql = str(session.statements[0].compile(compile_kwargs={"literal_binds": True}))
+    assert "clarifications.execution_id" in sql
+    assert "clarifications.organization_id" in sql
+    assert execution_id.hex in sql
+    assert ORG_ID.hex in sql
 
 
 def test_usage_savings(monkeypatch):

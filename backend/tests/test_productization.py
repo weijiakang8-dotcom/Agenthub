@@ -301,6 +301,34 @@ def test_get_chat_models_uses_responses_for_openai_user_key(monkeypatch):
     assert llms[0].metadata["api_mode"] == "responses"
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1/api",
+        "http://10.0.0.1/api",
+        "http://169.254.169.254/latest/meta-data",
+        "http://[::1]/api",
+        "file:///etc/passwd",
+    ],
+)
+def test_real_effect_executor_rejects_unsafe_observe_urls(url):
+    from app.adapters.real_effect_executor import RealEffectExecutor
+    from app.kernel.effects.command import Command
+
+    result = RealEffectExecutor().execute_effect(
+        Command(
+            command_id="unsafe-observe",
+            idempotency_key="unsafe-observe",
+            capability_id="observe",
+            payload={"url": url},
+        )
+    )
+
+    assert result.status == "error"
+    assert result.committed is None
+    assert "public HTTP" in result.error
+
+
 def test_real_effect_executor_keeps_url_query_string(monkeypatch):
     from app.adapters.real_effect_executor import RealEffectExecutor
     from app.kernel.effects.command import Command
@@ -332,8 +360,15 @@ def test_real_effect_executor_keeps_url_query_string(monkeypatch):
             captured["params"] = params
             return FakeResponse()
 
+    async def fake_request_public(client, method, url, **kwargs):
+        assert method == "GET"
+        return await client.get(url, params=kwargs.get("params"))
+
     monkeypatch.setattr(
         "app.adapters.real_effect_executor.httpx.AsyncClient", FakeClient
+    )
+    monkeypatch.setattr(
+        "app.adapters.real_effect_executor.request_public", fake_request_public
     )
 
     result = RealEffectExecutor().execute_effect(

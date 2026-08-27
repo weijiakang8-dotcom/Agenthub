@@ -195,7 +195,7 @@ export function AuthModal({
               code,
             });
       setAccessToken(res.access_token);
-      setRefreshToken(res.refresh_token);
+      setRefreshToken(res.refresh_token ?? null);
       toast.success(mode === "login" ? "登录成功" : "注册成功");
       onOpenChange(false);
       window.location.reload();

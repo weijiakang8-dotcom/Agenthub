@@ -6,7 +6,7 @@ import uuid
 from typing import Annotated, Literal
 
 import redis.asyncio as aioredis
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
@@ -14,12 +14,20 @@ from app.api.deps import CurrentUserDep
 from app.config import settings
 from app.core.email import send_email
 from app.core.rate_limit import rate_limit
+from app.core.refresh_sessions import (
+    RefreshSessionError,
+    RefreshTokenReplayError,
+    issue_refresh_session,
+    revoke_family,
+    revoke_user_sessions,
+    rotate_refresh_session,
+)
 from app.core.request_utils import get_client_ip
 from app.core.security import (
+    REFRESH_TOKEN_EXPIRE,
     TokenExpiredError,
     TokenInvalidError,
     create_access_token,
-    create_refresh_token,
     decode_token_checked,
     hash_password,
     verify_password,
@@ -68,11 +76,12 @@ class AuthResponse(BaseModel):
     user: UserRead
     organization: OrganizationRead
     access_token: str
-    refresh_token: str
+    refresh_token: str | None = None
 
 
 class RefreshResponse(BaseModel):
     access_token: str
+    refresh_token: str | None = None
 
 
 class SendCodeRequest(BaseModel):
@@ -100,6 +109,42 @@ CODE_TTL = 300
 CODE_MAX_ATTEMPTS = 5
 RESET_CODE_TTL = 600
 RESET_MAX_ATTEMPTS = 5
+REFRESH_COOKIE_NAME = "agenthub_refresh"
+DESKTOP_CLIENT_HEADER = "x-agenthub-client"
+
+
+def _is_desktop_client(request: Request | None) -> bool:
+    return (
+        request is not None and request.headers.get(DESKTOP_CLIENT_HEADER) == "desktop"
+    )
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        REFRESH_COOKIE_NAME,
+        token,
+        max_age=int(REFRESH_TOKEN_EXPIRE.total_seconds()),
+        httponly=True,
+        secure=settings.ENVIRONMENT in {"staging", "production"},
+        samesite="lax",
+        path="/api/auth",
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        REFRESH_COOKIE_NAME,
+        httponly=True,
+        secure=settings.ENVIRONMENT in {"staging", "production"},
+        samesite="lax",
+        path="/api/auth",
+    )
+
+
+def _validate_cookie_origin(request: Request) -> None:
+    origin = request.headers.get("origin")
+    if origin not in settings.cors_origin_list:
+        raise auth_error(403, "CSRF_ORIGIN_REJECTED", "请求来源无效")
 
 
 def auth_error(status_code: int, code: str, message: str) -> HTTPException:
@@ -241,6 +286,7 @@ async def _set_user_password(email: str, new_password: str) -> bool:
             return False
         user.password_hash = hash_password(new_password)
         user.password_changed_at = utcnow()
+        await revoke_user_sessions(session, user.id)
         await session.commit()
         return True
 
@@ -277,7 +323,9 @@ async def send_code(payload: SendCodeRequest, request: Request) -> dict:
 
 
 @router.post("/register", response_model=AuthResponse, status_code=201)
-async def register(payload: RegisterRequest) -> AuthResponse:
+async def register(
+    payload: RegisterRequest, response: Response, request: Request = None
+) -> AuthResponse:
     email = _validate_email(payload.email)
     if len(payload.password) < 8:
         raise auth_error(422, "INVALID_PASSWORD", "密码长度不足，请输入至少8位密码")
@@ -309,17 +357,24 @@ async def register(payload: RegisterRequest) -> AuthResponse:
         await session.commit()
         await session.refresh(user)
         await session.refresh(organization)
+        refresh_token = await issue_refresh_session(session, user)
+        await session.commit()
 
+        desktop = _is_desktop_client(request)
+        if not desktop:
+            _set_refresh_cookie(response, refresh_token)
         return AuthResponse(
             user=UserRead.model_validate(user),
             organization=OrganizationRead.model_validate(organization),
             access_token=create_access_token(user.id, organization.id),
-            refresh_token=create_refresh_token(user.id, organization.id),
+            refresh_token=refresh_token if desktop else None,
         )
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(payload: LoginRequest, request: Request = None) -> AuthResponse:
+async def login(
+    payload: LoginRequest, response: Response, request: Request = None
+) -> AuthResponse:
     email = _validate_email(payload.email)
     # 登录流程已移除邮箱验证码校验，仅保留账号 + 密码。
     if request is not None:
@@ -346,11 +401,16 @@ async def login(payload: LoginRequest, request: Request = None) -> AuthResponse:
         if organization is None:
             raise auth_error(500, "AUTH_001", "登录失败，请稍后再试")
 
+        refresh_token = await issue_refresh_session(session, user)
+        await session.commit()
+        desktop = _is_desktop_client(request)
+        if not desktop:
+            _set_refresh_cookie(response, refresh_token)
         return AuthResponse(
             user=UserRead.model_validate(user),
             organization=OrganizationRead.model_validate(organization),
             access_token=create_access_token(user.id, user.organization_id),
-            refresh_token=create_refresh_token(user.id, user.organization_id),
+            refresh_token=refresh_token if desktop else None,
         )
 
 
@@ -405,12 +465,20 @@ async def reset_password(payload: ResetPasswordRequest) -> dict:
 
 @router.post("/refresh", response_model=RefreshResponse)
 async def refresh(
+    request: Request,
+    response: Response,
     authorization: Annotated[str | None, Header()] = None,
 ) -> RefreshResponse:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise auth_error(401, "INVALID_REFRESH_TOKEN", "缺少刷新令牌")
-
-    token = authorization.removeprefix("Bearer ")
+    desktop = _is_desktop_client(request)
+    if desktop:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise auth_error(401, "INVALID_REFRESH_TOKEN", "缺少刷新令牌")
+        token = authorization.removeprefix("Bearer ")
+    else:
+        _validate_cookie_origin(request)
+        token = request.cookies.get(REFRESH_COOKIE_NAME)
+        if not token:
+            raise auth_error(401, "INVALID_REFRESH_TOKEN", "缺少刷新令牌")
     try:
         payload = decode_token_checked(token)
     except TokenExpiredError:
@@ -422,22 +490,58 @@ async def refresh(
         raise auth_error(401, "INVALID_REFRESH_TOKEN", "刷新令牌无效")
 
     try:
-        user_id = uuid.UUID(str(payload.get("sub")))
+        uuid.UUID(str(payload.get("sub")))
     except (ValueError, TypeError):
         raise auth_error(401, "INVALID_REFRESH_TOKEN", "刷新令牌无效")
 
     async with master_session_factory() as session:
-        user = await session.get(User, user_id)
-        if user is None or not user.is_active:
-            raise auth_error(401, "INVALID_REFRESH_TOKEN", "用户不存在或已停用")
+        try:
+            replacement, user = await rotate_refresh_session(session, token)
+        except RefreshTokenReplayError:
+            raise auth_error(
+                401,
+                "REFRESH_TOKEN_REPLAYED",
+                "检测到刷新令牌重放，当前会话已撤销",
+            )
+        except RefreshSessionError:
+            raise auth_error(401, "INVALID_REFRESH_TOKEN", "刷新令牌无效或已撤销")
+        await session.commit()
+        if not desktop:
+            _set_refresh_cookie(response, replacement)
         return RefreshResponse(
-            access_token=create_access_token(user.id, user.organization_id)
+            access_token=create_access_token(user.id, user.organization_id),
+            refresh_token=replacement if desktop else None,
         )
 
 
 @router.post("/logout")
-async def logout() -> dict:
-    # JWT 无状态，前端删除 token 即可。
+async def logout(
+    request: Request,
+    response: Response,
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict:
+    desktop = _is_desktop_client(request)
+    if desktop:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise auth_error(401, "INVALID_REFRESH_TOKEN", "缺少刷新令牌")
+        token = authorization.removeprefix("Bearer ")
+    else:
+        _validate_cookie_origin(request)
+        token = request.cookies.get(REFRESH_COOKIE_NAME)
+        if not token:
+            raise auth_error(401, "INVALID_REFRESH_TOKEN", "缺少刷新令牌")
+    try:
+        payload = decode_token_checked(token)
+        family_id = uuid.UUID(str(payload.get("family")))
+    except (TokenExpiredError, TokenInvalidError, TypeError, ValueError):
+        raise auth_error(401, "INVALID_REFRESH_TOKEN", "刷新令牌无效")
+    if payload.get("type") != "refresh":
+        raise auth_error(401, "INVALID_REFRESH_TOKEN", "刷新令牌无效")
+    async with master_session_factory() as session:
+        await revoke_family(session, family_id)
+        await session.commit()
+    if not desktop:
+        _clear_refresh_cookie(response)
     return {"status": "ok"}
 
 

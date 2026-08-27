@@ -11,7 +11,7 @@ from app.api.deps import CurrentUserWsDep
 from app.config import settings
 from app.database import master_session_factory
 from app.engine.event_bus import CHANNEL_PREFIX
-from app.models import Execution, ToolCall, User
+from app.models import Execution, ExecutionEvent, ToolCall, User
 
 router = APIRouter()
 
@@ -72,6 +72,26 @@ async def execution_websocket(
     redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
     pubsub = redis.pubsub()
     await pubsub.subscribe(f"{CHANNEL_PREFIX}{execution_id}")
+
+    try:
+        after_sequence = max(0, int(websocket.query_params.get("after_sequence", "0")))
+    except ValueError:
+        after_sequence = 0
+    async with master_session_factory() as session:
+        historical = list(
+            (
+                await session.execute(
+                    select(ExecutionEvent)
+                    .where(
+                        ExecutionEvent.execution_id == execution_id,
+                        ExecutionEvent.sequence > after_sequence,
+                    )
+                    .order_by(ExecutionEvent.sequence)
+                )
+            ).scalars()
+        )
+    for event in historical:
+        await websocket.send_json(event.payload)
 
     try:
         while True:

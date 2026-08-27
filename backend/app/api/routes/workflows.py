@@ -179,7 +179,10 @@ async def list_workflow_versions(
     ]
 
 
-@router.post("/{workflow_id}/versions")
+@router.post(
+    "/{workflow_id}/versions",
+    dependencies=[Depends(require_permission("resources:write"))],
+)
 async def create_workflow_version(
     workflow_id: uuid.UUID,
     session: SessionDep,
@@ -192,7 +195,11 @@ async def create_workflow_version(
     return {"version": version.version, "id": str(version.id)}
 
 
-@router.post("/{workflow_id}/rollback", response_model=WorkflowRead)
+@router.post(
+    "/{workflow_id}/rollback",
+    response_model=WorkflowRead,
+    dependencies=[Depends(require_permission("resources:write"))],
+)
 async def rollback_workflow(
     workflow_id: uuid.UUID,
     version: int,

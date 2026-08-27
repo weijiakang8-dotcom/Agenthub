@@ -403,6 +403,16 @@ const CONFIGURED_API_BASE = import.meta.env.VITE_API_BASE_URL as
   string | undefined;
 export const API_BASE = (CONFIGURED_API_BASE || "/api").replace(/\/$/, "");
 
+export function isDesktopClient(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    Boolean(
+      (window as unknown as { __TAURI_INTERNALS__?: unknown })
+        .__TAURI_INTERNALS__,
+    )
+  );
+}
+
 export function apiUrl(path: string): string {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE}${normalized}`;
@@ -410,6 +420,7 @@ export function apiUrl(path: string): string {
 
 const ACCESS_TOKEN_KEY = "agenthub.access_token";
 const REFRESH_TOKEN_KEY = "agenthub.refresh_token";
+const AUTH_CHANNEL_NAME = "agenthub.auth";
 const AUTH_PUBLIC_PATHS = new Set([
   "/auth/login",
   "/auth/register",
@@ -440,12 +451,48 @@ export function setAccessToken(token: string | null) {
 }
 
 export function getRefreshToken() {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
+  return isDesktopClient() ? localStorage.getItem(REFRESH_TOKEN_KEY) : null;
 }
 
 export function setRefreshToken(token: string | null) {
+  if (!isDesktopClient()) {
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    return;
+  }
   if (token) localStorage.setItem(REFRESH_TOKEN_KEY, token);
   else localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+function authChannel(): BroadcastChannel | null {
+  return typeof BroadcastChannel === "undefined"
+    ? null
+    : new BroadcastChannel(AUTH_CHANNEL_NAME);
+}
+
+export function broadcastAuthEvent(
+  event: "access-token" | "logout",
+  accessToken?: string,
+) {
+  const channel = authChannel();
+  channel?.postMessage({ event, accessToken });
+  channel?.close();
+}
+
+export function startAuthSync(onLogout?: () => void): () => void {
+  const channel = authChannel();
+  if (!channel) return () => undefined;
+  channel.onmessage = ({ data }) => {
+    if (
+      data?.event === "access-token" &&
+      typeof data.accessToken === "string"
+    ) {
+      setAccessToken(data.accessToken);
+    } else if (data?.event === "logout") {
+      clearTokens();
+      onLogout?.();
+    }
+  };
+  return () => channel.close();
 }
 
 export function clearTokens() {
@@ -453,10 +500,25 @@ export function clearTokens() {
   setRefreshToken(null);
 }
 
-export function logout() {
-  clearTokens();
-  if (typeof window !== "undefined") {
-    window.location.reload();
+export async function logout() {
+  const desktop = isDesktopClient();
+  const refreshToken = getRefreshToken();
+  try {
+    await fetch(apiUrl("/auth/logout"), {
+      method: "POST",
+      credentials: "include",
+      headers:
+        desktop && refreshToken
+          ? {
+              Authorization: `Bearer ${refreshToken}`,
+              "X-AgentHub-Client": "desktop",
+            }
+          : undefined,
+    });
+  } finally {
+    clearTokens();
+    broadcastAuthEvent("logout");
+    if (typeof window !== "undefined") window.location.reload();
   }
 }
 
@@ -465,20 +527,32 @@ let refreshPromise: Promise<string | null> | null = null;
 async function refreshAccessToken(): Promise<string | null> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
+      const desktop = isDesktopClient();
       const refreshToken = getRefreshToken();
-      if (!refreshToken) return null;
+      if (desktop && !refreshToken) return null;
       try {
         const res = await fetch(apiUrl("/auth/refresh"), {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${refreshToken}`,
+            ...(desktop
+              ? {
+                  Authorization: `Bearer ${refreshToken}`,
+                  "X-AgentHub-Client": "desktop",
+                }
+              : {}),
           },
         });
         if (!res.ok) return null;
-        const data = (await res.json()) as { access_token?: string };
-        if (data.access_token) {
+        const data = (await res.json()) as {
+          access_token?: string;
+          refresh_token?: string;
+        };
+        if (data.access_token && (!desktop || data.refresh_token)) {
+          if (desktop) setRefreshToken(data.refresh_token ?? null);
           setAccessToken(data.access_token);
+          broadcastAuthEvent("access-token", data.access_token);
           return data.access_token;
         }
         return null;
@@ -953,5 +1027,5 @@ export type AuthResponse = {
   user: AuthUser;
   organization: { id: string; name: string; slug: string; settings: unknown };
   access_token: string;
-  refresh_token: string;
+  refresh_token?: string | null;
 };

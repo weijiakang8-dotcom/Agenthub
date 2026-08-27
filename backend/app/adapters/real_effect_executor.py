@@ -7,6 +7,7 @@ from email.message import EmailMessage
 
 import httpx
 
+from app.core.safe_outbound import request_public
 from app.kernel.effects.command import Command
 from app.kernel.effects.port import EffectResult
 
@@ -125,8 +126,10 @@ class RealEffectExecutor:
             "delay_ms": int(command.payload.get("delay_ms", 0)),
         }
         try:
-            async with httpx.AsyncClient(timeout=timeout_ms / 1000) as client:
-                response = await client.post(url, json=body)
+            async with httpx.AsyncClient(
+                timeout=timeout_ms / 1000, follow_redirects=False
+            ) as client:
+                response = await request_public(client, "POST", url, json=body)
             data = response.json()
             committed = data.get("committed")
             if data.get("status") == "duplicate":
@@ -154,9 +157,11 @@ class RealEffectExecutor:
 
     async def query_operation(self, operation_id: str, base_url: str) -> EffectResult:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                response = await client.get(
-                    f"{base_url}/api/external/effect/{operation_id}"
+            async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+                response = await request_public(
+                    client,
+                    "GET",
+                    f"{base_url}/api/external/effect/{operation_id}",
                 )
             data = response.json()
             committed = data.get("committed")
@@ -174,12 +179,9 @@ class RealEffectExecutor:
         if not url:
             return EffectResult(status="error", committed=False, error="missing url")
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
                 params = command.payload.get("params")
-                if params:
-                    response = await client.get(url, params=params)
-                else:
-                    response = await client.get(url)
+                response = await request_public(client, "GET", url, params=params)
             if response.status_code == 200:
                 return EffectResult(
                     status="success",

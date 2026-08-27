@@ -65,6 +65,16 @@ class Execution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=0,
         server_default=text("0"),
     )
+    lease_owner: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    run_attempt: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     # LangGraph 的 Checkpoint 状态快照，开始运行前可为空
     checkpoint_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     intent: Mapped[dict | None] = mapped_column(JSON, nullable=True)

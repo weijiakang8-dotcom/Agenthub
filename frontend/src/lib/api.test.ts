@@ -5,6 +5,7 @@ import {
   clearTokens,
   getAccessToken,
   getRefreshToken,
+  isDesktopClient,
   setAccessToken,
   setRefreshToken,
 } from "@/lib/api";
@@ -12,6 +13,8 @@ import {
 describe("api client", () => {
   beforeEach(() => {
     localStorage.clear();
+    delete (window as unknown as { __TAURI_INTERNALS__?: unknown })
+      .__TAURI_INTERNALS__;
     vi.restoreAllMocks();
   });
 
@@ -23,12 +26,23 @@ describe("api client", () => {
     expect(getAccessToken()).toBeNull();
   });
 
-  it("persists and clears the refresh token", () => {
+  it("never persists the web refresh token", () => {
+    expect(isDesktopClient()).toBe(false);
+    localStorage.setItem("agenthub.refresh_token", "legacy-token");
+    setRefreshToken("refresh-123");
     expect(getRefreshToken()).toBeNull();
+    expect(localStorage.getItem("agenthub.refresh_token")).toBeNull();
+  });
+
+  it("keeps desktop refresh token storage compatible", () => {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: {},
+    });
     setRefreshToken("refresh-123");
     expect(getRefreshToken()).toBe("refresh-123");
-    setRefreshToken(null);
-    expect(getRefreshToken()).toBeNull();
+    delete (window as unknown as { __TAURI_INTERNALS__?: unknown })
+      .__TAURI_INTERNALS__;
   });
 
   it("clearTokens removes access and refresh tokens", () => {
@@ -76,7 +90,6 @@ describe("api client", () => {
 
   it("refreshes the access token and retries on 401", async () => {
     setAccessToken("expired-access");
-    setRefreshToken("refresh-token");
 
     const responses = [
       new Response(
@@ -85,9 +98,13 @@ describe("api client", () => {
           status: 401,
         },
       ),
-      new Response(JSON.stringify({ access_token: "new-access" }), {
-        status: 200,
-      }),
+      new Response(
+        JSON.stringify({
+          access_token: "new-access",
+          refresh_token: "new-refresh",
+        }),
+        { status: 200 },
+      ),
       new Response(JSON.stringify([{ id: "1" }]), { status: 200 }),
     ];
 
@@ -99,7 +116,14 @@ describe("api client", () => {
 
     expect(result).toEqual([{ id: "1" }]);
     expect(getAccessToken()).toBe("new-access");
+    expect(getRefreshToken()).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({ credentials: "include" }),
+    );
+    expect(
+      new Headers(fetchMock.mock.calls[1]?.[1]?.headers).has("Authorization"),
+    ).toBe(false);
   });
 
   it("logs out when refresh fails", async () => {

@@ -52,5 +52,28 @@ def test_require_permission_models_manage_is_admin_only():
     assert asyncio.run(dependency(SimpleNamespace(role="admin"))).role == "admin"
 
 
+@pytest.mark.parametrize(
+    "permission",
+    ["resources:write", "executions:write"],
+)
+def test_viewer_cannot_mutate_resources_or_execute(permission):
+    dependency = require_permission(permission)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(dependency(SimpleNamespace(role="viewer")))
+
+    assert exc.value.status_code == 403
+
+
+def test_admin_only_operations_reject_member():
+    dependency = require_permission("operations:manage")
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(dependency(SimpleNamespace(role="member")))
+
+    assert exc.value.status_code == 403
+    assert asyncio.run(dependency(SimpleNamespace(role="admin"))).role == "admin"
+
+
 def test_valid_roles_are_admin_member_viewer():
     assert VALID_ROLES == {"admin", "member", "viewer"}

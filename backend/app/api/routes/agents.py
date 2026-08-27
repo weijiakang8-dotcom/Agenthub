@@ -3,7 +3,8 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 
-from app.api.deps import CurrentUserDep, SessionDep, get_current_user
+from app.api.deps import CurrentUserDep, SessionDep
+from app.core.permissions import require_permission
 from app.models import Agent
 from app.models.enums import AgentStatus
 from app.schemas.agent import AgentCreate, AgentRead, AgentUpdate
@@ -48,7 +49,7 @@ async def get_agent(
     "",
     response_model=AgentRead,
     status_code=201,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(require_permission("resources:write"))],
 )
 async def create_agent(
     payload: AgentCreate, session: SessionDep, user: CurrentUserDep
@@ -72,7 +73,7 @@ async def create_agent(
 @router.put(
     "/{agent_id}",
     response_model=AgentRead,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(require_permission("resources:write"))],
 )
 async def update_agent(
     agent_id: uuid.UUID, payload: AgentUpdate, session: SessionDep, user: CurrentUserDep
@@ -109,7 +110,7 @@ async def update_agent(
 @router.delete(
     "/{agent_id}",
     status_code=204,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(require_permission("resources:write"))],
 )
 async def delete_agent(
     agent_id: uuid.UUID, session: SessionDep, user: CurrentUserDep

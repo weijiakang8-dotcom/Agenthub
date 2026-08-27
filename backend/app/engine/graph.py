@@ -982,6 +982,10 @@ def make_capability_node(name: str) -> Callable[[AgentState], dict[str, Any]]:
 
     async def node(state: AgentState) -> dict[str, Any]:
         execution_id = state.get("execution_id") or ""
+        if execution_id:
+            from app.engine.cancellation import ensure_execution_active
+
+            await ensure_execution_active(uuid.UUID(execution_id))
         index = state.get("current_step", 0)
         usage: list[dict[str, Any]] = []
         step_start = time.perf_counter()
@@ -1646,6 +1650,10 @@ async def _parallel_read_only_node(state: AgentState) -> dict[str, Any]:
     plan = state.get("plan") or []
     start = int(state.get("current_step", 0))
     execution_id = state.get("execution_id") or ""
+    if execution_id:
+        from app.engine.cancellation import ensure_execution_active
+
+        await ensure_execution_active(uuid.UUID(execution_id))
 
     # —— 预算闸门（与串行能力节点一致）：只读超限优雅终止，并行不得绕过 ——
     budget = state.get("budget_used") or _new_budget_state()

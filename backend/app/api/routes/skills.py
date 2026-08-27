@@ -3,12 +3,13 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 
 from app.adapters.errors import UnsupportedKernelWorkflowError
 from app.api.deps import CurrentUserDep, SessionDep
+from app.core.permissions import require_permission
 from app.database import async_session_factory
 from app.models import Execution, Skill, Workflow
 from app.models.base import utcnow
@@ -92,7 +93,11 @@ async def list_skills(session: SessionDep, user: CurrentUserDep) -> list[dict]:
     return [_serialize(skill) for skill in result.scalars().all()]
 
 
-@router.post("", status_code=201)
+@router.post(
+    "",
+    status_code=201,
+    dependencies=[Depends(require_permission("resources:write"))],
+)
 async def create_skill(
     payload: SkillCreate, session: SessionDep, user: CurrentUserDep
 ) -> dict:
@@ -117,7 +122,10 @@ async def create_skill(
     return _serialize(skill)
 
 
-@router.put("/{skill_id}")
+@router.put(
+    "/{skill_id}",
+    dependencies=[Depends(require_permission("resources:write"))],
+)
 async def update_skill(
     skill_id: uuid.UUID,
     payload: SkillUpdate,
@@ -134,7 +142,11 @@ async def update_skill(
     return _serialize(skill)
 
 
-@router.delete("/{skill_id}", status_code=204)
+@router.delete(
+    "/{skill_id}",
+    status_code=204,
+    dependencies=[Depends(require_permission("resources:write"))],
+)
 async def delete_skill(
     skill_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
 ) -> None:
@@ -145,7 +157,11 @@ async def delete_skill(
     await session.commit()
 
 
-@router.post("/{skill_id}/execute", status_code=202)
+@router.post(
+    "/{skill_id}/execute",
+    status_code=202,
+    dependencies=[Depends(require_permission("executions:write"))],
+)
 async def execute_skill(
     skill_id: uuid.UUID,
     payload: SkillExecute,
@@ -207,7 +223,11 @@ async def execute_skill(
 # —— 调度中心（二次装修新增）：预设包 / 匹配 / 自成长 ——
 
 
-@router.post("/seed-presets", status_code=201)
+@router.post(
+    "/seed-presets",
+    status_code=201,
+    dependencies=[Depends(require_permission("operations:manage"))],
+)
 async def seed_presets() -> dict:
     """幂等播种全局预设 Skill 包。"""
     created = await ensure_preset_skills()

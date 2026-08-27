@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from app.api.routes import documents as documents_routes
 from app.api.routes import eval as eval_routes
 from app.core import notification as notification_routes
-from app.models import Document, EvalDataset, ExecutionStatus
+from app.models import Document, EvalDataset, ExecutionStatus, Workflow
 
 ORG_ID = uuid.uuid4()
 
@@ -103,8 +103,12 @@ class FakeUpload:
         self.content_type = content_type
         self.content = content
 
-    async def read(self):
-        return self.content
+    async def read(self, size: int = -1):
+        if size < 0:
+            content, self.content = self.content, b""
+            return content
+        content, self.content = self.content[:size], self.content[size:]
+        return content
 
 
 def make_document(name: str, content: str) -> Document:
@@ -119,6 +123,21 @@ def make_document(name: str, content: str) -> Document:
         created_at=datetime(2026, 8, 15, tzinfo=timezone.utc),
         updated_at=datetime(2026, 8, 15, tzinfo=timezone.utc),
     )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1/hook",
+        "http://10.0.0.1/hook",
+        "http://169.254.169.254/latest/meta-data",
+        "http://[::1]/hook",
+        "file:///etc/passwd",
+    ],
+)
+def test_notification_webhook_rejects_private_and_invalid_urls(url):
+    with pytest.raises(ValueError, match="public HTTP"):
+        asyncio.run(notification_routes._send_webhook(url, {"message": "test"}))
 
 
 def test_send_notification_success(monkeypatch):
@@ -201,6 +220,63 @@ def test_upload_document_uses_embedding(monkeypatch):
     assert session.added[0].embedding == [0.1, 0.2]
 
 
+def test_upload_document_rejects_file_over_size_limit(monkeypatch):
+    session = FakeSession()
+    monkeypatch.setattr(documents_routes, "MAX_UPLOAD_BYTES", 8)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            documents_routes.upload_document(
+                session=session,
+                user=make_user(),
+                file=FakeUpload(content=b"123456789"),
+            )
+        )
+
+    assert exc.value.status_code == 413
+    assert exc.value.detail == "File exceeds upload size limit"
+
+
+def test_upload_document_rejects_pdf_without_magic_bytes():
+    session = FakeSession()
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            documents_routes.upload_document(
+                session=session,
+                user=make_user(),
+                file=FakeUpload(
+                    filename="fake.pdf",
+                    content_type="application/pdf",
+                    content=b"not a real pdf",
+                ),
+            )
+        )
+
+    assert exc.value.status_code == 422
+    assert exc.value.detail == "File content does not match PDF type"
+
+
+def test_upload_document_rejects_mime_extension_mismatch():
+    session = FakeSession()
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            documents_routes.upload_document(
+                session=session,
+                user=make_user(),
+                file=FakeUpload(
+                    filename="fake.txt",
+                    content_type="application/pdf",
+                    content=b"%PDF-1.4",
+                ),
+            )
+        )
+
+    assert exc.value.status_code == 422
+    assert exc.value.detail == "File content type does not match extension"
+
+
 def test_upload_document_rejects_unsupported_type(monkeypatch):
     session = FakeSession()
 
@@ -268,6 +344,48 @@ def test_search_documents_scores_keywords(monkeypatch):
     )
 
     assert [item["name"] for item in result] == ["a.md", "b.md"]
+
+
+def test_get_eval_workflow_rejects_other_tenant(monkeypatch):
+    workflow_id = uuid.uuid4()
+    foreign_workflow = Workflow(
+        id=workflow_id,
+        name="foreign",
+        description="other tenant",
+        agent_chain=[],
+        organization_id=uuid.uuid4(),
+        created_by="other",
+    )
+    session = FakeSession(get_result=foreign_workflow)
+    monkeypatch.setattr(
+        eval_routes, "async_session_factory", FakeSessionFactory(session)
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(eval_routes._get_or_create_workflow(ORG_ID, workflow_id))
+
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "Workflow not found"
+
+
+def test_get_eval_workflow_allows_same_tenant(monkeypatch):
+    workflow_id = uuid.uuid4()
+    workflow = Workflow(
+        id=workflow_id,
+        name="owned",
+        description="same tenant",
+        agent_chain=[],
+        organization_id=ORG_ID,
+        created_by="owner",
+    )
+    session = FakeSession(get_result=workflow)
+    monkeypatch.setattr(
+        eval_routes, "async_session_factory", FakeSessionFactory(session)
+    )
+
+    result = asyncio.run(eval_routes._get_or_create_workflow(ORG_ID, workflow_id))
+
+    assert result == workflow_id
 
 
 def test_run_eval_empty_dataset_reports_zero_items(monkeypatch):

@@ -23,12 +23,15 @@ from app.models.enums import (
 )
 from app.models.eval import EvalDataset, EvalRun
 from app.models.execution import Execution
+from app.models.execution_event import ExecutionEvent
 from app.models.execution_feedback import ExecutionFeedback
 from app.models.feedback import Feedback
 from app.models.intervention_log import InterventionLog
 from app.models.model_config import ModelConfig
 from app.models.notification import Notification
 from app.models.organization import Organization
+from app.models.outbox_event import OutboxEvent
+from app.models.refresh_session import RefreshSession
 from app.models.shadow_audit import ShadowAuditRecord
 from app.models.skill import Skill
 from app.models.tool_call import ToolCall
@@ -54,6 +57,7 @@ __all__ = [
     "EvalDataset",
     "EvalRun",
     "Execution",
+    "ExecutionEvent",
     "ExecutionFeedback",
     "ExecutionStatus",
     "Feedback",
@@ -62,6 +66,8 @@ __all__ = [
     "ModelPerformance",
     "Notification",
     "Organization",
+    "OutboxEvent",
+    "RefreshSession",
     "RoutingDecision",
     "SavingsReport",
     "ShadowAuditRecord",

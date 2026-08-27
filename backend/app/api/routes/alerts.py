@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 
-from app.api.deps import CurrentUserDep, SessionDep, get_current_user
+from app.api.deps import CurrentUserDep, SessionDep
 from app.core.alerting import evaluate_alert_rules
+from app.core.permissions import require_permission
 from app.models import AlertEvent, utcnow
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -78,7 +79,7 @@ async def get_alert(
 @router.post(
     "/evaluate",
     response_model=list[AlertRead],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(require_permission("resources:write"))],
 )
 async def evaluate() -> list[AlertEvent]:
     return await evaluate_alert_rules()
@@ -87,7 +88,7 @@ async def evaluate() -> list[AlertEvent]:
 @router.post(
     "/{alert_id}/resolve",
     response_model=AlertRead,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(require_permission("resources:write"))],
 )
 async def resolve(
     alert_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
@@ -109,7 +110,7 @@ async def resolve(
 @router.put(
     "/{alert_id}/resolve",
     response_model=AlertRead,
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(require_permission("resources:write"))],
 )
 async def resolve_put(
     alert_id: uuid.UUID, session: SessionDep, user: CurrentUserDep
