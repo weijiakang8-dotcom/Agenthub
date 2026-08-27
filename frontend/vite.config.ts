@@ -23,14 +23,6 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
 
-          if (id.includes("/recharts/") || id.includes("/d3-")) {
-            return "charts";
-          }
-
-          if (id.includes("/@xyflow/")) {
-            return "flow";
-          }
-
           if (
             id.includes("/react-markdown/") ||
             id.includes("/remark-") ||
