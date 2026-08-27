@@ -211,6 +211,47 @@ jobs:
         run: docker build -f docker/Dockerfile.backend -t agenthub-backend:ci .
       - name: Build frontend image
         run: docker build -f docker/Dockerfile.frontend -t agenthub-frontend:ci .
+      - name: Scan backend image vulnerabilities
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: agenthub-backend:ci
+          format: sarif
+          output: trivy-backend.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Scan frontend image vulnerabilities
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: agenthub-frontend:ci
+          format: sarif
+          output: trivy-frontend.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+      - name: Generate backend SBOM
+        uses: anchore/sbom-action@v0.20.6
+        with:
+          image: agenthub-backend:ci
+          format: spdx-json
+          output-file: sbom-backend.spdx.json
+      - name: Generate frontend SBOM
+        uses: anchore/sbom-action@v0.20.6
+        with:
+          image: agenthub-frontend:ci
+          format: spdx-json
+          output-file: sbom-frontend.spdx.json
+      - name: Upload supply-chain evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-evidence
+          path: |
+            trivy-backend.sarif
+            trivy-frontend.sarif
+            sbom-backend.spdx.json
+            sbom-frontend.spdx.json
+          retention-days: 30
 
   benchmark-gate:
     runs-on: ubuntu-latest
