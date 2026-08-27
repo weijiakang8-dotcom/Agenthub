@@ -46,8 +46,8 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
-      - name: Install test dependency
-        run: pip install pytest
+      - name: Install test and quality dependencies
+        run: pip install pytest ruff black
       - name: Migrate database to head
         working-directory: backend
         run: alembic upgrade head
